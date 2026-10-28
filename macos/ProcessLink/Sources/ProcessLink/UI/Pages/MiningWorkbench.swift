@@ -7,6 +7,12 @@ import UniformTypeIdentifiers
 /// log: filters, the process graph, cases, token replay, root causes and a
 /// what-if calculation.
 struct MiningWorkbench: View {
+    enum ProcessView: String, CaseIterable, Identifiable {
+        case dfg, tree, bpmn
+        var id: String { rawValue }
+        var label: String { self == .dfg ? "Flow graph" : self == .tree ? "Process tree" : "BPMN" }
+    }
+
     enum Tab: String, CaseIterable, Identifiable {
         case overview, process, cases, conformance, insights, simulate
         var id: String { rawValue }
@@ -51,6 +57,11 @@ struct MiningWorkbench: View {
     @State private var rootOutcome: MiningOutcome = .slow
     @State private var simulation = MiningSimulation()
     @State private var showAllVariants = false
+    @State private var processView: ProcessView = .dfg
+    @State private var capacityRoles: [CapacityRole] = []
+    @State private var arrivalPerDay: Double = 24
+    @State private var capacityDays = 5
+    @State private var capacityResult: CapacityResult?
 
     private var allEvents: [EventLogRecord] { model.events(for: dataset) }
     private var filteredEvents: [EventLogRecord] { ProcessMining.filter(allEvents, with: filter) }
@@ -72,6 +83,15 @@ struct MiningWorkbench: View {
     private var conformance: ConformanceReport? {
         guard !referenceSteps.isEmpty, !filteredEvents.isEmpty else { return nil }
         return ProcessMining.conformance(events: filteredEvents, reference: referenceSteps)
+    }
+
+    private var alignment: AlignmentReport? {
+        guard !referenceSteps.isEmpty, !filteredEvents.isEmpty else { return nil }
+        return Alignment.sequence(filteredEvents, reference: referenceSteps)
+    }
+
+    private var processTree: ProcessTree {
+        InductiveDiscovery.tree(from: mined.caseRecords)
     }
 
     private var referenceProcess: ProcessRecord? {
@@ -136,6 +156,11 @@ struct MiningWorkbench: View {
                 tab = requested
             }
             if selectedCaseID == nil { selectedCaseID = mined.caseRecords.first?.id }
+            if capacityRoles.isEmpty { capacityRoles = CapacitySimulation.defaultRoles(for: mined) }
+        }
+        .onChange(of: dataset.id) { _, _ in
+            capacityRoles = CapacitySimulation.defaultRoles(for: mined)
+            capacityResult = nil
         }
         .onChange(of: activityFilter) { _, _ in applyFilter() }
         .onChange(of: resourceFilter) { _, _ in applyFilter() }
@@ -482,25 +507,80 @@ struct MiningWorkbench: View {
 
     private var processTab: some View {
         VStack(alignment: .leading, spacing: Space.lg) {
-            Card("Discovered process", subtitle: "Activities and directly-follows edges; width is frequency, hue is wait.", symbol: "point.topleft.down.to.point.bottomright.curvepath") {
-                MiningProcessGraph(mined: mined, selected: selectedActivity) { name in
-                    selectedActivity = name
+            Picker("Model", selection: $processView) {
+                ForEach(ProcessView.allCases) { view in Text(view.label).tag(view) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            switch processView {
+            case .dfg:
+                Card("Discovered process", subtitle: "Activities and directly-follows edges; width is frequency, hue is wait.", symbol: "point.topleft.down.to.point.bottomright.curvepath") {
+                    MiningProcessGraph(mined: mined, selected: selectedActivity) { name in
+                        selectedActivity = name
+                    }
+                    .frame(height: 240)
+                    .overlay(alignment: .topTrailing) {
+                        Text("\(mined.activities.count) activities · scroll →")
+                            .font(.caption2).foregroundStyle(.tertiary).padding(4)
+                    }
                 }
-                .frame(height: 240)
-                .overlay(alignment: .topTrailing) {
-                    Text("\(mined.activities.count) activities · scroll →")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .padding(4)
+            case .tree:
+                Card("Block-structured process tree", subtitle: "Sound by construction; every observed case is accepted.", symbol: "tree") {
+                    HStack {
+                        Chip(text: processTree.isSound ? "Sound" : "Check", symbol: "checkmark.seal", tint: .green)
+                        Text("\(processTree.activityNames.count) activities · \(mined.variants.count) branches")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Export BPMN…") { exportBPMN() }.controlSize(.small)
+                    }
+                    ScrollView {
+                        Text(processTree.outline())
+                            .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(Space.sm)
+                    }
+                    .frame(maxHeight: 320)
+                    .background(Color(nsColor: .textBackgroundColor),
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+            case .bpmn:
+                Card("BPMN 2.0", subtitle: "Paired XOR gateways from the process tree; import it into a BPMN editor.", symbol: "doc.text") {
+                    HStack {
+                        Chip(text: "Sound by construction", symbol: "checkmark.seal", tint: .green)
+                        Spacer()
+                        Button("Export BPMN…") { exportBPMN() }.controlSize(.small)
+                    }
+                    ScrollView([.horizontal, .vertical]) {
+                        Text(InductiveDiscovery.bpmn(processTree, name: dataset.name))
+                            .font(.system(size: 10, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: 300)
+                    .background(Color(nsColor: .textBackgroundColor),
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
             }
+
             if let activity = mined.activities.first(where: { $0.name == selectedActivity }) {
                 activityDetail(activity)
-            } else {
+            } else if processView == .dfg {
                 Text("Click a shape to inspect it. Shapes are positioned by their earliest directly-follows order, not a force layout.")
                     .font(.caption).foregroundStyle(.tertiary)
             }
         }
+    }
+
+    private func exportBPMN() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(dataset.name.replacingOccurrences(of: " ", with: "-")).bpmn"
+        panel.allowedContentTypes = [.xml]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let xml = InductiveDiscovery.bpmn(processTree, name: dataset.name)
+        try? xml.write(to: url, atomically: true, encoding: .utf8)
+        model.showToast("BPMN exported", detail: url.lastPathComponent, symbol: "doc.text")
     }
 
     private func activityDetail(_ activity: MinedActivity) -> some View {
@@ -652,6 +732,11 @@ struct MiningWorkbench: View {
                                    symbol: "arrow.triangle.branch", tint: .orange)
                         MetricTile(title: "Deviating cases", value: "\(conformance.deviatingCases)",
                                    detail: "of \(conformance.totalCases)", symbol: "exclamationmark.triangle", tint: .red)
+                    }
+                    if let alignment {
+                        MetricTile(title: "Optimal alignment", value: Fmt.percent(alignment.fitness),
+                                   detail: "\(alignment.perfectCases) perfect · cost \(alignment.totalCost)",
+                                   symbol: "arrow.left.arrow.right", tint: .purple)
                     }
                     if !conformance.missingActivities.isEmpty || !conformance.extraActivities.isEmpty {
                         VStack(alignment: .leading, spacing: 2) {
@@ -846,7 +931,67 @@ struct MiningWorkbench: View {
                             Text(line).font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    GuardrailNote(text: "This is a what-if on observed waits. It does not model capacity, queueing, or a person's workload; validate before promising a saving.")
+                    GuardrailNote(text: "This is a wait arithmetic on observed cases, not a capacity model. Use the queue simulation below for staffing.")
+                }
+            }
+
+            capacityCard
+        }
+    }
+
+    private var capacityCard: some View {
+        Card("Capacity and queues", subtitle: "Discrete-event simulation: arrivals, FIFO queues and finite role capacity.", symbol: "person.3.sequence") {
+            VStack(alignment: .leading, spacing: Space.md) {
+                HStack(spacing: Space.md) {
+                    Text("Arrivals / day").font(.caption)
+                    Stepper(value: $arrivalPerDay, in: 1...200, step: 1) {
+                        Text("\(Int(arrivalPerDay))").font(.caption.monospacedDigit()).frame(width: 32)
+                    }
+                    Text("Days").font(.caption)
+                    Stepper(value: $capacityDays, in: 1...60) {
+                        Text("\(capacityDays)").font(.caption.monospacedDigit()).frame(width: 24)
+                    }
+                    Spacer()
+                    Button("Run capacity simulation") {
+                        capacityResult = CapacitySimulation.run(
+                            mined, roles: capacityRoles,
+                            arrivalPerDay: arrivalPerDay, days: capacityDays)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                if capacityRoles.isEmpty {
+                    Text("No roles in the current view.").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    ForEach($capacityRoles) { $role in
+                        HStack(spacing: Space.sm) {
+                            Text(role.role).font(.caption).frame(width: 160, alignment: .leading)
+                            Text("capacity").font(.caption2).foregroundStyle(.tertiary)
+                            Stepper(value: $role.capacity, in: 1...20) {
+                                Text("\(role.capacity)").font(.caption.monospacedDigit()).frame(width: 20)
+                            }
+                            Text("service").font(.caption2).foregroundStyle(.tertiary)
+                            TextField("min", value: $role.serviceMinutes, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 56)
+                            Text("min").font(.caption2).foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+                if let result = capacityResult {
+                    HStack(spacing: Space.md) {
+                        MetricTile(title: "Median cycle", value: Fmt.minutes(result.medianCycleMinutes),
+                                   detail: "P90 \(Fmt.minutes(result.p90CycleMinutes))", symbol: "timer", tint: .teal)
+                        MetricTile(title: "Average wait", value: Fmt.minutes(result.averageWaitMinutes),
+                                   detail: "\(result.cases) simulated cases", symbol: "hourglass", tint: .orange)
+                        ForEach(result.utilization.prefix(3)) { role in
+                            MetricTile(title: role.role, value: Fmt.percent(role.utilization),
+                                       detail: "avg wait \(Fmt.minutes(role.averageWaitMinutes))",
+                                       symbol: "person.2", tint: role.utilization > 0.9 ? .red : .green)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(result.assumptions, id: \.self) { Text("• \($0)").font(.caption2).foregroundStyle(.secondary) }
+                    }
                 }
             }
         }

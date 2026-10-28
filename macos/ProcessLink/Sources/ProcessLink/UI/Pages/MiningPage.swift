@@ -19,6 +19,8 @@ struct MiningPage: View {
     @Query(sort: \DatasetRecord.importedAt, order: .reverse) private var datasets: [DatasetRecord]
     @Query(sort: \CaptureSessionRecord.startedAt, order: .reverse) private var sessions: [CaptureSessionRecord]
     @Query private var captureApps: [CaptureAppRecord]
+    @Query private var captureWindows: [CaptureWindowRecord]
+    @Query private var captureShots: [CaptureShotRecord]
     @Query(sort: \ProcessRecord.name) private var processes: [ProcessRecord]
     @Query(sort: \StepRecord.order) private var steps: [StepRecord]
 
@@ -32,6 +34,10 @@ struct MiningPage: View {
     @State private var captureRole = "Order Desk"
     @State private var captureSite = "Bensheim"
     @State private var captureName = "Desktop work"
+    @State private var selectedCaptureID: String?
+    @AppStorage("capture.windowTitles") private var captureWindowTitles = false
+    @AppStorage("capture.screenshots") private var captureScreenshots = false
+    @AppStorage("capture.inputCounts") private var captureInputCounts = false
 
     private var selectedDataset: DatasetRecord? {
         datasets.first { $0.id == selectedDatasetID } ?? datasets.first
@@ -428,7 +434,7 @@ struct MiningPage: View {
                 Spacer()
                 Chip(text: "Local only", symbol: "lock.shield", tint: .green)
             }
-            Text("Samples the frontmost app every two seconds and aggregates minutes and switches. No window titles, keystrokes, clipboard, screenshots or names. Stop at any time; nothing leaves this Mac.")
+            Text("Samples the frontmost app every two seconds. App name, minutes and switches are on by default; window titles, local screenshots and keystroke/click counts are opt-in below. Nothing leaves this Mac.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -436,7 +442,7 @@ struct MiningPage: View {
     }
 
     private var startCapture: some View {
-        Card("Start a capture", subtitle: "Use it on your own Mac, for a task you choose.", symbol: "record.circle") {
+        Card("Start a capture", subtitle: "Opt-in, local, and off by default beyond app usage.", symbol: "record.circle") {
             VStack(alignment: .leading, spacing: Space.md) {
                 HStack(spacing: Space.md) {
                     TextField("Session name", text: $captureName)
@@ -449,23 +455,64 @@ struct MiningPage: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 140)
                 }
+
+                HStack(spacing: Space.lg) {
+                    Toggle("Window titles", isOn: $captureWindowTitles)
+                        .toggleStyle(.checkbox).font(.caption)
+                        .help("Masked titles of the frontmost window, stored locally")
+                    Toggle("Local screenshots (30 s)", isOn: $captureScreenshots)
+                        .toggleStyle(.checkbox).font(.caption)
+                        .help("Window thumbnails; never uploaded")
+                    Toggle("Keystroke/click counts", isOn: $captureInputCounts)
+                        .toggleStyle(.checkbox).font(.caption)
+                        .help("Counts only; no key codes, text or clipboard")
+                }
+
+                HStack(spacing: Space.lg) {
+                    permission("Screen Recording", granted: ActivityCapture.screenRecordingGranted) {
+                        ActivityCapture.requestScreenRecording()
+                    }
+                    permission("Accessibility (counts)", granted: ActivityCapture.accessibilityGranted) {
+                        ActivityCapture.openPrivacyPane("accessibility")
+                    }
+                }
+
                 HStack(spacing: Space.md) {
                     Button {
-                        capture.start()
+                        capture.start(options: ActivityCapture.Options(
+                            windowTitles: captureWindowTitles,
+                            screenshots: captureScreenshots,
+                            inputCounts: captureInputCounts))
                     } label: {
                         Label("Start capture", systemImage: "record.circle")
                     }
                     .buttonStyle(.borderedProminent)
-                    Text("The app must be frontmost to keep sampling. It records only the app name, never what is in it.")
+                    Text("Leave it running and work normally. It samples the frontmost app; titles, screenshots and counts are local only.")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
+                GuardrailNote(text: "Screenshots and window titles are content. They are opt-in, kept under Application Support, and removed by the retention schedule. Keystrokes are counted, never recorded.")
+            }
+        }
+    }
+
+    private func permission(_ title: String, granted: Bool, request: @escaping () -> Void) -> some View {
+        HStack(spacing: Space.sm) {
+            Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.circle")
+                .foregroundStyle(granted ? Color.green : Color.orange)
+            Text(title).font(.caption)
+            if granted {
+                Text("granted").font(.caption2).foregroundStyle(.tertiary)
+            } else {
+                Button("Request") { request() }.controlSize(.mini)
+                Button("Settings") { ActivityCapture.openPrivacyPane(title.contains("Screen") ? "screen" : "accessibility") }
+                    .controlSize(.mini)
             }
         }
     }
 
     private var liveCapture: some View {
-        Card("Capturing", subtitle: "No content is recorded — only app name, minutes and switches.", symbol: "record.circle") {
+        Card("Capturing", subtitle: "App usage by default; titles, screenshots and input counts only if enabled.", symbol: "record.circle") {
             VStack(alignment: .leading, spacing: Space.md) {
                 HStack(spacing: Space.md) {
                     Circle().fill(.red).frame(width: 8, height: 8)
@@ -475,7 +522,7 @@ struct MiningPage: View {
                             .monospacedDigit()
                     }
                     Spacer()
-                    Text("\(capture.switches) switches · \(String(format: "%.0f", capture.activeMinutes)) active min")
+                    Text("\(capture.switches) switches · \(String(format: "%.0f", capture.activeMinutes)) active min · \(capture.keystrokes) keys · \(capture.clicks) clicks")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button("Stop and save") {
@@ -500,6 +547,27 @@ struct MiningPage: View {
                 if capture.apps.isEmpty {
                     Text("Waiting for the first sample…").font(.caption).foregroundStyle(.secondary)
                 }
+                if !capture.windows.isEmpty {
+                    Divider().opacity(0.6)
+                    Text("Window titles").font(.caption).foregroundStyle(.secondary)
+                    ForEach(capture.windows.values.sorted { $0.minutes > $1.minutes }.prefix(5)) { window in
+                        HStack(spacing: Space.sm) {
+                            Image(systemName: "macwindow").foregroundStyle(.tertiary)
+                            Text(window.title).font(.caption).lineLimit(1)
+                            Spacer()
+                            Text("\(String(format: "%.1f", window.minutes)) min").font(.caption2).foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+                if capture.options.screenshots {
+                    HStack(spacing: Space.sm) {
+                        Image(systemName: "camera").foregroundStyle(.secondary)
+                        Text("\(capture.shots.count) local screenshots").font(.caption)
+                        if let error = capture.screenshotError {
+                            Text(error).font(.caption2).foregroundStyle(.orange).lineLimit(1)
+                        }
+                    }
+                }
             }
         }
     }
@@ -520,8 +588,17 @@ struct MiningPage: View {
                                 Text("\(Fmt.day(session.startedAt)) · \(String(format: "%.0f", session.activeMinutes)) min · \(session.switchCount) switches · \(apps.count) apps")
                                     .font(.caption)
                                     .foregroundStyle(.tertiary)
+                                if session.windowTitleCount + session.screenshotCount + session.keystrokeCount > 0 {
+                                    Text("\(session.windowTitleCount) titles · \(session.screenshotCount) screenshots · \(session.keystrokeCount) keys · \(session.clickCount) clicks")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
                             }
                             Spacer()
+                            Button(selectedCaptureID == session.id ? "Hide" : "Details") {
+                                selectedCaptureID = selectedCaptureID == session.id ? nil : session.id
+                            }
+                            .controlSize(.small)
                             Button("Create process") {
                                 model.createProcess(from: session, apps: apps)
                             }
@@ -531,9 +608,56 @@ struct MiningPage: View {
                         .padding(.vertical, Space.sm)
                         if session.id != sessions.prefix(6).last?.id { RowDivider() }
                     }
+                    if let selectedCaptureID,
+                       let session = sessions.first(where: { $0.id == selectedCaptureID }) {
+                        captureDetail(session)
+                    }
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func captureDetail(_ session: CaptureSessionRecord) -> some View {
+        let windows = captureWindows.filter { $0.sessionID == session.id }.sorted { $0.minutes > $1.minutes }
+        let shots = captureShots.filter { $0.sessionID == session.id }.sorted { $0.capturedAt < $1.capturedAt }
+        VStack(alignment: .leading, spacing: Space.sm) {
+            Divider().opacity(0.6)
+            HStack {
+                Text("Captured content").font(.subheadline.weight(.medium))
+                Spacer()
+                Text("local only · retention \(model.retentionDays) days").font(.caption2).foregroundStyle(.tertiary)
+            }
+            if windows.isEmpty && shots.isEmpty {
+                Text("This session has app aggregates only.").font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(windows.prefix(6)) { window in
+                HStack(spacing: Space.sm) {
+                    Text(window.appName).font(.caption2).foregroundStyle(.tertiary).frame(width: 100, alignment: .leading)
+                    Text(window.title).font(.caption).lineLimit(1)
+                    Spacer()
+                    Text("\(window.samples) samples").font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+            if !shots.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: Space.sm) {
+                        ForEach(shots) { shot in
+                            if let image = NSImage(contentsOfFile: shot.path) {
+                                Image(nsImage: image)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 120, height: 76)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .help("\(shot.appName) · \(Fmt.stamp(shot.capturedAt))")
+                            }
+                        }
+                    }
+                }
+            }
+            GuardrailNote(text: "These files are on this Mac only. Delete the session to remove its rows; the retention job removes the image files.")
+        }
+        .padding(.top, Space.sm)
     }
 
     private func stopCapture() {
@@ -543,6 +667,9 @@ struct MiningPage: View {
                             startedAt: result.startedAt, endedAt: result.endedAt,
                             minutes: result.activeMinutes, idleMinutes: result.idleMinutes,
                             switchCount: result.switches,
+                            keystrokeCount: result.keystrokes, clickCount: result.clicks,
+                            windows: result.windows.map { ($0.appName, $0.title, $0.minutes, $0.samples) },
+                            shots: result.shots.map { ($0.path, $0.appName, $0.capturedAt) },
                             apps: result.apps.map { ($0.name, $0.bundleID, $0.minutes, $0.idleMinutes, $0.switches) })
         capture.reset()
     }

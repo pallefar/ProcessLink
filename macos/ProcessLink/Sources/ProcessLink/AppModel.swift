@@ -183,6 +183,7 @@ final class AppModel {
         dataOwner = defaults.string(forKey: "policy.dataOwner") ?? "CI Manager (role)"
         notificationsEnabled = defaults.bool(forKey: "notifications.enabled")
         migrateLegacyDiscovery()
+        ActivityCapture.removeScreenshots(olderThan: retentionDays)
     }
 
     /// One-way cleanup for stores written before KYP was removed. It rewrites
@@ -1051,12 +1052,19 @@ final class AppModel {
 
     func recordCapture(name: String, role: String, site: String, startedAt: Date,
                        endedAt: Date, minutes: Double, idleMinutes: Double,
-                       switchCount: Int, apps: [(name: String, bundleID: String, minutes: Double, idle: Double, switches: Int)]) {
+                       switchCount: Int,
+                       keystrokeCount: Int = 0, clickCount: Int = 0,
+                       windows: [(app: String, title: String, minutes: Double, samples: Int)] = [],
+                       shots: [(path: String, app: String, at: Date)] = [],
+                       apps: [(name: String, bundleID: String, minutes: Double, idle: Double, switches: Int)]) {
         let session = CaptureSessionRecord(
             id: "cap-\(UUID().uuidString.prefix(8))", name: name, role: role, site: site,
-            startedAt: startedAt, endedAt: endedAt, sampleSeconds: 5,
+            startedAt: startedAt, endedAt: endedAt, sampleSeconds: 2,
             activeMinutes: minutes, idleMinutes: idleMinutes, switchCount: switchCount,
-            status: "complete", notes: "Local aggregate only: no titles, keys or screenshots.")
+            keystrokeCount: keystrokeCount, clickCount: clickCount,
+            windowTitleCount: windows.count, screenshotCount: shots.count,
+            status: "complete",
+            notes: "Local aggregate; window titles are masked, screenshots stay on this Mac, input capture is counts only.")
         context.insert(session)
         for (index, app) in apps.enumerated() {
             context.insert(CaptureAppRecord(
@@ -1064,8 +1072,19 @@ final class AppModel {
                 appName: app.name, bundleID: app.bundleID,
                 minutes: app.minutes, idleMinutes: app.idle, switches: app.switches))
         }
+        for (index, window) in windows.enumerated() {
+            context.insert(CaptureWindowRecord(
+                id: "\(session.id)-win-\(index)", sessionID: session.id,
+                appName: window.app, title: window.title,
+                minutes: window.minutes, samples: window.samples))
+        }
+        for (index, shot) in shots.enumerated() {
+            context.insert(CaptureShotRecord(
+                id: "\(session.id)-shot-\(index)", sessionID: session.id,
+                path: shot.path, appName: shot.app, capturedAt: shot.at))
+        }
         audit(action: "capture.completed", subject: name,
-              detail: "\(String(format: "%.0f", minutes)) active minutes, \(switchCount) switches, \(apps.count) apps.")
+              detail: "\(String(format: "%.0f", minutes)) active minutes, \(switchCount) switches, \(apps.count) apps, \(windows.count) titles, \(shots.count) screenshots, \(keystrokeCount) keystrokes (count only).")
         try? context.save()
         page = .mining
         showToast("Capture saved", detail: "\(String(format: "%.0f", minutes)) min · \(switchCount) switches",
@@ -1083,7 +1102,7 @@ final class AppModel {
             id: id, name: name, site: session.site, businessUnit: "In-house task mining",
             valueStream: "Digital work", ownerRole: session.role,
             discoveryID: session.id, kgID: "kg-proc-\(id)",
-            summary: "Captured locally on this Mac: \(String(format: "%.0f", session.activeMinutes)) active minutes, \(session.switchCount) app switches. Aggregates only; no window titles or content.",
+            summary: "Captured locally on this Mac: \(String(format: "%.0f", session.activeMinutes)) active minutes, \(session.switchCount) app switches. Titles and screenshots, where enabled, remain local.",
             applications: apps.map(\.appName), variantNames: apps.map(\.appName),
             capturedFrom: session.startedAt, capturedTo: session.endedAt ?? session.startedAt,
             lastSynced: now, confidence: 0.7, people: 12,
@@ -1186,6 +1205,97 @@ final class AppModel {
         showToast("Discovery refreshed",
                   detail: "\(processes) processes · \(datasets) logs · \(captures) captures",
                   symbol: "arrow.triangle.2.circlepath")
+    }
+
+    // MARK: Connectors
+
+    func setConnectorSecret(_ value: String, for id: String) {
+        if value.isEmpty { KeychainStore.delete(account: "connector.\(id)") }
+        else { KeychainStore.set(value, account: "connector.\(id)") }
+    }
+
+    func connectorSecret(for id: String) -> String? {
+        KeychainStore.get(account: "connector.\(id)")
+    }
+
+    func deleteConnector(_ connector: ConnectorRecord) {
+        KeychainStore.delete(account: "connector.\(connector.id)")
+        context.delete(connector)
+        audit(action: "connector.deleted", subject: connector.name, detail: connector.provider.label)
+        try? context.save()
+    }
+
+    @discardableResult
+    func runConnector(_ connector: ConnectorRecord, testOnly: Bool = false) async -> Bool {
+        guard let url = connectorURL(connector) else {
+            connector.lastStatus = "error"
+            connector.lastError = "Invalid URL"
+            try? context.save()
+            return false
+        }
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let secret = connectorSecret(for: connector.id), !secret.isEmpty {
+            if connector.authMode == "basic" {
+                let raw = "\(connector.username):\(secret)"
+                request.setValue("Basic \(Data(raw.utf8).base64EncodedString())",
+                                 forHTTPHeaderField: "Authorization")
+            } else {
+                request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization")
+            }
+        }
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                throw NSError(domain: "ProcessLink.Connector", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)"])
+            }
+            if testOnly {
+                connector.lastStatus = "tested"
+                connector.lastError = ""
+                connector.lastRunAt = .now
+                try? context.save()
+                showToast("Connector reachable", detail: "\(data.count) bytes from \(connector.provider.label)",
+                          symbol: "checkmark.icloud")
+                return true
+            }
+            let csv = try ConnectorParser.csv(from: data, provider: connector.provider,
+                                              mapping: connector.mapping)
+            let result = try EventLogImporter.importCSV(csv)
+            let dataset = storeDataset(
+                name: "\(connector.name) · \(Fmt.day(now))", result: result,
+                source: "connector", filename: connector.provider.label,
+                site: connector.site,
+                notes: "Pulled from \(connector.provider.label) by a configured REST connector. Credentials are in the Keychain.")
+            connector.lastStatus = "success"
+            connector.lastError = ""
+            connector.lastRunAt = .now
+            audit(action: "connector.run", subject: connector.name,
+                  detail: "\(result.events.count) events, \(result.caseCount) cases")
+            try? context.save()
+            if let dataset {
+                selectedDatasetID = dataset.id
+                page = .mining
+            }
+            return dataset != nil
+        } catch {
+            connector.lastStatus = "error"
+            connector.lastError = error.localizedDescription
+            connector.lastRunAt = .now
+            try? context.save()
+            showToast("Connector failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+            return false
+        }
+    }
+
+    private func connectorURL(_ connector: ConnectorRecord) -> URL? {
+        let base = connector.baseURL.trimmingCharacters(in: .whitespaces)
+        guard !base.isEmpty else { return nil }
+        let path = connector.path.trimmingCharacters(in: .whitespaces)
+        if path.isEmpty { return URL(string: base) }
+        if path.hasPrefix("http") { return URL(string: path) }
+        return URL(string: base.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/" + path.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
     }
 
     // MARK: Ask

@@ -7,7 +7,7 @@ Run on macOS 27.0.1, Swift 6.4, Xcode 27.1, Node 22.23.3, 28 October 2026.
 | Check | Command | Result |
 |---|---|---|
 | Build (release) | `./build.sh` | `Build complete!`, 0 errors, 0 warnings, installed to `~/Applications/ProcessLink.app` |
-| Unit tests | `swift test --scratch-path ~/Library/Developer/ProcessLink/test-build` | **36 tests passed** (scoring, statutory guard, privacy, PII, ledger, conflicts, ask citations, formatting, graph algorithms, CSV import/mining/conformance, attributes/cases/filters, periods/handovers/root causes, simulation, token replay, connection URL rules) |
+| Unit tests | `swift test --scratch-path ~/Library/Developer/ProcessLink/test-build` | **40 tests passed** (scoring, statutory guard, privacy, PII, ledger, conflicts, ask citations, formatting, graph algorithms, CSV import/mining/conformance, attributes/cases/filters, periods/handovers/root causes, simulation, token replay, connection URL rules) |
 | In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 69 checks** |
 | Grid lint | `tools/grid-lint.sh` | **PASS** |
 | Layout probes | `swift tools/check-layout.swift /tmp/ProcessLink-shots/*-layout.json` | **22 PASS**, 0 fail |
@@ -31,7 +31,7 @@ three-source connection state).
 
 | Check | Command | Result |
 |---|---|---|
-| Typecheck + build | `npm run build` | `tsc --noEmit` clean; Vite build 367 kB JS / 21.9 kB CSS (≈110 kB gzip) |
+| Typecheck + build | `npm run build` | `tsc --noEmit` clean; Vite build 385 kB JS / 25.0 kB CSS (≈116 kB gzip) |
 | Render review | headless Chrome, 1440×900 | Overview, Discoveries, Opportunities, Maps, Meetings, Mining, Graph, Improvements, Ask, Governance; light and dark |
 | Deep links | `#/overview`, `?theme=light|dark`, `?q=...` | Verified via screenshots |
 | Local preview | `npm run preview` on port 4175 | 200 OK |

@@ -39,6 +39,8 @@ struct ConnectionsPage: View {
                     AtlasConnectionCard(fd: fd)
                 }
 
+                DataConnectorsCard()
+
                 footer(fd)
             }
             .padding(.horizontal, Space.margin)

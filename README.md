@@ -15,8 +15,8 @@ Event logs · task capture  →  ProcessLink  →  KG · Maps · TEOA · DeckFor
 
 | Form | Where | Status |
 |---|---|---|
-| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 36 unit tests + 69 in-app checks, light/dark snapshots |
-| **Web** — React 19 + Vite, strict TS | [`web`](web) | Same shell, tokens and pages as the app; the Flightdeck sub-app replacement is in [`web/src/flightdeck`](web/src/flightdeck) |
+| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 40 unit tests + 69 in-app checks, light/dark snapshots |
+| **Web** — React 19 + Vite, strict TS | [`web`](web) | Same shell, full log-mining workbench, tokens and pages; the sub-app replacement is in [`web/src/flightdeck`](web/src/flightdeck) |
 | **Windows** — Tauri 2 + WebView2 | [`windows/ProcessLink.Windows`](windows/ProcessLink.Windows) | Scaffolded with config and Rust entry; not built on a Windows host here |
 
 Shared domain rules (privacy guard, opportunity scoring, savings ledger,
@@ -27,8 +27,9 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 ## What it does
 
 1. **Discovery** — processes, variants, steps, roles, applications and
-   metrics arrive from in-house event-log mining or opt-in task capture, as
-   aggregates with provenance. No screenshots, keystrokes, person ids, or
+   metrics arrive from in-house event-log mining or task capture, as
+   aggregates with provenance. Window titles, local screenshots and
+   keystroke/click counts are opt-in; no clipboard, key codes, person ids or
    Restricted content.
 2. **Opportunity** — each waste pattern is scored from mined hours, error
    reduction, effort, risk, Hoshin alignment and confidence. The route follows
@@ -56,10 +57,14 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
    mapped CSV import with attributes and cost, filters, weekly throughput,
    variants, a directly-follows process graph, a case explorer with timelines,
    token-replay and sequence conformance, root-cause comparisons, a what-if
-   simulator, a watchlist, view-vs-baseline comparison, bulk folder import and
-   CSV/JSON export. Or run an opt-in local task capture
-   (frontmost app, minutes, switches — no titles, keys or screenshots). Mined
-   results become the same process/KG/map/opportunity records.
+   simulator, capacity/queue simulation, a sound process tree with BPMN export,
+   optimal alignment, a watchlist, view-vs-baseline comparison, bulk folder
+   import and CSV/JSON export. Or run a local task capture (frontmost app, minutes and
+   switches by default; optional window titles, local screenshots and
+   keystroke/click counts). Mined
+   results become the same process/KG/map/opportunity records. Configured REST
+   connectors pull ServiceNow, Salesforce, SAP or generic JSON through a
+   Keychain-held credential and the same field mapping.
 9. **Connections** — a real UAT API connection to Flightdeck OS, Vision and
    Atlas. The sidebar carries the Flightdeck workspace/project dropdowns and
    direct **OS / Atlas / Vision** links; UAT quick-login accounts are listed
@@ -175,8 +180,9 @@ It wraps `web/dist`; build on Windows 11 with Rust + WebView2.
 - **Real**: the domain rules, the privacy guard, the scoring arithmetic, the
   savings ledger and its conflict rule, the graph algorithms, the citations,
   the audit trail, the meeting pages and the app itself.
-- **Synthetic discovery data**: every process, person-count, hour, site and saving. The
-  connector is an offline fixture (`SandboxSync`); no tenant was contacted.
+- **Synthetic discovery data**: every process, person-count, hour, site and
+  saving. No external discovery tenant was contacted. Configured connectors
+  are read-only REST pulls and have no stored credential in the demo.
   The KG is a local typed store, not a write to Knowledge Guardian. DeckForge
   receives a Markdown/JSON brief, not a deck binary.
 
@@ -211,12 +217,12 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 Tag a version and GitHub Actions builds both desktop installers:
 
 ```bash
-git tag v0.1.4 && git push origin v0.1.4
+git tag v0.1.5 && git push origin v0.1.5
 ```
 
 The release contains a universal macOS DMG (`arm64` + `x86_64`), a Windows
 NSIS setup (and an MSI from the Windows CI job), and `SHA256SUMS.txt`.
-[Download v0.1.4](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.4).
+[Download v0.1.5](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.5).
 Local packaging, signing and the current Actions billing note are in
 [`docs/RELEASING.md`](docs/RELEASING.md).
 

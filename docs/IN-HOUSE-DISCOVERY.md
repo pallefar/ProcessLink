@@ -15,18 +15,24 @@ there is no external discovery tenant or connector.
 | Conformance | Conformance checking | Reference sequence coverage **and** place-based token replay with missing/remaining tokens |
 | Root cause | Process insights | Attribute values correlated with slow cases or rework, with case counts and impact |
 | What-if | Simulation | Automate/remove steps, reduce rework/wait; projected median and assumptions |
+| Capacity | Queue simulation | Discrete-event arrivals, FIFO role queues, finite capacity, utilisation |
+| Process model | BPMN | Sound block-structured tree from observed variants; BPMN 2.0 export |
+| Alignment | Conformance | Optimal alignment against a reference sequence |
 | Comparison | Benchmarking | Current filter against the full log: cycle, P90, rework, handoffs |
 | Watchlist | Alerts | Rework, wait, variant tail, handoffs and automation signals with severity |
 | Bulk import | Connectors | Import every CSV in a folder (scheduled system exports) |
+| REST connectors | SaaS connectors | ServiceNow, Salesforce, SAP and generic JSON: configured endpoint, Keychain auth, field mapping, read-only run |
 | Export | — | Cases CSV and a `processlink-mining/1` JSON summary |
 | Business case / ROI | Opportunity engine | Existing scoring and savings lifecycle, now fed by mined facts |
 | Agent/automation handoff | Agent code generation | Existing change-package gate; no autonomous deployment |
 | Graph + maps | — | Mined process becomes the same KG nodes, map document and opportunity records |
 
-Deliberately **not** implemented: screenshots, keystroke logging, window
-titles, clipboard, OCR of content, or per-person activity. Capturing those
-would change the legal basis and the product's purpose. If a future decision
-requires them, it is a separate DPIA and works-council process, not a toggle.
+**Content capture is opt-in.** Window titles, local window screenshots and
+keystroke/click **counts** are separate toggles. They never leave this Mac,
+titles are PII-masked, screenshot files follow the retention schedule, and
+keystrokes are counted rather than recorded. Clipboard, page text/OCR, key
+codes and per-person activity remain deliberately unimplemented; those would
+need a separate DPIA and works-council decision.
 
 ## 2. Data path
 
@@ -100,8 +106,10 @@ Maps, the KG and Ask work unchanged.
 
 - Samples the frontmost application every two seconds while the user has
   explicitly started a session.
-- Stores **app name, bundle id, minutes, switches, idle minutes** only.
-- No window titles, no keystrokes, no clipboard, no screenshots, no person.
+- Stores **app name, bundle id, minutes, switches, idle minutes** by default.
+- App name, minutes, switches and idle are the default.
+- Optional: masked window titles, local window screenshots, and input counts.
+- Never: key codes, clipboard, page text/OCR, person names.
 - One session is a local aggregate; it is not uploaded.
 - "Create process" turns the aggregates into a process whose steps are
   applications and whose waste is context switching.
@@ -113,24 +121,31 @@ Maps, the KG and Ask work unchanged.
 This is a complete **event-log** mining workbench, not an inductive miner or a
 capacity simulator:
 
-- discovery is a directly-follows graph and variant set, not an Inductive
-  Miner/BPMN model with soundness guarantees;
-- conformance is sequence coverage plus a place-based token replay, not an
-  optimal alignment;
-- the what-if model subtracts observed waits; it does not queue work, model
-  staff capacity, or promise a financial saving;
+- discovery offers a directly-follows graph **and** a block-structured
+  prefix-tree with paired XOR gateways and BPMN export. It is sound by
+  construction, but it is not a full Inductive Miner and does not invent
+  unobserved behaviour;
+- conformance has sequence coverage, token replay and an **optimal alignment
+  against a reference sequence**; it is not an optimal alignment against an
+  arbitrary BPMN/Petri net yet;
+- the wait arithmetic has no capacity, but a second discrete-event model does
+  queue cases through finite role capacity. Its service times start from
+  observed waits, not measured touch time, and it has no calendars or breaks;
 - there is no OCEL/object-centric mining, streaming ingestion, or incremental
   append to an existing dataset yet;
+- connectors are configured REST pulls; background scheduling is not enabled;
 - root causes are correlations by attribute, not causal inference;
-- the web form still uses the sample mining view; this workbench is macOS.
+- the web/Windows workbench now has the full log-mining tabs (import, filters,
+  process graph, cases, conformance, insights, simulation); task capture and
+  local screenshots remain macOS-only.
 
 ## 4. What used to be external
 
-There is no vendor connector, sandbox sync or vendor API key in the app. The
-old prepared "sandbox batch" has been removed; the toolbar refresh now re-reads
-the local event logs and capture sessions. The trade-off is breadth: ProcessLink
-captures app-level activity on this Mac and imported event logs, not a
-fleet-wide screenshot or keystroke stream.
+There is no single hard-coded vendor connector. ServiceNow, Salesforce, SAP
+and generic JSON APIs are configured as read-only REST pulls with their own
+field mapping; credentials live in the Keychain. The toolbar refresh re-reads
+local event logs and captures. The trade-off is still breadth: capture is
+per-Mac and opt-in, not a fleet-wide screenshot or keystroke service.
 
 ## 5. Limits and open questions
 
@@ -151,6 +166,6 @@ fleet-wide screenshot or keystroke stream.
 | Question | Answer |
 |---|---|
 | Can we run discovery without a vendor? | Yes: event logs and opt-in app-level task capture. |
-| What is the trade-off? | Breadth: no fleet-wide screenshots or keystroke capture. That is deliberate. |
+| What is the trade-off? | Breadth: capture is per-Mac and opt-in, not a fleet-wide screenshot/keystroke service. |
 | Is it private by construction? | The API choice is the boundary: hashes, roles, app names, masks. No content capture exists to disable. |
 | Where does it land? | The KG, maps and opportunity pipeline, with `source` recording the imported log or capture. |

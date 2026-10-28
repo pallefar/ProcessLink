@@ -814,13 +814,19 @@ final class CaptureSessionRecord {
     var activeMinutes: Double = 0
     var idleMinutes: Double = 0
     var switchCount: Int = 0
+    var keystrokeCount: Int = 0
+    var clickCount: Int = 0
+    var windowTitleCount: Int = 0
+    var screenshotCount: Int = 0
     /// capturing, complete
     var statusRaw: String = "complete"
     var notes: String = ""
 
     init(id: String, name: String, role: String, site: String, startedAt: Date,
          endedAt: Date?, sampleSeconds: Int, activeMinutes: Double, idleMinutes: Double,
-         switchCount: Int, status: String, notes: String) {
+         switchCount: Int, keystrokeCount: Int = 0, clickCount: Int = 0,
+         windowTitleCount: Int = 0, screenshotCount: Int = 0,
+         status: String, notes: String) {
         self.id = id
         self.name = name
         self.role = role
@@ -831,6 +837,10 @@ final class CaptureSessionRecord {
         self.activeMinutes = activeMinutes
         self.idleMinutes = idleMinutes
         self.switchCount = switchCount
+        self.keystrokeCount = keystrokeCount
+        self.clickCount = clickCount
+        self.windowTitleCount = windowTitleCount
+        self.screenshotCount = screenshotCount
         self.statusRaw = status
         self.notes = notes
     }
@@ -860,5 +870,98 @@ final class CaptureAppRecord {
     }
 }
 
+/// Aggregated window-title samples for a capture. Titles are masked at the
+/// source (e-mail/phone patterns) and never leave the Mac.
+@Model
+final class CaptureWindowRecord {
+    var id: String = ""
+    var sessionID: String = ""
+    var appName: String = ""
+    var title: String = ""
+    var minutes: Double = 0
+    var samples: Int = 0
+
+    init(id: String, sessionID: String, appName: String, title: String,
+         minutes: Double, samples: Int) {
+        self.id = id
+        self.sessionID = sessionID
+        self.appName = appName
+        self.title = title
+        self.minutes = minutes
+        self.samples = samples
+    }
+}
+
+/// A local screenshot thumbnail. The file path is inside Application Support
+/// and the retention job removes both the row and the file.
+@Model
+final class CaptureShotRecord {
+    var id: String = ""
+    var sessionID: String = ""
+    var path: String = ""
+    var appName: String = ""
+    var capturedAt: Date = Date.now
+
+    init(id: String, sessionID: String, path: String, appName: String, capturedAt: Date) {
+        self.id = id
+        self.sessionID = sessionID
+        self.path = path
+        self.appName = appName
+        self.capturedAt = capturedAt
+    }
+}
+
 extension DatasetRecord: HasStringID {}
 extension CaptureSessionRecord: HasStringID {}
+
+/// A configured REST connector. The secret is in the Keychain, keyed by id;
+/// the model carries only the query shape and the field mapping.
+@Model
+final class ConnectorRecord {
+    var id: String = ""
+    var name: String = ""
+    var providerRaw: String = ConnectorProvider.genericJSON.rawValue
+    var baseURL: String = ""
+    var path: String = ""
+    var authMode: String = "bearer" // bearer, basic
+    var username: String = ""
+    var site: String = ""
+    var caseField: String = "case_id"
+    var activityField: String = "activity"
+    var timestampField: String = "timestamp"
+    var resourceField: String = "resource"
+    var applicationField: String = "application"
+    var costField: String = "cost"
+    var active: Bool = true
+    var lastRunAt: Date?
+    var lastStatus: String = "never"
+    var lastError: String = ""
+    var createdAt: Date = Date.now
+
+    init(id: String, name: String, provider: ConnectorProvider, baseURL: String,
+         path: String, authMode: String, username: String, site: String,
+         caseField: String, activityField: String, timestampField: String,
+         resourceField: String, applicationField: String, costField: String) {
+        self.id = id
+        self.name = name
+        self.providerRaw = provider.rawValue
+        self.baseURL = baseURL
+        self.path = path
+        self.authMode = authMode
+        self.username = username
+        self.site = site
+        self.caseField = caseField
+        self.activityField = activityField
+        self.timestampField = timestampField
+        self.resourceField = resourceField
+        self.applicationField = applicationField
+        self.costField = costField
+    }
+
+    var provider: ConnectorProvider { ConnectorProvider(rawValue: providerRaw) ?? .genericJSON }
+    var mapping: ConnectorMapping {
+        ConnectorMapping(caseField: caseField, activityField: activityField,
+                         timestampField: timestampField, resourceField: resourceField,
+                         applicationField: applicationField, costField: costField)
+    }
+}

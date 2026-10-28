@@ -88,6 +88,22 @@ idempotent: the stable ids update the same node rather than appending a new
 one. The graph page caps each overview column at seven shapes and shows the
 real count in the header, so a live sync cannot turn the canvas into a stack.
 
+## Data connectors
+
+The Connections page also configures read-only REST connectors:
+
+| Template | Default endpoint | Auth |
+|---|---|---|
+| ServiceNow | `/api/now/table/…` | Bearer or basic |
+| Salesforce | `/services/data/v60.0/query?q=…` | Bearer |
+| SAP | OData event entity | Bearer/basic |
+| Generic JSON | any endpoint | Bearer/basic |
+
+The response is located at the provider envelope (`result`, `records`,
+`d.Results`, `data`, …), mapped to the canonical event-log fields and passed
+through the same importer, so hashing, PII masking and classification apply.
+Secrets are Keychain-only. A run is explicit; scheduling is not enabled yet.
+
 ## Security and privacy
 
 - HTTPS is required everywhere except a loopback host. A URL with embedded

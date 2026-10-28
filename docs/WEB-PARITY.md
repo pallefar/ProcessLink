@@ -33,7 +33,7 @@ so navigation reads the same at a glance.
 | Opportunities | ranked list + score arithmetic, method, evidence | same |
 | Maps | full-width Flightdeck map, bottom Map fields / ProcessLink / drift bar | same layout; edits are local proposals in this build |
 | Meetings | Notion-style pages with typed blocks, decisions, actions | same |
-| Mining | Process logs / Task capture, sample, variants, bottlenecks, conformance | same layout; sample data and capture explanation (see limits) |
+| Mining | Process logs / Task capture, mapped import, filters, process graph, cases, conformance, insights, simulation | **full log-mining workbench**; task capture remains desktop-only |
 | Improvements | ledger, initiatives, A3, savings lifecycle | same |
 | Ask | guard chips, suggestions, policy card, bottom composer | same |
 | Knowledge Graph | metrics, layered graph canvas, review queue, node list/detail | same canvas in SVG |
@@ -45,10 +45,10 @@ so navigation reads the same at a glance.
   folder bridge or host API. The web form currently keeps the edit as a local
   proposal and records the intent; the host `PUT` with `If-Match` is the next
   step.
-- **Mining import.** The web sample mirrors the Mac sample result. CSV import
-  and live task capture are desktop features; a browser cannot read other
-  applications, and duplicating the capture path in the web form would
-  misrepresent what it can see.
+- **Mining.** The web workbench now imports CSV, filters, discovers a DFG,
+  explores cases, runs conformance/root-cause and simulates. Task capture is
+  still desktop-only: a browser cannot read other applications, so the web
+  capture tab explains where capture runs instead of pretending otherwise.
 - **Ask provider.** The web form is a visual/state prototype; it uses the same
   rule engine and seeded facts, not a live hosted model.
 - **Graph scope.** The canvas shows the working set by layer (process,

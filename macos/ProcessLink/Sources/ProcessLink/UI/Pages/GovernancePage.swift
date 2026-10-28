@@ -206,7 +206,7 @@ struct GovernancePage: View {
     private var flowCard: some View {
         Card("Where data goes", subtitle: "The data-flow contract in one card.", symbol: "arrow.triangle.branch") {
             VStack(alignment: .leading, spacing: Space.sm) {
-                flow("In-house discovery", "Event logs and opt-in task capture stay local. Aggregated facts only; no screenshots, keystrokes or person ids.", .blue)
+                flow("In-house discovery", "Event logs and opt-in task capture stay local. Titles, screenshots and input counts are separate opt-ins; no key codes, clipboard or person ids.", .blue)
                 flow("ProcessLink", "Local store on this Mac. Purpose-limited, permission-filtered, audit-logged.", .purple)
                 flow("Knowledge graph", "Nodes and edges with provenance; writes are idempotent and reviewable.", .teal)
                 flow("Maps · TEOA · DeckForge", "Read the same nodes; edits become change proposals.", .orange)

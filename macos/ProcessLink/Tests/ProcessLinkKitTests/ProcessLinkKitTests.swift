@@ -444,3 +444,65 @@ func miningAlerts() throws {
     #expect(alerts.contains { $0.id == "rework" })
     #expect(alerts.allSatisfy { !$0.detail.isEmpty })
 }
+
+@Test("A sound block-structured tree exports BPMN")
+func miningTreeAndBPMN() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let mined = ProcessMining.mine(result.events, name: "Order intake")
+    let tree = InductiveDiscovery.tree(from: mined.caseRecords)
+    #expect(tree.isSound)
+    #expect(Set(tree.activityNames).count >= 5)
+    let bpmn = InductiveDiscovery.bpmn(tree, name: "Order intake")
+    #expect(bpmn.contains("<bpmn:process"))
+    #expect(bpmn.contains("<bpmn:task"))
+    #expect(bpmn.contains("exclusiveGateway"))
+}
+
+@Test("Optimal alignment finds missing and extra moves")
+func miningAlignment() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let reference = ["Receive order", "Check customer master", "Validate pricing",
+                     "Create sales order", "Send confirmation"]
+    let report = Alignment.sequence(result.events, reference: reference)
+    #expect(report.totalCases == 24)
+    #expect(report.totalCost > 0)
+    #expect(report.fitness > 0.5 && report.fitness <= 1)
+    #expect(report.cases.contains { $0.cost > 0 })
+}
+
+@Test("Capacity simulation models queues and use")
+func miningCapacity() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let mined = ProcessMining.mine(result.events, name: "Order intake")
+    let roles = CapacitySimulation.defaultRoles(for: mined)
+    #expect(!roles.isEmpty)
+    let run = CapacitySimulation.run(mined, roles: roles, arrivalPerDay: 12, days: 5)
+    #expect(run.cases > 0)
+    #expect(run.medianCycleMinutes > 0)
+    #expect(run.utilization.count == roles.count)
+    #expect(!run.assumptions.isEmpty)
+}
+
+@Test("ServiceNow and Salesforce envelopes become canonical CSV")
+func connectorParser() throws {
+    let serviceNow = """
+    {"result":[{"documentkey":"INC001","fieldname":"State changed","sys_created_on":"2026-01-01 09:00:00","user":"Desk","tablename":"incident","cost":"12.50"}]}
+    """.data(using: .utf8)!
+    let csv = try ConnectorParser.csv(from: serviceNow, provider: .serviceNow,
+                                      mapping: .init(caseField: "documentkey", activityField: "fieldname",
+                                                     timestampField: "sys_created_on", resourceField: "user",
+                                                     applicationField: "tablename", costField: "cost"))
+    #expect(csv.contains("INC001"))
+    #expect(csv.contains("State changed"))
+    let imported = try EventLogImporter.importCSV(csv)
+    #expect(imported.events.count == 1)
+
+    let salesforce = """
+    {"records":[{"Id":"5001","Subject":"Check","ActivityDate":"2026-01-02T10:00:00Z","OwnerId":"U1"}]}
+    """.data(using: .utf8)!
+    let sf = try ConnectorParser.csv(from: salesforce, provider: .salesforce,
+                                     mapping: .init(caseField: "Id", activityField: "Subject",
+                                                    timestampField: "ActivityDate", resourceField: "OwnerId",
+                                                    applicationField: "", costField: ""))
+    #expect(sf.contains("5001"))
+}
