@@ -42,6 +42,7 @@ struct MiningWorkbench: View {
     var dataset: DatasetRecord
     var processes: [ProcessRecord]
     var steps: [StepRecord]
+    var map: MapsBridge.Document?
 
     @State private var tab: Tab = .overview
     @State private var filter = MiningFilter()
@@ -62,6 +63,7 @@ struct MiningWorkbench: View {
     @State private var arrivalPerDay: Double = 24
     @State private var capacityDays = 5
     @State private var capacityResult: CapacityResult?
+    @State private var showMapMapping = false
 
     private var allEvents: [EventLogRecord] { model.events(for: dataset) }
     private var filteredEvents: [EventLogRecord] { ProcessMining.filter(allEvents, with: filter) }
@@ -70,6 +72,35 @@ struct MiningWorkbench: View {
     }
     private var baseline: MinedProcess {
         ProcessMining.mine(allEvents, name: dataset.name)
+    }
+
+    private var mapReference: MapReference? {
+        guard let map else { return nil }
+        let mapSteps = map.nodes.compactMap { node -> MapStepRef? in
+            guard node.type != "start" && node.type != "end" else { return nil }
+            let stepID = node.link?.stepID ?? (node.stepID.isEmpty ? node.id : node.stepID)
+            return MapStepRef(id: stepID, label: node.label,
+                              role: node.role, system: node.system)
+        }
+        let stepIDs = Dictionary(uniqueKeysWithValues: map.nodes.map { node in
+            (node.id, node.link?.stepID ?? (node.stepID.isEmpty ? node.id : node.stepID))
+        })
+        let mapEdges = map.edges.compactMap { edge -> MapEdgeRef? in
+            guard let from = stepIDs[edge.source], let to = stepIDs[edge.target] else { return nil }
+            return MapEdgeRef(from: from, to: to)
+        }
+        return MapReference(name: map.label, steps: mapSteps, edges: mapEdges)
+    }
+
+    private var mapMapping: [String: String] {
+        guard let data = dataset.mapMappingJSON.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: String] else { return [:] }
+        return object
+    }
+
+    private var mapReport: MapMiningReport? {
+        guard let mapReference, !allEvents.isEmpty else { return nil }
+        return MapMining.conformance(events: allEvents, reference: mapReference, mapping: mapMapping)
     }
 
     private var referenceSteps: [String] {
@@ -319,6 +350,7 @@ struct MiningWorkbench: View {
                 .frame(width: 300)
             }
 
+            if let map, let mapReport { mapCard(map, report: mapReport) }
             watchlistCard
 
             if filter.isActive { comparisonCard }
@@ -356,6 +388,43 @@ struct MiningWorkbench: View {
                         RowDivider()
                     }
                 }
+            }
+        }
+    }
+
+    private func mapCard(_ map: MapsBridge.Document, report: MapMiningReport) -> some View {
+        Card("Map model · \(map.label)", subtitle: "The map is the reference; the log is the evidence. Unmapped activities are not hidden.", symbol: "map") {
+            HStack(spacing: Space.xl) {
+                mapMetric("Steps observed", "\(report.stepsObserved)/\(report.stepsTotal)", report.stepCoverage)
+                mapMetric("Mapped activities", "\(report.mappedActivities)", nil)
+                mapMetric("Expected transitions", "\(report.observedTransitions)/\(report.expectedTransitions)", report.transitionCoverage)
+                Spacer()
+                Button("Map activities…") { showMapMapping = true }
+                    .controlSize(.small)
+            }
+            if !report.unmappedActivities.isEmpty {
+                Text("Not on the map: \(report.unmappedActivities.prefix(5).joined(separator: " · "))")
+                    .font(.caption2).foregroundStyle(.orange).lineLimit(2)
+            }
+            if !report.unexpectedTransitions.isEmpty {
+                Text("\(report.unexpectedTransitions.count) observed transition(s) are not in the map.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func mapMetric(_ title: String, _ value: String, _ progress: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.caption2).foregroundStyle(.tertiary)
+            Text(value).font(.headline.monospacedDigit())
+            if let progress {
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.primary.opacity(0.08))
+                        Capsule().fill(Color.teal).frame(width: max(4, proxy.size.width * progress))
+                    }
+                }
+                .frame(width: 100, height: 4)
             }
         }
     }
@@ -1086,4 +1155,78 @@ struct MiningWorkbench: View {
 private extension MinedVariant {
     /// The same key the case records use, for variant-level conformance.
     var variant: String { sequence.joined(separator: " → ") }
+}
+
+
+private struct MapActivityMappingSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    let dataset: DatasetRecord
+    let map: MapsBridge.Document
+    let activities: [String]
+
+    @State private var mapping: [String: String]
+
+    init(dataset: DatasetRecord, map: MapsBridge.Document, activities: [String]) {
+        self.dataset = dataset
+        self.map = map
+        self.activities = activities
+        let data = dataset.mapMappingJSON.data(using: .utf8)
+        let existing = (try? JSONSerialization.jsonObject(with: data ?? Data()) as? [String: String]) ?? [:]
+        _mapping = State(initialValue: existing)
+    }
+
+    private var steps: [MapsBridge.Node] {
+        map.nodes.filter { $0.type != "start" && $0.type != "end" }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.md) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Map activities to map steps").font(.title3.weight(.semibold))
+                    Text("Only mapped activities count towards map coverage.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Cancel") { dismiss() }
+            }
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(activities, id: \.self) { activity in
+                        HStack(spacing: Space.sm) {
+                            Text(activity).font(.caption).frame(maxWidth: .infinity, alignment: .leading)
+                            Picker("Map step", selection: Binding(
+                                get: { mapping[activity] ?? "" },
+                                set: { value in
+                                    if value.isEmpty { mapping.removeValue(forKey: activity) }
+                                    else { mapping[activity] = value }
+                                })) {
+                                Text("Unmapped").tag("")
+                                ForEach(steps) { step in
+                                    Text(step.label).tag(step.link?.stepID ?? (step.stepID.isEmpty ? step.id : step.stepID))
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 240)
+                        }
+                        .padding(.vertical, 4)
+                        RowDivider()
+                    }
+                }
+            }
+            HStack {
+                Spacer()
+                Button("Save mapping") {
+                    if let data = try? JSONSerialization.data(withJSONObject: mapping, options: [.sortedKeys]) {
+                        dataset.mapMappingJSON = String(data: data, encoding: .utf8) ?? "{}"
+                        try? model.context.save()
+                    }
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(Space.lg)
+        .frame(width: 640, height: 620)
+    }
 }

@@ -32,7 +32,7 @@ so navigation reads the same at a glance.
 | Strategy | vision, bets, KPIs, values, initiative alignment | same read-only composition; editing is in the Mac app |
 | Discoveries | process list + steps, variants, provenance | same |
 | Opportunities | ranked list + score arithmetic, method, evidence | same |
-| Maps | full-width Flightdeck map, bottom Map fields / ProcessLink / drift bar | same layout; edits are local proposals in this build |
+| Maps | full-width Flightdeck map, Mine, Map fields / ProcessLink / drift bar | layout and map context; the live contract-flow mining path is macOS-only |
 | Meetings | Notion-style pages with typed blocks, decisions, actions | same |
 | Mining | Process logs / Task capture, mapped import, filters, process graph, cases, conformance, insights, simulation | **full log-mining workbench**; task capture remains desktop-only |
 | Improvements | ledger, initiatives, A3, savings lifecycle | same |

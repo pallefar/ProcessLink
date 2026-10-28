@@ -506,3 +506,25 @@ func connectorParser() throws {
                                                     applicationField: "", costField: ""))
     #expect(sf.contains("5001"))
 }
+
+@Test("Map mining maps activities and checks map transitions")
+func mapMiningConformance() {
+    let start = Date(timeIntervalSince1970: 1_700_000_000)
+    let events = [
+        EventLogRecord(caseID: "c1", activity: "Open ticket", timestamp: start, resource: "Desk"),
+        EventLogRecord(caseID: "c1", activity: "4-eye check", timestamp: start.addingTimeInterval(60), resource: "Reviewer"),
+        EventLogRecord(caseID: "c1", activity: "Send hearing", timestamp: start.addingTimeInterval(120), resource: "HR"),
+    ]
+    let reference = MapReference(
+        name: "Hearing",
+        steps: [MapStepRef(id: "intake", label: "Open ticket"),
+                MapStepRef(id: "qc", label: "4-eye check"),
+                MapStepRef(id: "send", label: "Send hearing")],
+        edges: [MapEdgeRef(from: "intake", to: "qc"), MapEdgeRef(from: "qc", to: "send")])
+    let mapping = ["Open ticket": "intake", "4-eye check": "qc", "Send hearing": "send"]
+    let report = MapMining.conformance(events: events, reference: reference, mapping: mapping)
+    #expect(report.stepsObserved == 3)
+    #expect(report.mappedActivities == 3)
+    #expect(report.transitionCoverage == 1)
+    #expect(report.unmappedActivities.isEmpty)
+}

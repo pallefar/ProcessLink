@@ -917,11 +917,15 @@ final class AppModel {
     }
 
     func importCSV(text: String, name: String, filename: String, site: String,
-                   mapping: MiningColumnMap = MiningColumnMap()) throws -> DatasetRecord {
+                   mapping: MiningColumnMap = MiningColumnMap(),
+                   processID: String = "", mapID: String = "",
+                   mapMappingJSON: String = "{}") throws -> DatasetRecord {
         let result = try EventLogImporter.importCSV(text, mapping: mapping)
         guard let dataset = storeDataset(name: name, result: result, source: "csv",
                                          filename: filename, site: site,
-                                         notes: "Imported event log. Case ids hashed, resources sanitised.") else {
+                                         notes: "Imported event log. Case ids hashed, resources sanitised.",
+                                         processID: processID, mapID: mapID,
+                                         mapMappingJSON: mapMappingJSON) else {
             throw MiningError.noRows
         }
         return dataset
@@ -929,12 +933,15 @@ final class AppModel {
 
     @discardableResult
     private func storeDataset(name: String, result: EventLogImport, source: String,
-                              filename: String, site: String, notes: String) -> DatasetRecord? {
+                              filename: String, site: String, notes: String,
+                              processID: String = "", mapID: String = "",
+                              mapMappingJSON: String = "{}") -> DatasetRecord? {
         guard result.caseCount > 0 else { return nil }
         let dataset = DatasetRecord(
             id: "ds-\(UUID().uuidString.prefix(8))", name: name, source: source,
             importedAt: now, caseCount: result.caseCount, eventCount: result.events.count,
-            site: site, classification: .internalUse, filename: filename, notes: notes)
+            site: site, classification: .internalUse, filename: filename, notes: notes,
+            processID: processID, mapID: mapID, mapMappingJSON: mapMappingJSON)
         context.insert(dataset)
         for (index, event) in result.events.enumerated() {
             let attributes = (try? JSONSerialization.data(withJSONObject: event.attributes))

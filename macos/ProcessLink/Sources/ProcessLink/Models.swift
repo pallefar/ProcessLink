@@ -902,9 +902,16 @@ final class DatasetRecord {
     var classificationRaw: String = DataClass.internalUse.rawValue
     var filename: String = ""
     var notes: String = ""
+    /// The ProcessLink process and Flightdeck map this log was imported
+    /// against. Empty for a free-standing CSV.
+    var processID: String = ""
+    var mapID: String = ""
+    /// JSON object mapping an observed activity label to a map step id.
+    var mapMappingJSON: String = "{}"
 
     init(id: String, name: String, source: String, importedAt: Date, caseCount: Int,
-         eventCount: Int, site: String, classification: DataClass, filename: String, notes: String) {
+         eventCount: Int, site: String, classification: DataClass, filename: String, notes: String,
+         processID: String = "", mapID: String = "", mapMappingJSON: String = "{}") {
         self.id = id
         self.name = name
         self.sourceRaw = source
@@ -915,6 +922,9 @@ final class DatasetRecord {
         self.classificationRaw = classification.rawValue
         self.filename = filename
         self.notes = notes
+        self.processID = processID
+        self.mapID = mapID
+        self.mapMappingJSON = mapMappingJSON
     }
 
     var classification: DataClass { DataClass(rawValue: classificationRaw) ?? .internalUse }

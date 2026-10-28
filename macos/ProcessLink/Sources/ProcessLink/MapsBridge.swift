@@ -26,6 +26,7 @@ enum MapsBridge {
         var id: String
         var type: String
         var label: String
+        var stepID: String
         var x: Double
         var y: Double
         var role: String
@@ -104,6 +105,7 @@ enum MapsBridge {
             }
             return Node(id: id, type: raw["type"] as? String ?? "step",
                         label: raw["label"] as? String ?? "",
+                        stepID: data["stepId"] as? String ?? "",
                         x: position["x"] as? Double ?? 0, y: position["y"] as? Double ?? 0,
                         role: data["role"] as? String ?? "",
                         system: data["systemUsed"] as? String ?? "",
@@ -129,7 +131,47 @@ enum MapsBridge {
                         approved: meta["approved"] as? Bool ?? false)
     }
 
-    /// Imports a map document returned by Flightdeck Maps without touching a
+    /// Links a local map to the process mined from its execution log. Labels
+    /// that match a mined step get the normal ProcessLink binding; unmatched
+    /// map steps stay visible as unexercised work.
+    static func attachProcess(_ document: Document, process: ProcessRecord,
+                              steps: [StepRecord]) throws -> Document {
+        var json = document.json
+        var meta = json["meta"] as? [String: Any] ?? [:]
+        meta["sourceProcessId"] = process.id
+        meta["processLink"] = [
+            "processId": process.id,
+            "kgProcessId": process.kgID,
+            "generatedAt": ISO8601DateFormatter().string(from: .now),
+            "source": "ProcessLink Mining",
+        ]
+        json["meta"] = meta
+        var nodes = json["nodes"] as? [[String: Any]] ?? []
+        for index in nodes.indices {
+            var node = nodes[index]
+            guard let label = node["label"] as? String else { continue }
+            let normalized = label.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let step = steps.first(where: {
+                $0.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == normalized
+            }) else { continue }
+            var data = node["data"] as? [String: Any] ?? [:]
+            data["processLink"] = [
+                "processId": process.id,
+                "stepId": step.id,
+                "kgNodeId": step.kgID,
+                "kgProcessId": process.kgID,
+                "syncedAt": ISO8601DateFormatter().string(from: .now),
+            ]
+            node["data"] = data
+            nodes[index] = node
+        }
+        json["nodes"] = nodes
+        let updated = documentFromEditedJSON(json, at: document.fileURL)
+        try save(updated)
+        return updated
+    }
+
+    /// Imports a map document returned by Flightdeck Maps    /// Imports a map document returned by Flightdeck Maps without touching a
     /// local edit that already exists. The file is written only when absent;
     /// the returned Document is still registered in the graph.
     static func importRemote(_ data: Data, existing: Bool) throws -> Document {

@@ -25,7 +25,6 @@ struct MiningPage: View {
     @Query(sort: \StepRecord.order) private var steps: [StepRecord]
 
     @State private var mode: Mode = .logs
-    @State private var selectedDatasetID: String?
     @State private var importing = false
     @State private var importError: String?
     @State private var pendingCSV: PendingCSV?
@@ -40,7 +39,7 @@ struct MiningPage: View {
     @AppStorage("capture.inputCounts") private var captureInputCounts = false
 
     private var selectedDataset: DatasetRecord? {
-        datasets.first { $0.id == selectedDatasetID } ?? datasets.first
+        datasets.first { $0.id == model.selectedDatasetID } ?? datasets.first
     }
 
     private var mined: MinedProcess? {
@@ -78,7 +77,7 @@ struct MiningPage: View {
             if ProcessInfo.processInfo.environment["APP_SNAPSHOT_MINING"] == "capture" {
                 mode = .capture
             }
-            if selectedDatasetID == nil { selectedDatasetID = datasets.first?.id }
+            if model.selectedDatasetID == nil { model.selectedDatasetID = datasets.first?.id }
         }
         .sheet(item: $pendingCSV) { file in
             MiningImportSheet(file: file)
@@ -183,7 +182,7 @@ struct MiningPage: View {
                 LazyVStack(spacing: 2) {
                     ForEach(datasets) { dataset in
                         Button {
-                            selectedDatasetID = dataset.id
+                            model.selectedDatasetID = dataset.id
                         } label: {
                             SelectableRow(selected: selectedDataset?.id == dataset.id) {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -193,8 +192,10 @@ struct MiningPage: View {
                                         .lineLimit(2)
                                         .multilineTextAlignment(.leading)
                                     HStack(spacing: Space.xs) {
-                                        Chip(text: dataset.sourceRaw == "sample" ? "Sample" : "CSV",
-                                             symbol: "tablecells", tint: .secondary)
+                                        Chip(text: dataset.sourceRaw == "sample" ? "Sample"
+                                             : dataset.sourceRaw == "flightdeck-contract-flow" ? "Flightdeck flow" : "CSV",
+                                             symbol: dataset.sourceRaw == "flightdeck-contract-flow" ? "map" : "tablecells",
+                                             tint: .secondary)
                                         if !dataset.site.isEmpty {
                                             Chip(text: dataset.site, tint: .secondary)
                                         }
@@ -225,7 +226,8 @@ struct MiningPage: View {
     @ViewBuilder
     private var datasetDetail: some View {
         if let dataset = selectedDataset {
-            MiningWorkbench(dataset: dataset, processes: processes, steps: steps)
+            let map = dataset.mapID.isEmpty ? nil : MapsBridge.loadAll().first { $0.id == dataset.mapID }
+            MiningWorkbench(dataset: dataset, processes: processes, steps: steps, map: map)
         } else {
             ContentUnavailableView("Select a dataset", systemImage: "tablecells")
         }

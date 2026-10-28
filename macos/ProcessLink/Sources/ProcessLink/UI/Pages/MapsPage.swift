@@ -14,6 +14,7 @@ struct MapsPage: View {
     @Query(sort: \StepRecord.order) private var steps: [StepRecord]
     @Query private var opportunities: [OpportunityRecord]
     @Query private var initiatives: [InitiativeRecord]
+    @Query private var datasets: [DatasetRecord]
 
     @State private var documents: [MapsBridge.Document] = []
     @State private var selectedMapID: String?
@@ -23,6 +24,7 @@ struct MapsPage: View {
     @State private var didImportMaps = false
     @State private var importingMaps = false
     @State private var mapImportStatus: String?
+    @State private var miningMap: MapsBridge.Document?
 
     private var filtered: [MapsBridge.Document] {
         let query = search.trimmingCharacters(in: .whitespaces).lowercased()
@@ -97,6 +99,10 @@ struct MapsPage: View {
             load()
             Task { await importMapsIfNeeded() }
         }
+        .sheet(item: $miningMap) { document in
+            MapMiningSheet(document: document,
+                           dataset: datasets.first { $0.mapID == document.id })
+        }
     }
 
     private func load() {
@@ -119,6 +125,15 @@ struct MapsPage: View {
                 Text("\(filtered.count) maps")
                     .font(.subheadline.weight(.medium))
                 Spacer()
+                Button {
+                    if let current { mineMap(current) }
+                } label: {
+                    Label("Mine", systemImage: "sparkle.magnifyingglass")
+                }
+                .disabled(current == nil)
+                .help("Mine the execution history of the current process map")
+                .accessibilityLabel("Mine this process map")
+
                 Menu {
                     ForEach(processes.filter { process in
                         !steps.filter { $0.processID == process.id }.isEmpty
@@ -225,6 +240,15 @@ struct MapsPage: View {
                     Chip(text: "\(driftIDs.count) differ", symbol: "exclamationmark.triangle", tint: .orange)
                 }
                 Spacer(minLength: Space.sm)
+
+                Button {
+                    if let current { mineMap(current) }
+                } label: {
+                    Label("Mine", systemImage: "sparkle.magnifyingglass")
+                }
+                .disabled(current == nil)
+                .help("Mine the execution history of the current process map")
+                .accessibilityLabel("Mine this process map")
 
                 Menu {
                     ForEach(processes.filter { process in
@@ -400,6 +424,16 @@ struct MapsPage: View {
                             symbol: "exclamationmark.triangle", warning: true)
         } else {
             mapImportStatus = "Maps up to date"
+        }
+    }
+
+    private func mineMap(_ document: MapsBridge.Document) {
+        if let dataset = datasets.first(where: { $0.mapID == document.id }) {
+            model.selectedDatasetID = dataset.id
+            if !dataset.processID.isEmpty { model.selectedProcessID = dataset.processID }
+            model.page = .mining
+        } else {
+            miningMap = document
         }
     }
 
@@ -1024,5 +1058,162 @@ private struct MapDocumentInspector: View {
             .padding(Space.lg)
         }
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+}
+
+
+private struct MapMiningSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    let document: MapsBridge.Document
+    let dataset: DatasetRecord?
+
+    @State private var busy = false
+    @State private var error: String?
+    @State private var showingCSV = false
+
+    private var mapSteps: [MapsBridge.Node] {
+        document.nodes.filter { $0.type != "start" && $0.type != "end" }
+    }
+
+    /// Local as-is maps have no Flightdeck execution history. Contract-flow
+    /// tickets belong to maps imported from the OS.
+    private var canPullLive: Bool {
+        !document.id.hasPrefix("map-")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.lg) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Mine this process").font(.title3.weight(.semibold))
+                    Text(document.label).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
+                Spacer()
+                Button("Close") { dismiss() }
+            }
+
+            HStack(spacing: Space.md) {
+                MetricTile(title: "Map steps", value: "\(mapSteps.count)", detail: "The reference model",
+                           symbol: "square.on.square", tint: .blue)
+                MetricTile(title: "Edges", value: "\(document.edges.count)", detail: "Expected flow",
+                           symbol: "arrow.triangle.branch", tint: .purple)
+                MetricTile(title: "Linked process", value: document.processID.isEmpty ? "None" : "Yes",
+                           detail: document.processID.isEmpty ? "The log will create one" : document.processID,
+                           symbol: "link", tint: .teal)
+            }
+
+            if let dataset {
+                Card("Existing execution log", subtitle: "\(dataset.name)", symbol: "tablecells") {
+                    HStack {
+                        Text("\(dataset.caseCount) cases · \(dataset.eventCount) events")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Open mining") {
+                            model.selectedDatasetID = dataset.id
+                            model.page = .mining
+                            dismiss()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+            } else {
+                Card("Get the execution log", subtitle: "A map is the model; mining needs what actually happened.", symbol: "sparkle.magnifyingglass") {
+                    VStack(alignment: .leading, spacing: Space.md) {
+                        if canPullLive {
+                            HStack(alignment: .top, spacing: Space.sm) {
+                                Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
+                                    .foregroundStyle(.teal)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Pull live contract-flow history").font(.subheadline.weight(.medium))
+                                    Text("Tickets, runs, four-eye checks, PDFs, works-council steps and signatures from Flightdeck OS.")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button {
+                                    pullLive()
+                                } label: {
+                                    if busy { ProgressView().controlSize(.small) }
+                                    else { Text("Pull live") }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(busy || !model.flightdeck.isSignedIn)
+                            }
+                            RowDivider()
+                        } else {
+                            Text("This local as-is map has no Flightdeck execution log. Import a CSV, or select an OS map to pull contract-flow history.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            RowDivider()
+                        }
+                        HStack(alignment: .top, spacing: Space.sm) {
+                            Image(systemName: "tablecells").foregroundStyle(.blue)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Import a CSV for this map").font(.subheadline.weight(.medium))
+                                Text("For a system export or a log from another execution engine. Columns are mapped on the next screen.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("Choose CSV…") { showingCSV = true }
+                                .disabled(busy)
+                        }
+                        if !model.flightdeck.isSignedIn {
+                            Text("Connect Flightdeck first for the live contract-flow path.")
+                                .font(.caption2).foregroundStyle(.orange)
+                        }
+                    }
+                }
+            }
+
+            if let error {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
+
+            GuardrailNote(text: "A map step is a model fact. The event log is evidence. Mining never treats the map as proof that a step happened, and an unmapped activity is shown rather than silently dropped.")
+        }
+        .padding(Space.lg)
+        .frame(width: 620, height: 600)
+        .fileImporter(isPresented: $showingCSV, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
+            switch result {
+            case .success(let url): importCSV(url)
+            case .failure(let error): self.error = error.localizedDescription
+            }
+        }
+    }
+
+    private func pullLive() {
+        busy = true
+        error = nil
+        Task {
+            let result = await model.flightdeck.importContractFlow(into: model, map: document)
+            busy = false
+            if result != nil { dismiss() }
+        }
+    }
+
+    private func importCSV(_ url: URL) {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            let dataset = try model.importCSV(
+                text: text, name: url.deletingPathExtension().lastPathComponent,
+                filename: url.lastPathComponent, site: "", mapID: document.id)
+            guard let process = model.createProcess(from: dataset) else {
+                self.error = "The log imported, but no process could be created."
+                return
+            }
+            dataset.processID = process.id
+            let processSteps = (try? model.context.fetch(FetchDescriptor<StepRecord>())) ?? []
+            let mapped = try MapsBridge.attachProcess(document, process: process,
+                                                      steps: processSteps.filter { $0.processID == process.id })
+            model.registerMap(mapped, process: process)
+            model.selectedDatasetID = dataset.id
+            model.selectedProcessID = process.id
+            model.page = .mining
+            try? model.context.save()
+            dismiss()
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }

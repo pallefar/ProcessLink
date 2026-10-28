@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import ProcessLinkKit
+import SwiftData
 
 enum ConnectionState: String {
     case notConfigured
@@ -278,6 +279,162 @@ final class FlightdeckService {
             try? model.context.save()
             model.showToast("Flightdeck synced", detail: "OS, Vision and Atlas context refreshed", symbol: "arrow.triangle.2.circlepath")
         }
+    }
+
+    /// Pulls the real contract-flow execution history behind a Flightdeck map:
+    /// one case per ticket, with run, four-eye check, PDF, works council and
+    /// signature events. It is the operational event log, not a map walk.
+    @discardableResult
+    func importContractFlow(into model: AppModel, map: MapsBridge.Document) async -> DatasetRecord? {
+        guard principal != nil else { return nil }
+        if projects.isEmpty { await refreshContext() }
+        guard !workspaceID.isEmpty else { return nil }
+        do {
+            let value = try makeClient()
+            let ids = try await value.contractFlowTicketIDs(workspaceID: workspaceID, projectID: projectID)
+            guard !ids.isEmpty else {
+                model.showToast("No execution history", detail: "This project has no contract-flow tickets yet.",
+                                symbol: "tray", warning: true)
+                return nil
+            }
+            let header = "case_id,activity,timestamp,resource,application,outcome,project,stage,source,checks"
+            var lines = [header]
+            var cases = 0
+            for id in ids.prefix(500) {
+                guard let data = try? await value.contractFlowTicket(id: id, workspaceID: workspaceID,
+                                                                     projectID: projectID),
+                      let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+                let ticket = root["ticket"] as? String ?? id
+                let project = root["project"] as? String ?? ""
+                let stage = root["stage"] as? String ?? ""
+                let runs = root["runs"] as? [[String: Any]] ?? []
+                let latest = runs.first
+                var events: [(String, String, String, String, String)] = []
+                if let run = latest {
+                    let outcome = run["outcome"] as? String ?? ""
+                    let checks = run["checks"] as? [String: Any]
+                    let checkText = checks.map { "\($0["passed"] as? Int ?? 0) passed" } ?? ""
+                    let source = run["source"] as? String ?? "flightdeck"
+                    let started = run["startedAt"] as? String ?? ""
+                    if !started.isEmpty {
+                        events.append(("Generate draft", started, "Preparer", outcome, source))
+                    }
+                    if let check = run["check"] as? [String: Any], let at = check["at"] as? String {
+                        events.append(("4-eye check", at, "Reviewer", outcome, source))
+                    }
+                    if let pdf = run["pdf"] as? [String: Any], let at = pdf["at"] as? String {
+                        events.append(("Export PDF", at, "Preparer", outcome, source))
+                    }
+                    if let signature = run["signature"] as? [String: Any], let at = signature["at"] as? String {
+                        events.append(("Signature", at, "Signatory", outcome, source))
+                    }
+                    if let at = run["finishedAt"] as? String, events.isEmpty {
+                        events.append(("Generate draft", at, "Preparer", outcome, source))
+                    }
+                    for event in events {
+                        lines.append(csvLine([ticket, event.0, event.1, event.2, "Flightdeck Maps",
+                                              event.3, project, stage, event.4, checkText]))
+                    }
+                }
+                // Works-council and closure are ticket-history events, not run
+                // events; add the ones not already represented above.
+                let history = root["history"] as? [[String: Any]] ?? []
+                let macro: [String: String] = [
+                    "wc-sent": "Send to works council",
+                    "wc-approved": "Works council approved",
+                    "wc-rejected": "Works council rejected",
+                    "signed": "Signature",
+                    "done": "Close ticket",
+                    "refused": "Refused",
+                    "checks-failed": "Checks failed",
+                ]
+                for entry in history {
+                    guard let stageKey = entry["stage"] as? String,
+                          let activity = macro[stageKey],
+                          let at = entry["at"] as? String else { continue }
+                    if events.contains(where: { $0.0 == activity }) { continue }
+                    let resource = activity.contains("works council") ? "Works council" : "HR Services"
+                    lines.append(csvLine([ticket, activity, at, resource, "Flightdeck Maps",
+                                          stage, project, stageKey, "history", ""]))
+                }
+                cases += 1
+            }
+            guard lines.count > 1 else {
+                model.showToast("No execution events", detail: "The tickets have no run or history timestamps.",
+                                symbol: "tray", warning: true)
+                return nil
+            }
+            let csv = lines.joined(separator: "\n")
+            let dataset = try model.importCSV(
+                text: csv, name: "Contract flow · \(map.label)",
+                filename: "flightdeck-contract-flow.csv", site: "",
+                mapID: map.id,
+                mapMappingJSON: mappingJSON(for: map))
+            guard let process = model.createProcess(from: dataset) else { return dataset }
+            dataset.processID = process.id
+            dataset.mapID = map.id
+            dataset.sourceRaw = "flightdeck-contract-flow"
+            dataset.notes = "Live contract-flow execution history from Flightdeck Maps: \(cases) tickets."
+            let processSteps = ((try? model.context.fetch(FetchDescriptor<StepRecord>())) ?? [])
+                .filter { $0.processID == process.id }
+                .sorted { $0.order < $1.order }
+            let updated = try MapsBridge.attachProcess(map, process: process, steps: processSteps)
+            model.registerMap(updated, process: process)
+            model.selectedDatasetID = dataset.id
+            model.selectedProcessID = process.id
+            model.page = .mining
+            try? model.context.save()
+            model.showToast("Contract flow mined",
+                            detail: "\(dataset.caseCount) cases · \(dataset.eventCount) events · \(ids.count) tickets",
+                            symbol: "point.topleft.down.to.point.bottomright.curvepath")
+            return dataset
+        } catch {
+            model.showToast("Contract-flow import failed", detail: error.localizedDescription,
+                            symbol: "exclamationmark.triangle", warning: true)
+            return nil
+        }
+    }
+
+    private func mappingJSON(for map: MapsBridge.Document) -> String {
+        let steps = map.nodes.compactMap { node -> MapStepRef? in
+            guard node.type != "start" && node.type != "end" else { return nil }
+            let stepID = node.link?.stepID ?? (node.stepID.isEmpty ? node.id : node.stepID)
+            return MapStepRef(id: stepID, label: node.label,
+                              role: node.role, system: node.system)
+        }
+        let aliases: [String: String] = [
+            "Generate draft": "prepare_documents",
+            "Export PDF": "prepare_documents",
+            "4-eye check": "qc_four_eye",
+            "Send to works council": "send_to_wc",
+            "Works council approved": "wc_reply",
+            "Works council rejected": "wc_rejected",
+            "Signature": "hrss_signature",
+            "Close ticket": "complete",
+            "Refused": "request_info",
+            "Checks failed": "qc_four_eye",
+        ]
+        var mapping: [String: String] = [:]
+        let stepIDs = Dictionary(uniqueKeysWithValues: map.nodes.map { node in
+            (node.id, node.link?.stepID ?? (node.stepID.isEmpty ? node.id : node.stepID))
+        })
+        let reference = MapReference(name: map.label, steps: steps,
+                                     edges: map.edges.compactMap { edge in
+                                         guard let from = stepIDs[edge.source], let to = stepIDs[edge.target] else { return nil }
+                                         return MapEdgeRef(from: from, to: to)
+                                     })
+        for (activity, step) in aliases where steps.contains(where: { $0.id == step }) {
+            mapping[activity] = step
+        }
+        for (activity, step) in MapMining.autoMap(activities: Array(Set(mapping.keys)).sorted(), reference: reference) {
+            if mapping[activity] == nil { mapping[activity] = step }
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: mapping, options: [.sortedKeys])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
+    private func csvLine(_ values: [String]) -> String {
+        values.map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }.joined(separator: ",")
     }
 
     /// Imports every map in every enabled project from Flightdeck Maps. A

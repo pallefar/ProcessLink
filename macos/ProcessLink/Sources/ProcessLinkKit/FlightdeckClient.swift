@@ -354,6 +354,26 @@ public actor FlightdeckClient {
         return try await get("/api/apps/maps/maps/\(encoded)", workspace: workspaceID, project: projectID)
     }
 
+    // MARK: Contract-flow execution history
+
+    /// Contract-flow tickets are real process cases: runs, checks, PDFs,
+    /// works-council steps and signatures. This is the operational event log
+    /// behind a contract map, not a synthetic map walk.
+    public func contractFlowTicketIDs(workspaceID: String, projectID: String) async throws -> [String] {
+        let data = try await get("/api/contract-flow/tickets", workspace: workspaceID, project: projectID)
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rows = root["tickets"] as? [[String: Any]] else {
+            throw FlightdeckError.decoding("Expected a contract-flow ticket list.")
+        }
+        return rows.compactMap { $0["ticket"] as? String }
+    }
+
+    public func contractFlowTicket(id: String, workspaceID: String, projectID: String) async throws -> Data {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        return try await get("/api/contract-flow/tickets/\(encoded)",
+                             workspace: workspaceID, project: projectID)
+    }
+
     // MARK: Atlas
 
     /// Atlas's UAT/local development identity is supplied by its hosting

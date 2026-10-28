@@ -36,6 +36,13 @@ enum Snapshot {
                 model.page = .connections
                 try? await Task.sleep(for: .seconds(5))
             }
+            if env["APP_SNAPSHOT_MINE_MAP"] == "1", model.flightdeck.isSignedIn {
+                let maps = MapsBridge.loadAll()
+                if let map = maps.first(where: { $0.label.localizedCaseInsensitiveContains("WC hearing") }) ?? maps.first {
+                    _ = await model.flightdeck.importContractFlow(into: model, map: map)
+                    try? await Task.sleep(for: .seconds(2))
+                }
+            }
             for mode in ["light", "dark"] {
                 NSApp.appearance = NSAppearance(named: mode == "light" ? .aqua : .darkAqua)
                 for page in SidebarItem.allCases where only?.contains(page.rawValue) ?? true {

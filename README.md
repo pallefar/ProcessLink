@@ -15,7 +15,7 @@ Event logs · task capture  →  ProcessLink  →  KG · Maps · TEOA · DeckFor
 
 | Form | Where | Status |
 |---|---|---|
-| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 40 unit tests + 73 in-app checks, light/dark snapshots |
+| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 41 unit tests + 73 in-app checks, light/dark snapshots |
 | **Web** — React 19 + Vite, strict TS | [`web`](web) | Same shell, full log-mining workbench, tokens and pages; the sub-app replacement is in [`web/src/flightdeck`](web/src/flightdeck) |
 | **Windows** — Tauri 2 + WebView2 | [`windows/ProcessLink.Windows`](windows/ProcessLink.Windows) | Scaffolded with config and Rust entry; not built on a Windows host here |
 
@@ -43,10 +43,12 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
    with an owner, a stage and a saving that moves estimated → committed →
    validated. Validation needs a named human and before/after evidence.
 5. **Maps** — ProcessLink imports every map from the connected Flightdeck
-   Maps projects and reads/writes real `signavio-map/1` documents. Shapes carry
-   a `processLink` binding, so the map inspector shows the mined step,
-   opportunity and saving; map edits come back as drift and audited proposals.
-   Overlays cover cycle time, handoffs, rework and automation potential.
+   Maps projects and reads/writes real `signavio-map/1` documents. **Mine** on
+   a map pulls the live contract-flow execution history behind it, imports the
+   real cases, attaches the map as the reference model, and reports map step
+   and transition coverage. Shapes carry a `processLink` binding, so the map
+   inspector shows the mined step, opportunity and saving; map edits come back
+   as drift and audited proposals.
 6. **Graph** — typed nodes and edges with confidence, validity and source; a
    human review queue for uncertain matches; no silent merges.
 7. **Ask** — a governed assistant over the same facts. Every number cites a
@@ -63,7 +65,8 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
    token-replay and sequence conformance, root-cause comparisons, a what-if
    simulator, capacity/queue simulation, a sound process tree with BPMN export,
    optimal alignment, a watchlist, view-vs-baseline comparison, bulk folder
-   import and CSV/JSON export. Or run a local task capture (frontmost app, minutes and
+   import and CSV/JSON export. Maps can be mined directly: the map is the
+   reference model and ticket/run history is the event log. Or run a local task capture (frontmost app, minutes and
    switches by default; optional window titles, local screenshots and
    keystroke/click counts). Mined
    results become the same process/KG/map/opportunity records. Configured REST
@@ -92,6 +95,10 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 | Knowledge graph | Mining workbench |
 |---|---|
 | ![Graph](docs/shots/graph-light.png) | ![Mining](docs/shots/mining-light.png) |
+
+| Map-native mining | Map mine flow |
+|---|---|
+| ![Map mining](docs/shots/mining-map-light.png) | ![Maps with Mine](docs/shots/maps-light.png) |
 
 | Process graph | Case explorer |
 |---|---|
@@ -225,12 +232,12 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 Tag a version and GitHub Actions builds both desktop installers:
 
 ```bash
-git tag v0.1.7 && git push origin v0.1.7
+git tag v0.1.8 && git push origin v0.1.8
 ```
 
 The release contains a universal macOS DMG (`arm64` + `x86_64`), a Windows
 NSIS setup (and an MSI from the Windows CI job), and `SHA256SUMS.txt`.
-[Download v0.1.7](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.7).
+[Download v0.1.8](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.8).
 Local packaging, signing and the current Actions billing note are in
 [`docs/RELEASING.md`](docs/RELEASING.md).
 

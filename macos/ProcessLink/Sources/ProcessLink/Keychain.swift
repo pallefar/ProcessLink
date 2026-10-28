@@ -7,6 +7,9 @@ enum KeychainStore {
     private static let service = "com.te.processlink.flightdeck"
 
     static func set(_ value: String, account: String) {
+        // A self-test is not a user session and must never open a Keychain
+        // prompt from an ad-hoc build.
+        guard !SelfTest.requested else { return }
         let data = Data(value.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -21,6 +24,7 @@ enum KeychainStore {
     }
 
     static func get(account: String) -> String? {
+        guard !SelfTest.requested else { return nil }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -35,6 +39,7 @@ enum KeychainStore {
     }
 
     static func delete(account: String) {
+        guard !SelfTest.requested else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
