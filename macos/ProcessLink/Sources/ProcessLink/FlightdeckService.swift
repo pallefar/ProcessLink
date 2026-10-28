@@ -70,7 +70,11 @@ final class FlightdeckService {
         workspaceID = Self.defaults.string(forKey: "fd.workspace") ?? ""
         projectID = Self.defaults.string(forKey: "fd.project") ?? ""
         lastSync = Self.defaults.object(forKey: "fd.lastSync") as? Date
-        atlasToken = KeychainStore.get(account: Self.atlasTokenAccount)
+        // A self-test must not block on a Keychain prompt from an ad-hoc
+        // build. Normal launches still restore the Atlas token.
+        if !SelfTest.requested {
+            atlasToken = KeychainStore.get(account: Self.atlasTokenAccount)
+        }
         health = [
             "os": SourceHealth(id: "os", title: "Flightdeck OS", symbol: "cloud", state: .notConfigured,
                                detail: "Sign in with a UAT account", count: 0, updatedAt: nil),

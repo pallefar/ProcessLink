@@ -9,6 +9,7 @@ const PATHS: Record<string, React.ReactNode> = {
   ask: <><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-4-1L3 21l2-4.5a8.5 8.5 0 1 1 16-5z" /></>,
   graph: <><path d="M12 2l8.5 5v10L12 22l-8.5-5V7L12 2z" /><circle cx="12" cy="12" r="2.2" /><path d="M12 9.8V6M12 14.2V18M9.9 13L6.7 15M14.1 13l3.2 2M9.9 11L6.7 9M14.1 11l3.2-2" /></>,
   governance: <><path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></>,
+  target: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></>,
   macwindow: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M7 6.5h.01M10 6.5h.01" /></>,
   cloud: <><path d="M18 18a4 4 0 0 0-1.3-7.8A6 6 0 0 0 5 12a4 4 0 0 0 1 6h12z" /></>,
   layers: <><path d="M12 2l9 5-9 5-9-5 9-5z" /><path d="M3 12l9 5 9-5M3 17l9 5 9-5" /></>,

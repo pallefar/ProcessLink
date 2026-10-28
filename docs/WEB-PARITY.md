@@ -29,6 +29,7 @@ so navigation reads the same at a glance.
 | Page | Mac | Web |
 |---|---|---|
 | Overview | metrics, priority queue, pipeline, freshness, launch posture | same composition |
+| Strategy | vision, bets, KPIs, values, initiative alignment | same read-only composition; editing is in the Mac app |
 | Discoveries | process list + steps, variants, provenance | same |
 | Opportunities | ranked list + score arithmetic, method, evidence | same |
 | Maps | full-width Flightdeck map, bottom Map fields / ProcessLink / drift bar | same layout; edits are local proposals in this build |

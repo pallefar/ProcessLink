@@ -609,3 +609,21 @@ table.ledger td.num, table.ledger th.num { text-align: right; font-variant-numer
   font-size: 10px;
 }
 .fd-caption { width: 100%; text-align: center; }
+
+/* Strategy */
+.strategy-page { padding: 18px 22px 32px; }
+.strategy-vision-title { font-size: 24px; margin: 4px 0 6px; }
+.strategy-vision-copy { max-width: 900px; color: var(--secondary); font-size: 13px; line-height: 1.5; }
+.strategy-note { margin-top: 10px; }
+.strategy-bets { display: flex; flex-direction: column; }
+.strategy-bet { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.strategy-bet:last-child { border-bottom: 0; }
+.strategy-bet-head { display: flex; align-items: center; gap: 8px; }
+.strategy-bet-head .subtle { margin-left: auto; }
+.strategy-progress { height: 4px; border-radius: 999px; background: var(--border); overflow: hidden; margin-top: 6px; }
+.strategy-progress span { display: block; height: 100%; background: var(--orange); border-radius: 999px; }
+.strategy-progress span[data-track='true'] { background: var(--green); }
+.strategy-progress-meta { display: flex; justify-content: space-between; color: var(--tertiary); font-size: 10px; margin-top: 2px; }
+.strategy-values { display: flex; flex-direction: column; gap: 12px; }
+.strategy-values p { margin: 2px 0; }
+.strategy-kpis td, .strategy-links td { vertical-align: top; }

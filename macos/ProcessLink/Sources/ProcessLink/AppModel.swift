@@ -7,13 +7,14 @@ import SwiftUI
 /// The sidebar sections. Snapshot mode walks every case, so a new section is
 /// covered by the checks automatically.
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case overview, discoveries, opportunities, maps, meetings, mining, graph, improvements, ask, governance, connections
+    case overview, strategy, discoveries, opportunities, maps, meetings, mining, graph, improvements, ask, governance, connections
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .overview: "Overview"
+        case .strategy: "Strategy"
         case .discoveries: "Discoveries"
         case .opportunities: "Opportunities"
         case .maps: "Maps"
@@ -30,6 +31,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .overview: "square.grid.2x2"
+        case .strategy: "target"
         case .discoveries: "binoculars"
         case .opportunities: "lightbulb"
         case .maps: "point.topleft.down.to.point.bottomright.curvepath"
@@ -47,6 +49,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     var shortcut: KeyEquivalent {
         switch self {
         case .overview: "1"
+        case .strategy: "s"
         case .discoveries: "2"
         case .opportunities: "3"
         case .maps: "4"
@@ -183,6 +186,8 @@ final class AppModel {
         dataOwner = defaults.string(forKey: "policy.dataOwner") ?? "CI Manager (role)"
         notificationsEnabled = defaults.bool(forKey: "notifications.enabled")
         migrateLegacyDiscovery()
+        StrategyDefaults.installIfNeeded(in: container.mainContext)
+        StrategyDefaults.repairAllLinks(in: container.mainContext)
         ActivityCapture.removeScreenshots(olderThan: retentionDays)
     }
 
@@ -350,6 +355,7 @@ final class AppModel {
             followUp: "Validate with before/after measurements after 6 weeks.",
             createdAt: now)
         context.insert(initiative)
+        StrategyDefaults.applyDefaultLink(to: initiative)
         opportunity.statusRaw = OpportunityStatus.promoted.rawValue
         opportunity.promotedAt = now
         audit(action: "initiative.created", subject: initiative.title,
@@ -385,6 +391,13 @@ final class AppModel {
     // MARK: Initiative actions
 
     func advance(_ initiative: InitiativeRecord) {
+        guard initiative.hasStrategyLink else {
+            showToast("Link the initiative to strategy first",
+                      detail: "Choose a strategic bet, a KPI and at least one value on Strategy.",
+                      symbol: "link.badge.plus", warning: true)
+            page = .strategy
+            return
+        }
         let next = initiative.stage.next
         guard next != initiative.stage else { return }
         initiative.stageRaw = next.rawValue
@@ -398,6 +411,13 @@ final class AppModel {
     }
 
     func commitSavings(_ initiative: InitiativeRecord) {
+        guard initiative.hasStrategyLink else {
+            showToast("Link the initiative to strategy first",
+                      detail: "A saving commitment needs a bet, a KPI and a value.",
+                      symbol: "link.badge.plus", warning: true)
+            page = .strategy
+            return
+        }
         guard initiative.savingsStage == .estimated else { return }
         guard !initiative.owner.isEmpty, initiative.owner != "Unassigned" else {
             showToast("A commitment needs an owner", detail: "Assign an owner before committing the saving.",
@@ -414,6 +434,13 @@ final class AppModel {
     /// Validation is the only path to a claim. It needs a named validator and
     /// a before/after evidence note; both are stored on the record.
     func validateSavings(_ initiative: InitiativeRecord, validator: String, evidence: String) {
+        guard initiative.hasStrategyLink else {
+            showToast("Link the initiative to strategy first",
+                      detail: "Validation needs a KPI and value context, not only hours.",
+                      symbol: "link.badge.plus", warning: true)
+            page = .strategy
+            return
+        }
         let trimmedEvidence = evidence.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedValidator = validator.trimmingCharacters(in: .whitespacesAndNewlines)
         guard initiative.savingsStage != .validated else { return }
@@ -764,6 +791,7 @@ final class AppModel {
             result: "", followUp: "Confirm the action produced the intended change.",
             createdAt: now)
         context.insert(initiative)
+        StrategyDefaults.applyDefaultLink(to: initiative)
         block.checked = true
         if let opportunity { opportunity.statusRaw = OpportunityStatus.promoted.rawValue }
         writeMeetingToGraph(meeting)

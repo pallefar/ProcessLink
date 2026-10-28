@@ -122,7 +122,7 @@ the standard-work change.
   edits.
 - Flightdeck schema extension + `ProcessLinkPanel` mounted in the real
   `NodeInspector`.
-- Map checks are included in the 69 in-app checks: document schema, bindings,
+- Map checks are included in the 73 in-app checks: document schema, bindings,
   drift, persistence, graph node and edge, plus live import.
 
 **Not yet**

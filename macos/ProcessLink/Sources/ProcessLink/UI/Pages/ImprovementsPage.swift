@@ -11,6 +11,7 @@ struct ImprovementsPage: View {
     @Query(sort: \MeetingRecord.date, order: .reverse) private var meetingNotes: [MeetingRecord]
 
     @State private var validating: InitiativeRecord?
+    @State private var linkingInitiative: InitiativeRecord?
     @State private var validator = ""
     @State private var evidence = ""
 
@@ -49,6 +50,9 @@ struct ImprovementsPage: View {
         .navigationTitle("Improvements")
         .sheet(item: $validating) { initiative in
             validationSheet(initiative)
+        }
+        .sheet(item: $linkingInitiative) { initiative in
+            InitiativeStrategyLinkSheet(initiative: initiative)
         }
         .sheet(isPresented: Binding(get: { model.showA3ForInitiativeID != nil },
                                     set: { if !$0 { model.showA3ForInitiativeID = nil } })) {
@@ -224,7 +228,8 @@ struct ImprovementsPage: View {
                                       systemImage: "arrow.forward.circle")
                             }
                             .buttonStyle(.borderedProminent)
-                            .disabled(initiative.stage == .act)
+                            .disabled(initiative.stage == .act || !initiative.hasStrategyLink)
+                            .help(initiative.hasStrategyLink ? "Advance the PDCA stage" : "Link a bet, KPI and value first")
 
                             Button("Open A3") { model.showA3ForInitiativeID = initiative.id }
                             Button("KG node") {
@@ -241,6 +246,7 @@ struct ImprovementsPage: View {
                     }
                 }
 
+                strategyLinkCard(initiative)
                 savingsCard(initiative)
                 if isAutomationPackage(initiative) { changePackage(initiative) }
                 meetingCard(initiative)
@@ -250,6 +256,58 @@ struct ImprovementsPage: View {
             ContentUnavailableView("No initiative selected", systemImage: "flag.pattern.checkered")
                 .frame(maxWidth: .infinity, minHeight: 300)
         }
+    }
+
+    private func strategyLinkCard(_ initiative: InitiativeRecord) -> some View {
+        Card("Strategy alignment", subtitle: "The bet, KPI and values this work must serve.", symbol: "link") {
+            VStack(alignment: .leading, spacing: Space.sm) {
+                if initiative.hasStrategyLink {
+                    DetailRow(label: "Strategic bet", value: betName(initiative.strategicBetID))
+                    DetailRow(label: "KPI", value: kpiName(initiative.kpiID))
+                    DetailRow(label: "Values", value: valueNames(initiative).joined(separator: " · "))
+                    if !initiative.expectedKPIChange.isEmpty {
+                        DetailRow(label: "Expected change", value: initiative.expectedKPIChange)
+                    }
+                    if !initiative.visionContribution.isEmpty {
+                        Text(initiative.visionContribution)
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    HStack(spacing: Space.sm) {
+                        Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
+                        Text("Not linked. A bet, KPI and value are required before the stage or saving can move.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                HStack {
+                    if !initiative.hasStrategyLink {
+                        Button("Link to strategy…") { linkingInitiative = initiative }
+                            .buttonStyle(.borderedProminent)
+                    } else {
+                        Button("Edit strategy link…") { linkingInitiative = initiative }
+                            .controlSize(.small)
+                    }
+                    Button("Open Strategy") { model.page = .strategy }
+                        .controlSize(.small)
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    private func betName(_ id: String) -> String {
+        let bets = (try? model.context.fetch(FetchDescriptor<StrategicBetRecord>())) ?? []
+        return bets.first { $0.id == id }?.title ?? "Not linked"
+    }
+
+    private func kpiName(_ id: String) -> String {
+        let kpis = (try? model.context.fetch(FetchDescriptor<KPIRecord>())) ?? []
+        return kpis.first { $0.id == id }?.name ?? "Not linked"
+    }
+
+    private func valueNames(_ initiative: InitiativeRecord) -> [String] {
+        StrategyDefaults.valueNames(for: initiative.valueIDs, in: model.context)
     }
 
     private func savingsCard(_ initiative: InitiativeRecord) -> some View {

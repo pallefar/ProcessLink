@@ -461,6 +461,7 @@ enum SeedData {
 
         for seed in initiatives {
             let process = processesByID[seed.process]
+            let link = StrategyDefaults.link(for: seed.process, waste: seed.waste)
             context.insert(InitiativeRecord(
                 id: seed.id, title: seed.title, opportunityID: seed.opportunity,
                 processID: seed.process, processName: process?.name ?? "",
@@ -470,6 +471,9 @@ enum SeedData {
                 validatedBy: seed.validator, evidenceNote: seed.evidence, claimsWaste: seed.waste,
                 background: seed.background, target: seed.target, rootCause: seed.cause,
                 countermeasure: seed.counter, result: seed.result, followUp: seed.followUp,
+                strategicBetID: link.betID, kpiID: link.kpiID,
+                valueIDs: link.valueIDs, expectedKPIChange: link.expectedChange,
+                visionContribution: link.contribution,
                 createdAt: daysAgo(40)))
         }
 

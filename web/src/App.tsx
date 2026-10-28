@@ -12,11 +12,12 @@ import type {
 } from './domain/types'
 
 export type Page =
-  | 'overview' | 'discoveries' | 'opportunities' | 'maps' | 'meetings' | 'mining'
+  | 'overview' | 'strategy' | 'discoveries' | 'opportunities' | 'maps' | 'meetings' | 'mining'
   | 'graph' | 'improvements' | 'ask' | 'governance'
 
 export const NAV: Array<{ id: Page; label: string; group: string; icon: string }> = [
   { id: 'overview', label: 'Overview', group: 'Work', icon: 'overview' },
+  { id: 'strategy', label: 'Strategy', group: 'Work', icon: 'target' },
   { id: 'discoveries', label: 'Discoveries', group: 'Work', icon: 'discoveries' },
   { id: 'opportunities', label: 'Opportunities', group: 'Work', icon: 'opportunities' },
   { id: 'maps', label: 'Maps', group: 'Work', icon: 'maps' },

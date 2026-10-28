@@ -38,6 +38,20 @@ enum SelfTest {
             check("seed has the seven processes", processes.count == 7, "found \(processes.count)")
             check("seed has the opportunity pipeline", opportunities.count >= 12, "found \(opportunities.count)")
 
+            // Strategy and mandatory links.
+            let strategies = fetch(StrategyRecord.self)
+            let bets = fetch(StrategicBetRecord.self)
+            let kpis = fetch(KPIRecord.self)
+            let values = fetch(ValueRecord.self)
+            check("a function vision exists", strategies.count == 1)
+            check("strategic bets, KPIs and values exist",
+                  bets.count >= 4 && kpis.count >= 5 && values.count >= 4,
+                  "bets \(bets.count), KPIs \(kpis.count), values \(values.count)")
+            let seededInitiatives = fetch(InitiativeRecord.self)
+            check("every seeded initiative has a bet, KPI and value",
+                  !seededInitiatives.isEmpty && seededInitiatives.allSatisfy(\.hasStrategyLink),
+                  "\(seededInitiatives.filter { $0.hasStrategyLink }.count) of \(seededInitiatives.count) linked")
+
             // Meetings and their graph facts.
             let meetings = fetch(MeetingRecord.self)
             let meetingBlocks = fetch(MeetingBlockRecord.self)
@@ -157,7 +171,8 @@ enum SelfTest {
             }
 
             if let initiative {
-                check("a new saving starts as an estimate", initiative.savingsStage == .estimated)
+                check("a new initiative inherits a strategy link", initiative.hasStrategyLink)
+            check("a new saving starts as an estimate", initiative.savingsStage == .estimated)
                 model.commitSavings(initiative)
                 check("an owner can commit the saving", initiative.savingsStage == .committed)
 

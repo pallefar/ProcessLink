@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { NAV, useApp } from './App'
 import Overview from './pages/Overview'
+import Strategy from './pages/Strategy'
 import Discoveries from './pages/Discoveries'
 import Opportunities from './pages/Opportunities'
 import Maps from './pages/Maps'
@@ -15,6 +16,7 @@ import { FlightdeckSidebar } from './components/FlightdeckSidebar'
 
 const PAGES = {
   overview: Overview,
+  strategy: Strategy,
   discoveries: Discoveries,
   opportunities: Opportunities,
   maps: Maps,

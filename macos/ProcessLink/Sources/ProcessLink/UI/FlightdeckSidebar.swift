@@ -50,6 +50,10 @@ struct FlightdeckSidebar: View {
             }
         }
         .task {
+            // A self-test must never block on a Keychain prompt from an
+            // unsigned/ad-hoc build. It tests the data functions, not the
+            // user's saved Flightdeck session.
+            guard !SelfTest.requested else { return }
             if !flightdeck.isSignedIn { await flightdeck.restoreSession() }
         }
     }

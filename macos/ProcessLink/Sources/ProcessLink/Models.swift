@@ -275,6 +275,134 @@ enum OpportunityStatus: String, CaseIterable {
     }
 }
 
+// MARK: - Strategy
+
+/// One function vision, owned by a human. The horizon is a string on purpose:
+/// a fiscal year, a quarter, or a named transformation programme.
+@Model
+final class StrategyRecord {
+    var id: String = "function-strategy"
+    var functionName: String = ""
+    var visionTitle: String = ""
+    var visionStatement: String = ""
+    var horizon: String = ""
+    var owner: String = ""
+    var updatedAt: Date = Date.now
+
+    init(id: String = "function-strategy", functionName: String, visionTitle: String,
+         visionStatement: String, horizon: String, owner: String) {
+        self.id = id
+        self.functionName = functionName
+        self.visionTitle = visionTitle
+        self.visionStatement = visionStatement
+        self.horizon = horizon
+        self.owner = owner
+    }
+}
+
+/// A strategic bet is a choice with a primary KPI. It is deliberately not an
+/// initiative: bets stay stable while initiatives come and go.
+@Model
+final class StrategicBetRecord {
+    var id: String = ""
+    var title: String = ""
+    var detail: String = ""
+    var owner: String = ""
+    var horizon: String = ""
+    var statusRaw: String = "active" // active, paused, achieved
+    var primaryKPIID: String = ""
+    var valueIDsRaw: String = ""
+    var order: Int = 0
+    var updatedAt: Date = Date.now
+
+    init(id: String, title: String, detail: String, owner: String, horizon: String,
+         status: String, primaryKPIID: String, valueIDs: [String], order: Int) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.owner = owner
+        self.horizon = horizon
+        self.statusRaw = status
+        self.primaryKPIID = primaryKPIID
+        self.valueIDsRaw = valueIDs.joined(separator: ",")
+        self.order = order
+    }
+
+    var valueIDs: [String] { valueIDsRaw.split(separator: ",").map(String.init) }
+}
+
+/// A KPI is a definition, a baseline, a current value and a target. The
+/// current value can be updated manually; it is not inferred from savings.
+@Model
+final class KPIRecord {
+    var id: String = ""
+    var name: String = ""
+    var definition: String = ""
+    var unit: String = "%"
+    var baseline: Double = 0
+    var current: Double = 0
+    var target: Double = 0
+    var directionRaw: String = "lower" // lower, higher
+    var cadence: String = "Monthly"
+    var source: String = "Manual"
+    var strategicBetID: String = ""
+    var updatedAt: Date = Date.now
+
+    init(id: String, name: String, definition: String, unit: String,
+         baseline: Double, current: Double, target: Double,
+         direction: String, cadence: String, source: String, strategicBetID: String) {
+        self.id = id
+        self.name = name
+        self.definition = definition
+        self.unit = unit
+        self.baseline = baseline
+        self.current = current
+        self.target = target
+        self.directionRaw = direction
+        self.cadence = cadence
+        self.source = source
+        self.strategicBetID = strategicBetID
+    }
+
+    var direction: KPIDirection { KPIDirection(rawValue: directionRaw) ?? .lower }
+
+    /// 0 at baseline, 1 at target, capped for the bar. It never claims a
+    /// statistical result; it is progress against the agreed target.
+    var progress: Double {
+        let span = target - baseline
+        guard abs(span) > 0.0001 else { return current == target ? 1 : 0 }
+        return min(1, max(0, (current - baseline) / span))
+    }
+
+    var onTrack: Bool {
+        direction == .lower ? current <= target : current >= target
+    }
+}
+
+enum KPIDirection: String, CaseIterable {
+    case lower, higher
+    var label: String { self == .lower ? "Lower is better" : "Higher is better" }
+}
+
+/// A value is a behavioural commitment, not a poster. Initiatives link to the
+/// values their countermeasure must respect.
+@Model
+final class ValueRecord {
+    var id: String = ""
+    var name: String = ""
+    var statement: String = ""
+    var behaviour: String = ""
+    var order: Int = 0
+
+    init(id: String, name: String, statement: String, behaviour: String, order: Int) {
+        self.id = id
+        self.name = name
+        self.statement = statement
+        self.behaviour = behaviour
+        self.order = order
+    }
+}
+
 // MARK: - Initiative
 
 @Model
@@ -299,6 +427,14 @@ final class InitiativeRecord {
     var evidenceNote: String = ""
     var claimsWasteRaw: String = WasteType.waiting.rawValue
 
+    // Strategy links. Every initiative must ladder to a bet, a KPI and at
+    // least one value; the strategy page flags anything unlinked.
+    var strategicBetID: String = ""
+    var kpiID: String = ""
+    var valueIDsRaw: String = ""
+    var expectedKPIChange: String = ""
+    var visionContribution: String = ""
+
     // A3 one-page content.
     var background: String = ""
     var target: String = ""
@@ -312,7 +448,10 @@ final class InitiativeRecord {
          status: InitiativeStatus, due: Date, savingsHours: Double, savingsStage: SavingsStage,
          validatedBy: String, evidenceNote: String, claimsWaste: WasteType,
          background: String, target: String, rootCause: String, countermeasure: String,
-         result: String, followUp: String, createdAt: Date = .now) {
+         result: String, followUp: String,
+         strategicBetID: String = "", kpiID: String = "", valueIDs: [String] = [],
+         expectedKPIChange: String = "", visionContribution: String = "",
+         createdAt: Date = .now) {
         self.id = id
         self.title = title
         self.opportunityID = opportunityID
@@ -335,6 +474,11 @@ final class InitiativeRecord {
         self.countermeasure = countermeasure
         self.result = result
         self.followUp = followUp
+        self.strategicBetID = strategicBetID
+        self.kpiID = kpiID
+        self.valueIDsRaw = valueIDs.joined(separator: ",")
+        self.expectedKPIChange = expectedKPIChange
+        self.visionContribution = visionContribution
         self.createdAt = createdAt
     }
 
@@ -343,6 +487,11 @@ final class InitiativeRecord {
     var status: InitiativeStatus { InitiativeStatus(rawValue: statusRaw) ?? .active }
     var savingsStage: SavingsStage { SavingsStage(rawValue: savingsStageRaw) ?? .estimated }
     var claimsWaste: WasteType { WasteType(rawValue: claimsWasteRaw) ?? .waiting }
+    var valueIDs: [String] { valueIDsRaw.split(separator: ",").map(String.init) }
+    var hasStrategyLink: Bool {
+        !strategicBetID.isEmpty && !kpiID.isEmpty && !valueIDs.isEmpty
+            && !visionContribution.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 }
 
 /// Computed projections live outside the @Model body: the SwiftData macro

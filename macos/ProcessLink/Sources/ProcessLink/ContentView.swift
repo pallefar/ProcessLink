@@ -83,7 +83,7 @@ struct ContentView: View {
                 FlightdeckSidebar(flightdeck: model.flightdeck)
             }
             Section("Work") {
-                ForEach([SidebarItem.overview, .discoveries, .opportunities, .maps, .meetings, .mining]) { item in
+                ForEach([SidebarItem.overview, .strategy, .discoveries, .opportunities, .maps, .meetings, .mining]) { item in
                     row(item)
                 }
             }
@@ -126,6 +126,7 @@ struct ContentView: View {
     private var page: some View {
         switch model.page ?? .overview {
         case .overview: OverviewPage()
+        case .strategy: StrategyPage()
         case .discoveries: DiscoveriesPage()
         case .opportunities: OpportunitiesPage()
         case .maps: MapsPage()
