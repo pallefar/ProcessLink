@@ -182,6 +182,65 @@ final class AppModel {
         aiRegion = defaults.string(forKey: "policy.aiRegion") ?? "EU"
         dataOwner = defaults.string(forKey: "policy.dataOwner") ?? "CI Manager (role)"
         notificationsEnabled = defaults.bool(forKey: "notifications.enabled")
+        migrateLegacyDiscovery()
+    }
+
+    /// One-way cleanup for stores written before KYP was removed. It rewrites
+    /// labels and source ids in place; the alternative is an app that still
+    /// says "KYP.ai" over its own data after an update.
+    private func migrateLegacyDiscovery() {
+        var changed = false
+        func text(_ value: String) -> String {
+            value
+                .replacingOccurrences(of: "KYP.ai task mining", with: "ProcessLink discovery")
+                .replacingOccurrences(of: "KYP.ai application usage", with: "ProcessLink app usage")
+                .replacingOccurrences(of: "KYP.ai role aggregation", with: "ProcessLink role aggregation")
+                .replacingOccurrences(of: "KYP.ai team aggregation", with: "ProcessLink team aggregation")
+                .replacingOccurrences(of: "KYP.ai + ProcessLink", with: "ProcessLink discovery + analysis")
+                .replacingOccurrences(of: "KYP.ai sandbox · incremental", with: "In-house discovery · local refresh")
+                .replacingOccurrences(of: "KYP.ai sandbox · backfill", with: "In-house discovery · local refresh")
+                .replacingOccurrences(of: "KYP.ai sandbox", with: "In-house discovery")
+                .replacingOccurrences(of: "KYP.ai", with: "discovery")
+        }
+        for process in (try? context.fetch(FetchDescriptor<ProcessRecord>())) ?? [] {
+            let source = text(process.sourceRaw)
+            if source != process.sourceRaw { process.sourceRaw = source; changed = true }
+            if process.discoveryID.hasPrefix("kyp-") {
+                process.discoveryID = "disc-" + process.discoveryID.dropFirst(4)
+                changed = true
+            }
+            let summary = text(process.summary)
+            if summary != process.summary { process.summary = summary; changed = true }
+        }
+        for node in (try? context.fetch(FetchDescriptor<KGNodeRecord>())) ?? [] {
+            let source = text(node.source)
+            let note = text(node.note)
+            let sourceID = text(node.sourceID)
+            if source != node.source { node.source = source; changed = true }
+            if note != node.note { node.note = note; changed = true }
+            if sourceID != node.sourceID { node.sourceID = sourceID; changed = true }
+        }
+        for sync in (try? context.fetch(FetchDescriptor<SyncRecord>())) ?? [] {
+            let source = text(sync.source)
+            let note = text(sync.note)
+            if source != sync.source { sync.source = source; changed = true }
+            if note != sync.note { sync.note = note; changed = true }
+        }
+        for audit in (try? context.fetch(FetchDescriptor<AuditRecord>())) ?? [] {
+            let subject = text(audit.subject)
+            let detail = text(audit.detail)
+            if subject != audit.subject { audit.subject = subject; changed = true }
+            if detail != audit.detail { audit.detail = detail; changed = true }
+        }
+        for governance in (try? context.fetch(FetchDescriptor<GovernanceRecord>())) ?? [] {
+            let detail = text(governance.detail)
+            if detail != governance.detail { governance.detail = detail; changed = true }
+        }
+        for block in (try? context.fetch(FetchDescriptor<MeetingBlockRecord>())) ?? [] {
+            let value = text(block.text)
+            if value != block.text { block.text = value; changed = true }
+        }
+        if changed { try? context.save() }
     }
 
     var policy: PrivacyPolicy {
