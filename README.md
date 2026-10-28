@@ -1,0 +1,172 @@
+# ProcessLink
+
+**The integration and value layer between KYP.ai discovery and TE Operating
+Advantage.** KYP.ai stays the system of record for captured work; ProcessLink
+turns its discoveries into prioritized, owned, evidence-backed TEOA work, live
+maps, knowledge-graph facts and DeckForge reports.
+
+```
+KYP.ai  →  ProcessLink  →  KG · Maps · TEOA · DeckForge
+(read-only)   (value layer)      (the work)
+```
+
+## The three forms
+
+| Form | Where | Status |
+|---|---|---|
+| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 17 unit tests + 26 in-app checks, light/dark snapshots |
+| **Web** — React 19 + Vite, strict TS | [`web`](web) | Built and screenshotted; the Flightdeck sub-app replacement is in [`web/src/flightdeck`](web/src/flightdeck) |
+| **Windows** — Tauri 2 + WebView2 | [`windows/ProcessLink.Windows`](windows/ProcessLink.Windows) | Scaffolded with config and Rust entry; not built on a Windows host here |
+
+Shared domain rules (privacy guard, opportunity scoring, savings ledger,
+citation-first answer engine) live twice on purpose — Swift in
+`ProcessLinkKit`, TypeScript in `web/src/domain` — and are verified against
+the same behaviour in both test suites. See [`packages/README.md`](packages/README.md).
+
+## What it does
+
+1. **Discovery** — processes, variants, steps, roles, applications and
+   metrics arrive from KYP.ai as aggregates with provenance. No screenshots,
+   keystrokes, person ids, or Restricted content.
+2. **Opportunity** — each waste pattern is scored from mined hours, error
+   reduction, effort, risk, Hoshin alignment and confidence. The route follows
+   TEOA order: eliminate → simplify → standardize → automate. Statutory and
+   human-only steps are never automation candidates.
+3. **Improvement** — a promoted opportunity becomes an A3/kaizen initiative
+   with an owner, a stage and a saving that moves estimated → committed →
+   validated. Validation needs a named human and before/after evidence.
+4. **Map** — the process is drawn as swimlanes bound shape-by-shape to KG
+   nodes, with overlays for cycle time, handoffs, rework and automation
+   potential. Stale evidence is flagged, not hidden.
+5. **Graph** — typed nodes and edges with confidence, validity and source; a
+   human review queue for uncertain matches; no silent merges.
+6. **Ask** — a governed assistant over the same facts. Every number cites a
+   KYP.ai id or KG node; gaps become a "to verify" list; savings stay labelled
+   estimates.
+7. **Governance** — purpose limitation, group-size suppression, classification
+   refusal, PII masking and an audit log are enforced in code and visible in
+   the UI. The launch checklist blocks production.
+
+## Screenshots
+
+| Overview | Process map |
+|---|---|
+| ![Overview](docs/shots/overview-light.png) | ![Map](docs/shots/maps-light.png) |
+
+| Opportunities | Knowledge graph |
+|---|---|
+| ![Opportunities](docs/shots/opportunities-light.png) | ![Graph](docs/shots/graph-light.png) |
+
+| Governance | Ask the process |
+|---|---|
+| ![Governance](docs/shots/governance-light.png) | ![Ask](docs/shots/ask-light.png) |
+
+More in [`docs/shots`](docs/shots), including dark mode and Settings.
+
+## Run the macOS app
+
+```bash
+cd macos/ProcessLink
+./build.sh --open          # release build, installs ~/Applications/ProcessLink.app
+tools/selftest.sh          # 26 checks, exit 0
+tools/snap.sh              # light/dark PNGs of every page + Settings
+swift test --scratch-path ~/Library/Developer/ProcessLink/test-build
+```
+
+Requires macOS 26+ and Swift 6.2 (the build machine used macOS 27 and Swift
+6.4). The app is local-first: SwiftData at
+`~/Library/Application Support/ProcessLink`, no server.
+
+**OS integration:** Option-Command-P opens the Ask panel from any app; a menu
+bar item stays available when the window is closed; `processlink://` deep links
+open a record; sync notifications are opt-in; the review brief exports as
+Markdown.
+
+## Run the web form
+
+```bash
+cd web
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # tsc --noEmit && vite build
+```
+
+Deep links: `#/overview`, `#/maps`, `#/opportunities`, `#/governance`…
+Add `?theme=light|dark` and `?q=...` for screenshots and demos.
+
+The app is designed to mount as a Flightdeck sub-app. The adapter, manifest,
+routes and migration sketch are in [`web/src/flightdeck`](web/src/flightdeck);
+read that before replacing the `advantage` sub-app in the host.
+
+## Run the Windows shell
+
+See [`windows/ProcessLink.Windows/README.md`](windows/ProcessLink.Windows/README.md).
+It wraps `web/dist`; build on Windows 11 with Rust + WebView2.
+
+## Demo path (5 minutes)
+
+1. **Overview** — 12,710 h of discovered effort, 540 h validated, one
+   double-count warning.
+2. **Discoveries** — open *Order intake & validation*; see variants, steps,
+   provenance. Then open *Contract clause review* (suppressed, group of 8) and
+   *Export control screening* (Restricted, blocked).
+3. **Opportunities** — open *Remove the duplicate pricing check*; read the
+   score arithmetic and the recommended method. **Start initiative**.
+4. **Improvements** — move the stage, commit the saving, then **Validate**
+   with a validator and evidence. Try validating without evidence first.
+5. **Maps** — switch overlay to **Rework**; click a shape; open its KG node.
+6. **Ask** — ask *"Where do handoffs create the most rework?"*; open a
+   citation; read the to-verify line.
+7. **Governance** — press *Send Restricted to the AI gateway* and *Export a
+   4-person group*; read the refusal and its rule.
+
+## What is real, what is sandbox
+
+- **Real**: the domain rules, the privacy guard, the scoring arithmetic, the
+  savings ledger and its conflict rule, the citations, the audit trail, the
+  app itself.
+- **Sandbox**: every process, person-count, hour, site and saving. The KYP.ai
+  connector is an offline fixture (`SandboxSync`); no tenant was contacted.
+  The KG is a local typed store, not a write to Knowledge Guardian. DeckForge
+  receives a Markdown/JSON brief, not a deck binary.
+
+## Privacy and governance (non-negotiable)
+
+ProcessLink touches data about how people work. It is for **process and
+system improvement only**. There is no per-person drill-down, no leaderboard,
+no individual performance use. Groups below the threshold (default 10) are
+suppressed at display, export and AI time. Restricted content is refused at
+the boundary. Personal-data patterns are masked before any hosted call. The
+launch checklist — DPIA, country legal review, works-council consultation,
+transparency notice, retention, named owner, approved AI regions — is in the
+app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
+
+**No production use until the checklist is signed.**
+
+## Documentation
+
+| Document | What it answers |
+|---|---|
+| [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md) | What is actually in the Flightdeck repo, with file paths; TEOA/KG/Maps/KYP inventory; gap analysis; data-flow; privacy checklist; open questions Q1–Q10 |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Three forms, shared packages, sync pipeline, gates, AI layer, performance, security boundaries |
+| [`docs/KG-ONTOLOGY.md`](docs/KG-ONTOLOGY.md) | 25 node types, 15 relations, provenance, entity resolution, ACL, GraphRAG, migration plan M0–M6 |
+| [`docs/RISKS-AND-MVP.md`](docs/RISKS-AND-MVP.md) | Feasibility/risk table, build-vs-buy with licence notes, MVP cut line, phase plan |
+
+## Repository
+
+```
+ProcessLink/
+  macos/ProcessLink/      SwiftUI app (Swift package, build.sh, tools)
+  web/                    React + Vite app, domain rules, Flightdeck adapter
+  windows/                Tauri 2 shell
+  packages/               shared-package map
+  docs/                   Phase 0, architecture, ontology, risks, screenshots
+```
+
+## Licence and IP
+
+In-house code. Dependencies are MIT/Apache-2.0 (React, Vite, Tauri,
+Transformers.js if used later); no GPL/AGPL is shipped. KYP.ai, TE Operating
+Advantage, DeckForge and DiagramForge are used under their existing
+commercial/in-house terms. The TEOA method catalogue is a **draft** until the
+official TE definitions are confirmed.

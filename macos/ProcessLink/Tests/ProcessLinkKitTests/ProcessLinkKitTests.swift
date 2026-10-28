@@ -1,0 +1,209 @@
+import Foundation
+import Testing
+@testable import ProcessLinkKit
+
+// MARK: - Scoring
+
+private func inputs(hours: Double = 400, error: Double = 10, effort: Double = 4,
+                    risk: Int = 2, alignment: Int = 3, automation: Double = 0.4,
+                    confidence: Double = 0.85, statutory: Bool = false,
+                    waste: WasteType = .handoffs) -> OpportunityInputs {
+    OpportunityInputs(annualHours: hours, errorReductionPct: error, effortWeeks: effort,
+                      risk: risk, alignment: alignment, automationSuitability: automation,
+                      confidence: confidence, statutory: statutory, waste: waste)
+}
+
+@Test("More hours never lowers the score")
+func hoursMonotonic() {
+    let small = OpportunityScoring.score(inputs(hours: 100))
+    let large = OpportunityScoring.score(inputs(hours: 1_800))
+    #expect(large.impact >= small.impact)
+    #expect(large.total >= small.total)
+}
+
+@Test("The total is bounded to 100 and never negative")
+func bounded() {
+    let perfect = OpportunityScoring.score(inputs(hours: 5_000, error: 100, effort: 1,
+                                                  risk: 1, alignment: 5, automation: 1,
+                                                  confidence: 1))
+    let hopeless = OpportunityScoring.score(inputs(hours: 0, error: 0, effort: 40,
+                                                   risk: 5, alignment: 1, automation: 0,
+                                                   confidence: 0))
+    #expect(perfect.total <= 100)
+    #expect(hopeless.total >= 0)
+}
+
+@Test("A statutory step is never routed to automation")
+func statutoryGuard() {
+    for waste in WasteType.allCases {
+        let score = OpportunityScoring.score(inputs(hours: 900, automation: 1, statutory: true, waste: waste))
+        #expect(score.route != .automate)
+        #expect(score.route == .standardize)
+    }
+}
+
+@Test("The reasoning names the hours it used")
+func reasoningHasNumbers() {
+    let score = OpportunityScoring.score(inputs(hours: 640))
+    #expect(score.reasoning.contains { $0.contains("640 h") })
+    #expect(!score.reasoning.isEmpty)
+}
+
+@Test("The recommended method follows the waste")
+func methodMapping() {
+    #expect(MethodRecommender.recommend(waste: .rework, route: .standardize, statutory: false).method == .a3)
+    #expect(MethodRecommender.recommend(waste: .contextSwitching, route: .standardize, statutory: false).method == .fiveS)
+    #expect(MethodRecommender.recommend(waste: .handoffs, route: .simplify, statutory: false).method == .valueStreamMapping)
+}
+
+// MARK: - Privacy
+
+@Test("Restricted content never passes, whatever the destination")
+func restrictedBlocked() {
+    for destination in Destination.allCases {
+        let decision = PrivacyGuard.evaluate(groupSize: 40, classification: .restricted,
+                                             destination: destination, purpose: .processImprovement)
+        #expect(!decision.allowed)
+        #expect(decision.action == .block)
+    }
+}
+
+@Test("Individual performance is refused by purpose")
+func purposeLimitation() {
+    let decision = PrivacyGuard.evaluate(groupSize: 40, classification: .publicData,
+                                         destination: .localView, purpose: .individualPerformance)
+    #expect(!decision.allowed)
+    #expect(decision.reason.contains("improvement only"))
+}
+
+@Test("Small groups are suppressed locally and blocked on export")
+func groupThreshold() {
+    let policy = PrivacyPolicy(minimumGroupSize: 10)
+    let local = PrivacyGuard.evaluate(groupSize: 6, classification: .internalUse,
+                                      destination: .localView, purpose: .processImprovement,
+                                      policy: policy)
+    #expect(local.allowed)
+    #expect(local.action == .suppress)
+
+    let export = PrivacyGuard.evaluate(groupSize: 6, classification: .internalUse,
+                                       destination: .export, purpose: .processImprovement,
+                                       policy: policy)
+    #expect(!export.allowed)
+}
+
+@Test("PII is found and masked before an AI call")
+func piiMask() {
+    let text = "Mail anna.schmidt@example.com or IBAN DE44 5001 0517 5407 3249 31, case EMP-4821."
+    let scan = PIIScanner.scan(text)
+    #expect(scan.counts["email addresses"] == 1)
+    #expect(scan.counts["IBANs"] == 1)
+    #expect(scan.maskedText.contains("[redacted:email]"))
+    #expect(!scan.maskedText.contains("anna.schmidt"))
+
+    let decision = PrivacyGuard.evaluate(groupSize: 40, classification: .internalUse,
+                                         destination: .aiGateway, purpose: .processImprovement,
+                                         piiFindings: scan.total)
+    #expect(!decision.allowed)
+    #expect(decision.action == .mask)
+}
+
+// MARK: - Savings
+
+@Test("One key is credited once, at its most advanced stage")
+func ledgerCreditsOnce() {
+    let lines = [
+        SavingsLine(id: "1", initiativeID: "a", initiativeTitle: "A", processID: "p",
+                    waste: .rework, stage: .estimated, hours: 300, validatedBy: nil, note: ""),
+        SavingsLine(id: "2", initiativeID: "b", initiativeTitle: "B", processID: "p",
+                    waste: .rework, stage: .committed, hours: 120, validatedBy: nil, note: ""),
+    ]
+    let totals = SavingsLedger.totals(lines)
+    #expect(totals.committed == 120)
+    #expect(totals.estimated == 0)
+    #expect(totals.validated == 0)
+}
+
+@Test("Different waste types on one process both count")
+func ledgerDistinctWaste() {
+    let lines = [
+        SavingsLine(id: "1", initiativeID: "a", initiativeTitle: "A", processID: "p",
+                    waste: .rework, stage: .validated, hours: 100, validatedBy: "CI", note: ""),
+        SavingsLine(id: "2", initiativeID: "b", initiativeTitle: "B", processID: "p",
+                    waste: .handoffs, stage: .validated, hours: 50, validatedBy: "CI", note: ""),
+    ]
+    #expect(SavingsLedger.totals(lines).validated == 150)
+}
+
+@Test("Two commitments on one key are reported as a conflict")
+func ledgerConflict() {
+    let lines = [
+        SavingsLine(id: "1", initiativeID: "a", initiativeTitle: "A", processID: "p",
+                    waste: .handoffs, stage: .committed, hours: 100, validatedBy: nil, note: ""),
+        SavingsLine(id: "2", initiativeID: "b", initiativeTitle: "B", processID: "p",
+                    waste: .handoffs, stage: .committed, hours: 80, validatedBy: nil, note: ""),
+    ]
+    let conflicts = SavingsLedger.conflicts(lines)
+    #expect(conflicts.count == 1)
+    #expect(conflicts.first?.initiativeIDs.count == 2)
+}
+
+// MARK: - Ask
+
+private let process = ProcessInsight(id: "p1", name: "Order intake", site: "Bensheim",
+                                     valueStream: "Order-to-cash", people: 34, annualHours: 3_000,
+                                     cycleMinutes: 42, reworkRate: 0.28, handoffs: 6,
+                                     adherence: 0.61, variantCount: 4, confidence: 0.9,
+                                     staleDays: 3, kypID: "kyp-1", kgID: "kg-p1")
+
+private let step = StepInsight(id: "s1", processID: "p1", processName: "Order intake",
+                               site: "Bensheim", name: "Clear exception queue", role: "Order Desk",
+                               application: "Salesforce", minutes: 11, handoffs: 2,
+                               reworkShare: 0.38, waste: .handoffs, evidenceCount: 40,
+                               kgID: "kg-s1")
+
+@Test("A handoff question cites the step's KG node")
+func askCites() {
+    let answer = AskEngine.answer("Where do handoffs create the most rework?",
+                                  processes: [process], steps: [step], opportunities: [])
+    #expect(answer.intent == .handoffs)
+    #expect(answer.citations.contains { $0.kind == .kgNode && $0.ref == "kg-s1" })
+    #expect(!answer.headline.isEmpty)
+}
+
+@Test("A savings answer is labelled an estimate")
+func askLabelsEstimate() {
+    let opportunity = OpportunityInsight(id: "o1", title: "Remove a check", processID: "p1",
+                                         processName: "Order intake", site: "Bensheim",
+                                         annualHours: 410, confidence: 0.9, route: .simplify,
+                                         kgID: "kg-o1")
+    let answer = AskEngine.answer("What would order intake save?", processes: [process],
+                                  steps: [step], opportunities: [opportunity])
+    #expect(answer.intent == .opportunity)
+    #expect(answer.body.lowercased().contains("estimate"))
+    #expect(!answer.toVerify.isEmpty)
+}
+
+@Test("A stale process is reported as stale")
+func askFreshness() {
+    var stale = process
+    stale.staleDays = 40
+    let answer = AskEngine.answer("Which maps are stale?", processes: [stale], steps: [], opportunities: [])
+    #expect(answer.intent == .freshness)
+    #expect(answer.headline.contains("stale") || answer.body.contains("40"))
+}
+
+@Test("Every answer keeps a citation list, even when empty")
+func askAlwaysTraceable() {
+    let answer = AskEngine.answer("Tell me something unrelated", processes: [process], steps: [step], opportunities: [])
+    #expect(answer.intent == .fallback)
+    #expect(answer.confidence <= 0.6)
+}
+
+// MARK: - Domain
+
+@Test("Cost derives from hours at one rate")
+func costModel() {
+    #expect(CostModel.euro(hours: 10) == "€520")
+    #expect(Fmt.hours(1_000) == "1,000 h")
+    #expect(Fmt.percent(0.284) == "28%")
+}

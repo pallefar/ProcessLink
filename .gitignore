@@ -1,0 +1,19 @@
+# macOS app
+macos/ProcessLink/.build/
+macos/ProcessLink/Resources/Assets.car
+macos/ProcessLink/Resources/AppIcon.icns
+macos/ProcessLink/dist*/
+*.xcuserstate
+
+# Web
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Windows
+windows/ProcessLink.Windows/node_modules/
+windows/ProcessLink.Windows/src-tauri/target/
+windows/ProcessLink.Windows/src-tauri/gen/
+
+# OS
+.DS_Store
