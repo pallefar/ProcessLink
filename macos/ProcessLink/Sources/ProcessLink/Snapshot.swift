@@ -34,6 +34,7 @@ enum Snapshot {
                 NSApp.appearance = NSAppearance(named: mode == "light" ? .aqua : .darkAqua)
                 for page in SidebarItem.allCases where only?.contains(page.rawValue) ?? true {
                     model.page = page
+                    model.toast = nil
                     // Show the assistant doing its job, not an empty chat.
                     if page == .ask && model.answers.isEmpty {
                         model.ask("Where do handoffs create the most rework?")

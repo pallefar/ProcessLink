@@ -107,7 +107,20 @@ flowchart TB
 8. **Commit** — idempotent upsert into the local store, then propose KG nodes.
 9. **Audit** — one immutable event per step, counts only.
 
-### 3.2 Maps: the document is the contract
+### 3.2 In-house discovery
+
+`kyp-connector` is no longer the only source. `process-model` now has an
+in-house path: `EventLogImporter` (CSV → hashed cases, role resources, masked
+activity text) feeds `ProcessMining` (directly-follows graph, variants,
+cycle/wait, rework, handoffs, conformance). The result is written as the same
+`ProcessRecord` / `StepRecord` / `VariantRecord`, with
+`source = "In-house process mining"`, so KG, Maps, opportunities and Ask need
+no branch. Local task capture records only frontmost app name, minutes and
+switches — no titles, keys or screenshots — and turns a session into a
+process whose waste is context switching. KYP remains an optional source for
+enterprise breadth, not a hard dependency.
+
+### 3.3 Maps: the document is the contract
 
 ProcessLink does not own a private map format. It reads and writes
 `signavio-map/1` documents through the Flightdeck Maps API, adding two
@@ -119,7 +132,7 @@ read back by ProcessLink, compared with the mined step, and recorded as drift
 plus an audited proposal; they never overwrite discovery. The full contract is
 in [`MAPS-INTEGRATION.md`](MAPS-INTEGRATION.md).
 
-### 3.3 Meetings and graph write-through
+### 3.4 Meetings and graph write-through
 
 A meeting is a **page of typed blocks**, not a free-text note:
 
@@ -142,7 +155,7 @@ This is why there is no separate "notes database": the page, the decision, the
 action and the improvement work are the same graph, read at different
 granularity.
 
-### 3.4 Write paths that need a human
+### 3.5 Write paths that need a human
 
 | Write | Gate |
 |---|---|
@@ -224,6 +237,7 @@ Structured logs carry ids and counts, never process content: `sync.run`,
 | Opportunity scoring + route + method recommendation | ✅ | ✅ | via web |
 | Savings ledger (estimate → commit → validate, conflicts) | ✅ | ✅ | via web |
 | Discovery → opportunity → initiative → A3 | ✅ | ✅ | via web |
+| In-house mining (CSV) + task capture | ✅ | sample view | via web |
 | Flightdeck `signavio-map/1` read/write + drift | ✅ | adapter next | via web |
 | Map generation with KG-bound shapes + overlays | ✅ | ✅ | via web |
 | Meetings, block pages, decisions and actions | ✅ | ✅ | via web |

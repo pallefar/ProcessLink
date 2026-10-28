@@ -7,7 +7,7 @@ import SwiftUI
 /// The sidebar sections. Snapshot mode walks every case, so a new section is
 /// covered by the checks automatically.
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case overview, discoveries, opportunities, maps, meetings, graph, improvements, ask, governance
+    case overview, discoveries, opportunities, maps, meetings, mining, graph, improvements, ask, governance
 
     var id: String { rawValue }
 
@@ -18,6 +18,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .opportunities: "Opportunities"
         case .maps: "Maps"
         case .meetings: "Meetings"
+        case .mining: "Mining"
         case .graph: "Knowledge Graph"
         case .improvements: "Improvements"
         case .ask: "Ask"
@@ -32,6 +33,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .opportunities: "lightbulb"
         case .maps: "point.topleft.down.to.point.bottomright.curvepath"
         case .meetings: "person.3.sequence"
+        case .mining: "sparkle.magnifyingglass"
         case .graph: "circle.hexagongrid"
         case .improvements: "flag.pattern.checkered"
         case .ask: "bubble.left.and.text.bubble.right"
@@ -47,6 +49,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .opportunities: "3"
         case .maps: "4"
         case .meetings: "9"
+        case .mining: "0"
         case .graph: "5"
         case .improvements: "6"
         case .ask: "7"
@@ -772,6 +775,286 @@ final class AppModel {
         try? context.save()
         selectedMeetingID = nil
         showToast("Meeting deleted", detail: meeting.title, symbol: "trash")
+    }
+
+    // MARK: In-house discovery
+
+    var selectedDatasetID: String?
+
+    func events(for dataset: DatasetRecord) -> [EventLogRecord] {
+        let rows = ((try? context.fetch(FetchDescriptor<EventItemRecord>())) ?? [])
+            .filter { $0.datasetID == dataset.id }
+            .sorted { $0.timestamp < $1.timestamp }
+        return rows.map {
+            EventLogRecord(caseID: $0.caseHash, activity: $0.activity,
+                           timestamp: $0.timestamp, resource: $0.resource,
+                           application: $0.application)
+        }
+    }
+
+    func minedProcess(for dataset: DatasetRecord) -> MinedProcess {
+        ProcessMining.mine(events(for: dataset), name: dataset.name)
+    }
+
+    @discardableResult
+    func importSampleDataset() -> DatasetRecord? {
+        do {
+            let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+            return storeDataset(name: "Order intake · mined sample", result: result,
+                                source: "sample", filename: "order-intake-sample.csv",
+                                site: "Bensheim",
+                                notes: "Synthetic 24-case log shipped with ProcessLink. No tenant data.")
+        } catch {
+            showToast("Could not load the sample", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+            return nil
+        }
+    }
+
+    func deleteDataset(_ dataset: DatasetRecord) {
+        for event in (try? context.fetch(FetchDescriptor<EventItemRecord>())) ?? [] where event.datasetID == dataset.id {
+            context.delete(event)
+        }
+        context.delete(dataset)
+        audit(action: "dataset.deleted", subject: dataset.name, detail: "Events removed with the dataset.")
+        try? context.save()
+        selectedDatasetID = nil
+    }
+
+    func importCSV(text: String, name: String, filename: String, site: String) throws -> DatasetRecord {
+        let result = try EventLogImporter.importCSV(text)
+        guard let dataset = storeDataset(name: name, result: result, source: "csv",
+                                         filename: filename, site: site,
+                                         notes: "Imported event log. Case ids hashed, resources sanitised.") else {
+            throw MiningError.noRows
+        }
+        return dataset
+    }
+
+    @discardableResult
+    private func storeDataset(name: String, result: EventLogImport, source: String,
+                              filename: String, site: String, notes: String) -> DatasetRecord? {
+        guard result.caseCount > 0 else { return nil }
+        let dataset = DatasetRecord(
+            id: "ds-\(UUID().uuidString.prefix(8))", name: name, source: source,
+            importedAt: now, caseCount: result.caseCount, eventCount: result.events.count,
+            site: site, classification: .internalUse, filename: filename, notes: notes)
+        context.insert(dataset)
+        for (index, event) in result.events.enumerated() {
+            context.insert(EventItemRecord(
+                id: "\(dataset.id)-ev-\(index)", datasetID: dataset.id,
+                caseHash: event.caseID, activity: event.activity,
+                timestamp: event.timestamp, resource: event.resource,
+                application: event.application))
+        }
+        audit(action: "dataset.imported", subject: name,
+              detail: "\(result.caseCount) cases, \(result.events.count) events, \(result.skippedRows) skipped.")
+        try? context.save()
+        selectedDatasetID = dataset.id
+        page = .mining
+        showToast("Event log imported", detail: "\(result.caseCount) cases · \(result.events.count) events",
+                  symbol: "tablecells")
+        return dataset
+    }
+
+    /// Turns a mined log into the same process/step/variant records KYP.ai
+    /// would produce, so every downstream surface works unchanged.
+    @discardableResult
+    func createProcess(from dataset: DatasetRecord) -> ProcessRecord? {
+        let events = events(for: dataset)
+        guard !events.isEmpty else { return nil }
+        let mined = ProcessMining.mine(events, name: dataset.name)
+        let first = mined.firstTimestamp ?? now
+        let last = mined.lastTimestamp ?? now
+        let spanDays = max(1, Calendar.current.dateComponents([.day], from: first, to: last).day ?? 1)
+        let casesPerYear = Double(mined.cases) / Double(spanDays) * 365
+        let annualHours = min(50_000, casesPerYear * mined.medianCycleMinutes / 60 * (1 + mined.reworkRate))
+        let id = "p-mined-\(UUID().uuidString.prefix(8))"
+        let name = dataset.name.replacingOccurrences(of: " · mined sample", with: "")
+        let process = ProcessRecord(
+            id: id, name: name, site: dataset.site, businessUnit: "In-house discovery",
+            valueStream: "Imported process log", ownerRole: "Process Owner",
+            kypID: dataset.id, kgID: "kg-proc-\(id)",
+            summary: "Mined from \(mined.cases) cases and \(mined.events) events in \(dataset.filename). \(mined.variants.count) variants; median cycle \(Fmt.minutes(mined.medianCycleMinutes)).",
+            applications: Array(Set(events.map(\.application).filter { !$0.isEmpty })).sorted(),
+            variantNames: mined.variants.prefix(5).map { $0.sequence.joined(separator: " → ") },
+            capturedFrom: first, capturedTo: last, lastSynced: now,
+            confidence: 0.82, people: max(12, Set(events.map(\.resource)).count * 4),
+            annualHours: annualHours, cycleMinutes: mined.medianCycleMinutes,
+            reworkRate: mined.reworkRate, handoffs: mined.activities.reduce(0) { $0 + $1.handoffs },
+            variantCount: mined.variants.count, adherence: 0.7, maturity: 2,
+            classification: .internalUse, status: .discovered, statusReason: "",
+            standardDocument: "Imported event log · \(dataset.filename)", standardVersion: "—",
+            source: "In-house process mining")
+        context.insert(process)
+
+        var ordered = mined.topVariant?.sequence ?? []
+        for activity in mined.activities where !ordered.contains(activity.name) {
+            ordered.append(activity.name)
+        }
+        for (index, activityName) in ordered.enumerated() {
+            guard let activity = mined.activities.first(where: { $0.name == activityName }) else { continue }
+            let activityEvents = events.filter { $0.activity == activityName }
+            let role = mostCommon(activityEvents.map(\.resource)) ?? "Unassigned"
+            let application = mostCommon(activityEvents.map(\.application)) ?? ""
+            context.insert(StepRecord(
+                id: "step-\(id)-\(index)", processID: id, order: index,
+                name: activityName, role: role, application: application,
+                minutes: max(1, activity.averageWaitMinutes + 2), handoffs: activity.handoffs,
+                reworkShare: activity.events == 0 ? 0 : Double(activity.reworkCount) / Double(activity.events),
+                waste: waste(for: activity), evidenceCount: activity.events,
+                kgID: "kg-step-\(id)-\(index)", standardAligned: activity.automationScore < 0.7))
+        }
+        for (index, variant) in mined.variants.prefix(6).enumerated() {
+            context.insert(VariantRecord(
+                id: "var-\(id)-\(index)", processID: id,
+                name: variant.sequence.prefix(3).joined(separator: " → "),
+                share: variant.share, cycleMinutes: variant.averageCycleMinutes,
+                reworkRate: variant.reworkRate,
+                path: variant.sequence.joined(separator: " → ")))
+        }
+
+        let processNode = ensureKGNode(id: process.kgID, kind: .process, name: name,
+                                       confidence: 0.82, source: process.sourceRaw,
+                                       sourceID: dataset.id, processID: id)
+        processNode.note = "Mined in-house from \(dataset.filename)."
+        if !dataset.site.isEmpty {
+            let siteID = "kg-site-\(slug(dataset.site))"
+            ensureKGNode(id: siteID, kind: .site, name: dataset.site, confidence: 0.98,
+                         source: "Flightdeck registry", sourceID: "registry-site-\(slug(dataset.site))")
+            ensureKGEdge(from: process.kgID, .performedIn, to: siteID, confidence: 0.95)
+        }
+        for (index, _) in ordered.enumerated() {
+            ensureKGEdge(from: process.kgID, .measuredBy,
+                         to: "kg-step-\(id)-\(index)", confidence: 0.8)
+        }
+
+        if let bottleneck = mined.bottleneck {
+            let inputs = OpportunityInputs(
+                annualHours: annualHours * 0.25, errorReductionPct: 10,
+                effortWeeks: 4, risk: 2, alignment: 3,
+                automationSuitability: bottleneck.automationScore,
+                confidence: 0.78, statutory: false, waste: waste(for: bottleneck))
+            let route = OpportunityScoring.route(for: inputs)
+            let method = MethodRecommender.recommend(waste: inputs.waste, route: route, statutory: false)
+            context.insert(OpportunityRecord(
+                id: "opp-mined-\(UUID().uuidString.prefix(8))",
+                title: "Reduce \(bottleneck.name) in \(name)",
+                processID: id, processName: name, site: dataset.site,
+                waste: inputs.waste, method: method.method, route: route,
+                annualHours: annualHours * 0.25, errorReductionPct: 10,
+                effortWeeks: 4, risk: 2, alignment: 3,
+                automation: bottleneck.automationScore, confidence: 0.78,
+                statutory: false,
+                rationale: "Mined from \(mined.cases) cases: \(bottleneck.events) events, \(bottleneck.reworkCount) repeats, average wait \(Fmt.minutes(bottleneck.averageWaitMinutes)). \(bottleneck.automationReason)",
+                kgID: "kg-opp-mined-\(id)", ownerRole: "Process Owner"))
+            ensureKGEdge(from: process.kgID, .hasOpportunity,
+                         to: "kg-opp-mined-\(id)", confidence: 0.8)
+        }
+
+        audit(action: "mining.process.created", subject: name,
+              detail: "\(mined.cases) cases, \(mined.variants.count) variants, \(ordered.count) steps.")
+        try? context.save()
+        selectedProcessID = id
+        page = .discoveries
+        showToast("Discovered process created",
+                  detail: "\(ordered.count) steps · \(mined.variants.count) variants · in-house source",
+                  symbol: "sparkle.magnifyingglass")
+        return process
+    }
+
+    private func waste(for activity: MinedActivity) -> WasteType {
+        let reworkShare = activity.events == 0 ? 0 : Double(activity.reworkCount) / Double(activity.events)
+        if reworkShare > 0.2 { return .rework }
+        if activity.handoffs > activity.cases / 2 { return .handoffs }
+        if activity.averageWaitMinutes > 10 { return .waiting }
+        return .overProcessing
+    }
+
+    private func mostCommon(_ values: [String]) -> String? {
+        let cleaned = values.filter { !$0.isEmpty }
+        let counts = Dictionary(grouping: cleaned, by: { $0 }).mapValues(\.count)
+        return counts.max { $0.value < $1.value }?.key
+    }
+
+    // MARK: Task capture
+
+    func recordCapture(name: String, role: String, site: String, startedAt: Date,
+                       endedAt: Date, minutes: Double, idleMinutes: Double,
+                       switchCount: Int, apps: [(name: String, bundleID: String, minutes: Double, idle: Double, switches: Int)]) {
+        let session = CaptureSessionRecord(
+            id: "cap-\(UUID().uuidString.prefix(8))", name: name, role: role, site: site,
+            startedAt: startedAt, endedAt: endedAt, sampleSeconds: 5,
+            activeMinutes: minutes, idleMinutes: idleMinutes, switchCount: switchCount,
+            status: "complete", notes: "Local aggregate only: no titles, keys or screenshots.")
+        context.insert(session)
+        for (index, app) in apps.enumerated() {
+            context.insert(CaptureAppRecord(
+                id: "\(session.id)-app-\(index)", sessionID: session.id,
+                appName: app.name, bundleID: app.bundleID,
+                minutes: app.minutes, idleMinutes: app.idle, switches: app.switches))
+        }
+        audit(action: "capture.completed", subject: name,
+              detail: "\(String(format: "%.0f", minutes)) active minutes, \(switchCount) switches, \(apps.count) apps.")
+        try? context.save()
+        page = .mining
+        showToast("Capture saved", detail: "\(String(format: "%.0f", minutes)) min · \(switchCount) switches",
+                  symbol: "record.circle")
+    }
+
+    @discardableResult
+    func createProcess(from session: CaptureSessionRecord,
+                       apps: [CaptureAppRecord]) -> ProcessRecord? {
+        guard !apps.isEmpty, session.activeMinutes > 0 else { return nil }
+        let id = "p-capture-\(UUID().uuidString.prefix(8))"
+        let name = "Desktop work · \(session.role.isEmpty ? "Unassigned" : session.role)"
+        let annual = min(20_000, session.activeMinutes / 60 * 220)
+        let process = ProcessRecord(
+            id: id, name: name, site: session.site, businessUnit: "In-house task mining",
+            valueStream: "Digital work", ownerRole: session.role,
+            kypID: session.id, kgID: "kg-proc-\(id)",
+            summary: "Captured locally on this Mac: \(String(format: "%.0f", session.activeMinutes)) active minutes, \(session.switchCount) app switches. Aggregates only; no window titles or content.",
+            applications: apps.map(\.appName), variantNames: apps.map(\.appName),
+            capturedFrom: session.startedAt, capturedTo: session.endedAt ?? session.startedAt,
+            lastSynced: now, confidence: 0.7, people: 12,
+            annualHours: annual, cycleMinutes: session.activeMinutes,
+            reworkRate: 0, handoffs: session.switchCount, variantCount: 1,
+            adherence: 0, maturity: 1, classification: .internalUse,
+            status: .discovered, statusReason: "", standardDocument: "", standardVersion: "",
+            source: "In-house task capture")
+        context.insert(process)
+        for (index, app) in apps.enumerated() {
+            context.insert(StepRecord(
+                id: "step-\(id)-\(index)", processID: id, order: index,
+                name: app.appName, role: session.role, application: app.appName,
+                minutes: app.minutes, handoffs: app.switches,
+                reworkShare: 0, waste: .contextSwitching, evidenceCount: max(1, app.switches),
+                kgID: "kg-step-\(id)-\(index)", standardAligned: false))
+        }
+        context.insert(VariantRecord(
+            id: "var-\(id)-0", processID: id, name: "Observed path", share: 1,
+            cycleMinutes: session.activeMinutes, reworkRate: 0,
+            path: apps.map(\.appName).joined(separator: " → ")))
+        ensureKGNode(id: process.kgID, kind: .process, name: name, confidence: 0.7,
+                     source: "In-house task capture", sourceID: session.id, processID: id)
+        context.insert(OpportunityRecord(
+            id: "opp-capture-\(UUID().uuidString.prefix(8))",
+            title: "Reduce context switching in \(name)",
+            processID: id, processName: name, site: session.site,
+            waste: .contextSwitching, method: .fiveS, route: .standardize,
+            annualHours: annual * 0.2, errorReductionPct: 5, effortWeeks: 3,
+            risk: 2, alignment: 3, automation: 0.3, confidence: 0.65,
+            statutory: false,
+            rationale: "A local capture recorded \(session.switchCount) switches across \(apps.count) applications in \(String(format: "%.0f", session.activeMinutes)) minutes.",
+            kgID: "kg-opp-capture-\(id)", ownerRole: session.role))
+        audit(action: "capture.process.created", subject: name,
+              detail: "\(apps.count) apps, \(session.switchCount) switches.")
+        try? context.save()
+        selectedProcessID = id
+        page = .discoveries
+        showToast("Task capture become a process", detail: "\(apps.count) app steps · estimate only",
+                  symbol: "sparkle.magnifyingglass")
+        return process
     }
 
     // MARK: Flightdeck Maps

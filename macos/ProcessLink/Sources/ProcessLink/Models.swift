@@ -41,6 +41,8 @@ final class ProcessRecord {
     var statusReason: String = ""
     var standardDocument: String = ""
     var standardVersion: String = ""
+    /// "KYP.ai task mining", "In-house process mining", "In-house task capture".
+    var sourceRaw: String = "KYP.ai task mining"
 
     init(id: String, name: String, site: String, businessUnit: String, valueStream: String,
          ownerRole: String, kypID: String, kgID: String, summary: String,
@@ -49,7 +51,7 @@ final class ProcessRecord {
          cycleMinutes: Double, reworkRate: Double, handoffs: Int, variantCount: Int,
          adherence: Double, maturity: Int, classification: DataClass,
          status: ProcessStatus, statusReason: String, standardDocument: String,
-         standardVersion: String) {
+         standardVersion: String, source: String = "KYP.ai task mining") {
         self.id = id
         self.name = name
         self.site = site
@@ -78,12 +80,14 @@ final class ProcessRecord {
         self.statusReason = statusReason
         self.standardDocument = standardDocument
         self.standardVersion = standardVersion
+        self.sourceRaw = source
     }
 
     var classification: DataClass { DataClass(rawValue: classificationRaw) ?? .internalUse }
     var status: ProcessStatus { ProcessStatus(rawValue: statusRaw) ?? .discovered }
+    var source: String { sourceRaw }
     var provenance: Provenance {
-        Provenance(source: "KYP.ai · task mining", sourceID: kypID,
+        Provenance(source: sourceRaw, sourceID: kypID,
                    capturedFrom: capturedFrom, capturedTo: capturedTo,
                    confidence: confidence, syncedAt: lastSynced)
     }
@@ -730,3 +734,125 @@ enum BlockKind: String, CaseIterable, Identifiable {
 
 extension MeetingRecord: HasStringID {}
 extension MeetingBlockRecord: HasStringID {}
+
+
+// MARK: - In-house discovery
+
+/// An imported event log. The rows live in `EventItemRecord`; this row is the
+/// dataset header a person sees and can delete.
+@Model
+final class DatasetRecord {
+    var id: String = ""
+    var name: String = ""
+    /// csv, sample, task-capture
+    var sourceRaw: String = "csv"
+    var importedAt: Date = Date.now
+    var caseCount: Int = 0
+    var eventCount: Int = 0
+    var site: String = ""
+    var classificationRaw: String = DataClass.internalUse.rawValue
+    var filename: String = ""
+    var notes: String = ""
+
+    init(id: String, name: String, source: String, importedAt: Date, caseCount: Int,
+         eventCount: Int, site: String, classification: DataClass, filename: String, notes: String) {
+        self.id = id
+        self.name = name
+        self.sourceRaw = source
+        self.importedAt = importedAt
+        self.caseCount = caseCount
+        self.eventCount = eventCount
+        self.site = site
+        self.classificationRaw = classification.rawValue
+        self.filename = filename
+        self.notes = notes
+    }
+
+    var classification: DataClass { DataClass(rawValue: classificationRaw) ?? .internalUse }
+}
+
+@Model
+final class EventItemRecord {
+    var id: String = ""
+    var datasetID: String = ""
+    /// Already a hash at import time.
+    var caseHash: String = ""
+    var activity: String = ""
+    var timestamp: Date = Date.now
+    var resource: String = ""
+    var application: String = ""
+
+    init(id: String, datasetID: String, caseHash: String, activity: String,
+         timestamp: Date, resource: String, application: String) {
+        self.id = id
+        self.datasetID = datasetID
+        self.caseHash = caseHash
+        self.activity = activity
+        self.timestamp = timestamp
+        self.resource = resource
+        self.application = application
+    }
+}
+
+/// One opt-in task-capture session. Samples are aggregated per app; there are
+/// no window titles, keystrokes, screenshots or person names.
+@Model
+final class CaptureSessionRecord {
+    var id: String = ""
+    var name: String = ""
+    var role: String = ""
+    var site: String = ""
+    var startedAt: Date = Date.now
+    var endedAt: Date?
+    var sampleSeconds: Int = 5
+    var activeMinutes: Double = 0
+    var idleMinutes: Double = 0
+    var switchCount: Int = 0
+    /// capturing, complete
+    var statusRaw: String = "complete"
+    var notes: String = ""
+
+    init(id: String, name: String, role: String, site: String, startedAt: Date,
+         endedAt: Date?, sampleSeconds: Int, activeMinutes: Double, idleMinutes: Double,
+         switchCount: Int, status: String, notes: String) {
+        self.id = id
+        self.name = name
+        self.role = role
+        self.site = site
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.sampleSeconds = sampleSeconds
+        self.activeMinutes = activeMinutes
+        self.idleMinutes = idleMinutes
+        self.switchCount = switchCount
+        self.statusRaw = status
+        self.notes = notes
+    }
+
+    var status: String { statusRaw }
+}
+
+@Model
+final class CaptureAppRecord {
+    var id: String = ""
+    var sessionID: String = ""
+    var appName: String = ""
+    var bundleID: String = ""
+    var minutes: Double = 0
+    var idleMinutes: Double = 0
+    var switches: Int = 0
+
+    init(id: String, sessionID: String, appName: String, bundleID: String,
+         minutes: Double, idleMinutes: Double, switches: Int) {
+        self.id = id
+        self.sessionID = sessionID
+        self.appName = appName
+        self.bundleID = bundleID
+        self.minutes = minutes
+        self.idleMinutes = idleMinutes
+        self.switches = switches
+    }
+}
+
+extension DatasetRecord: HasStringID {}
+extension CaptureSessionRecord: HasStringID {}

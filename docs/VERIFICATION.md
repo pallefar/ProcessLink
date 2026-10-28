@@ -7,8 +7,8 @@ Run on macOS 27.0.1, Swift 6.4, Xcode 27.1, Node 22.23.3, 28 October 2026.
 | Check | Command | Result |
 |---|---|---|
 | Build (release) | `./build.sh` | `Build complete!`, 0 errors, 0 warnings, installed to `~/Applications/ProcessLink.app` |
-| Unit tests | `swift test --scratch-path ~/Library/Developer/ProcessLink/test-build` | **22 tests passed** (scoring, statutory guard, privacy, PII, ledger, conflicts, ask citations, formatting, graph orphans/neighbourhood/similarity/duplicates) |
-| In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 51 checks** |
+| Unit tests | `swift test --scratch-path ~/Library/Developer/ProcessLink/test-build` | **27 tests passed** (scoring, statutory guard, privacy, PII, ledger, conflicts, ask citations, formatting, graph algorithms, CSV import/mining/conformance) |
+| In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 64 checks** |
 | Grid lint | `tools/grid-lint.sh` | **PASS** |
 | Layout probes | `swift tools/check-layout.swift /tmp/ProcessLink-shots/*-layout.json` | **22 PASS**, 0 fail |
 | Snapshots | `tools/snap.sh` | 8 pages + 5 Settings tabs, light and dark, 2520×1640 page PNGs; reviewed |
@@ -21,8 +21,10 @@ detection, handoff citation, promotion, commit-before-validate, evidence
 requirement, blocked promotion, sync + audit, human entity-resolution merge
 (with edge re-pointing), "restricted process never enters the ask context",
 meeting pages and blocks, meeting/decision graph nodes and edges, action
-promotion, decision answers citing a meeting, and the Maps document contract
-(schema, bindings, drift, persistence, map KG node/edge).
+promotion, decision answers citing a meeting, the Maps document contract
+(schema, bindings, drift, persistence, map KG node/edge), and in-house
+discovery (sample import, hashed cases, 24-case mining, three variants,
+process creation, capture aggregates and capture-to-process).
 
 ## Web app
 

@@ -67,6 +67,9 @@ enum SeedData {
         let context = model.container.mainContext
         guard ((try? context.fetchCount(FetchDescriptor<ProcessRecord>())) ?? 0) == 0 else { return }
         seed(into: model)
+        if ((try? context.fetchCount(FetchDescriptor<DatasetRecord>())) ?? 0) == 0 {
+            _ = model.importSampleDataset()
+        }
     }
 
     static func seed(into model: AppModel) {
@@ -764,6 +767,35 @@ enum SeedData {
         context.insert(SyncRecord(at: daysAgo(31), source: "KYP.ai sandbox · backfill",
                                   fetched: 2_140, inserted: 61, updated: 0, skipped: 11,
                                   status: "success", note: "Backfill completed in 14 minutes; checkpoint stored."))
+
+        // Local task capture: aggregates only, seeded so the tab is not empty.
+        let captureSessions: [(String, String, String, String, Int, Int, Int, [(String, String, Double, Int)])] = [
+            ("cap-demo-order", "Order desk · morning", "Order Desk", "Bensheim", 34, 6, 23,
+             [("Outlook", "com.microsoft.Outlook", 9, 6),
+              ("SAP S/4HANA", "com.sap.s4", 14, 9),
+              ("Salesforce", "com.salesforce.desktop", 8, 5),
+              ("Microsoft Teams", "com.microsoft.teams2", 3, 3)]),
+            ("cap-demo-triage", "Case triage · afternoon", "Triage Agent", "Manila", 41, 9, 31,
+             [("ServiceNow", "com.servicenow.agent", 18, 12),
+              ("Salesforce", "com.salesforce.desktop", 11, 8),
+              ("Outlook", "com.microsoft.Outlook", 7, 7),
+              ("Microsoft Teams", "com.microsoft.teams2", 5, 4)]),
+        ]
+        for (index, seed) in captureSessions.enumerated() {
+            let session = CaptureSessionRecord(
+                id: seed.0, name: seed.1, role: seed.2, site: seed.3,
+                startedAt: daysAgo(index + 1), endedAt: daysAgo(index + 1).addingTimeInterval(45 * 60),
+                sampleSeconds: 5, activeMinutes: Double(seed.4), idleMinutes: Double(seed.5),
+                switchCount: seed.6, status: "complete",
+                notes: "Aggregates only: app name, minutes and switches.")
+            context.insert(session)
+            for (appIndex, app) in seed.7.enumerated() {
+                context.insert(CaptureAppRecord(
+                    id: "\(seed.0)-app-\(appIndex)", sessionID: seed.0,
+                    appName: app.0, bundleID: app.1, minutes: app.2,
+                    idleMinutes: 0, switches: app.3))
+            }
+        }
 
         try? context.save()
     }

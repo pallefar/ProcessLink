@@ -279,6 +279,46 @@ enum SelfTest {
             check("a decision answer cites a meeting",
                   decisionAnswer.citations.contains { $0.kind == .meeting })
 
+            // In-house discovery: import, mine, create a process.
+            let dataset = model.importSampleDataset()
+            check("the sample event log imports", dataset != nil)
+            if let dataset {
+                check("case ids are hashed on import",
+                      !fetch(EventItemRecord.self).contains { $0.caseHash.contains("ORD-2026") })
+                let mined = model.minedProcess(for: dataset)
+                check("mining finds 24 cases", mined.cases == 24, "found \(mined.cases)")
+                check("mining finds three variants", mined.variants.count == 3, "found \(mined.variants.count)")
+                let discovered = model.createProcess(from: dataset)
+                check("mining creates a process", discovered != nil)
+                check("the process is labelled in-house",
+                      discovered?.source == "In-house process mining")
+                if let discovered {
+                    let processSteps = fetch(StepRecord.self).filter { $0.processID == discovered.id }
+                    check("the mined process has steps", processSteps.count >= 4, "found \(processSteps.count)")
+                    check("the mined process has variants",
+                          fetch(VariantRecord.self).contains { $0.processID == discovered.id })
+                    check("the mined process has an opportunity",
+                          fetch(OpportunityRecord.self).contains { $0.processID == discovered.id })
+                    check("the mined process is a KG node",
+                          fetch(KGNodeRecord.self).contains { $0.id == "kg-proc-\(discovered.id)" })
+                }
+            }
+
+            // In-house task capture: aggregate, save, turn into a process.
+            model.recordCapture(name: "Self-test capture", role: "Order Desk", site: "Bensheim",
+                                startedAt: model.now, endedAt: model.now,
+                                minutes: 30, idleMinutes: 4, switchCount: 12,
+                                apps: [("Outlook", "com.microsoft.Outlook", 12, 1, 4),
+                                       ("SAP S/4HANA", "com.sap.s4", 14, 2, 5)])
+            if let session = fetch(CaptureSessionRecord.self).first(where: { $0.name == "Self-test capture" }) {
+                let captureApps = fetch(CaptureAppRecord.self).filter { $0.sessionID == session.id }
+                check("a capture session stores app aggregates", captureApps.count == 2)
+                let captureProcess = model.createProcess(from: session, apps: captureApps)
+                check("a capture becomes a process", captureProcess != nil)
+                check("the capture process is labelled in-house",
+                      captureProcess?.source == "In-house task capture")
+            }
+
             print(failures == 0 ? "SELFTEST PASS \(count) checks" : "SELFTEST FAIL \(failures) of \(count) checks")
             finish(code: failures == 0 ? 0 : 1)
         }

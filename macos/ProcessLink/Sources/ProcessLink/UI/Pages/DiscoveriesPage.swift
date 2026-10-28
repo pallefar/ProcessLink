@@ -150,6 +150,9 @@ struct DiscoveriesPage: View {
                 }
             }
             HStack(spacing: Space.sm) {
+                Chip(text: process.source,
+                     symbol: process.source.contains("KYP") ? "cloud" : "sparkle.magnifyingglass",
+                     tint: process.source.contains("KYP") ? .secondary : .green)
                 Chip(text: process.site, symbol: "mappin.and.ellipse", tint: .blue)
                 Chip(text: process.businessUnit, symbol: "building.2", tint: .secondary)
                 Chip(text: process.valueStream, symbol: "arrow.right.to.line.compact", tint: .secondary)

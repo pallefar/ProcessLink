@@ -238,7 +238,7 @@ enum MapsBridge {
                 "kgProcessId": process.kgID,
                 "generatedAt": ISO8601DateFormatter().string(from: .now),
                 "generatedBy": "ProcessLink",
-                "source": "KYP.ai task mining",
+                "source": process.sourceRaw,
                 "version": "processlink-maps/1",
             ],
         ]

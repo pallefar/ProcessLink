@@ -50,7 +50,12 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
    facts; an action can be promoted to an initiative through the same gate as
    an opportunity. Templates cover daily huddles, kaizen, A3 reviews,
    leadership reviews and workshops.
-8. **Governance** — purpose limitation, group-size suppression, classification
+8. **Mining** — in-house discovery without KYP.ai: import a CSV event log and
+   get variants, cycle time, wait, rework, handoffs, conformance and automation
+   candidates; or run an opt-in local task capture (frontmost app, minutes,
+   switches — no titles, keys or screenshots). Mined results become the same
+   process/KG/map/opportunity records.
+9. **Governance** — purpose limitation, group-size suppression, classification
    refusal, PII masking and an audit log are enforced in code and visible in
    the UI. The launch checklist blocks production.
 
@@ -63,6 +68,10 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 | Opportunities | Knowledge graph |
 |---|---|
 | ![Opportunities](docs/shots/opportunities-light.png) | ![Graph](docs/shots/graph-light.png) |
+
+| Mining | Task capture |
+|---|---|
+| ![Mining](docs/shots/mining-light.png) | ![Task capture](docs/shots/mining-capture-light.png) |
 
 | Meetings | Knowledge graph |
 |---|---|
@@ -165,6 +174,7 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 | [`docs/KG-ONTOLOGY.md`](docs/KG-ONTOLOGY.md) | 25 node types, 15 relations, provenance, entity resolution, ACL, GraphRAG, migration plan M0–M6 |
 | [`docs/RISKS-AND-MVP.md`](docs/RISKS-AND-MVP.md) | Feasibility/risk table, build-vs-buy with licence notes, MVP cut line, phase plan |
 | [`docs/MAPS-INTEGRATION.md`](docs/MAPS-INTEGRATION.md) | The two-way `signavio-map/1` contract, schema extension, host routes, drift rules |
+| [`docs/IN-HOUSE-DISCOVERY.md`](docs/IN-HOUSE-DISCOVERY.md) | What ProcessLink now does without KYP.ai, the privacy boundary, and what is still KYP's job |
 
 ## Repository
 

@@ -80,7 +80,7 @@ struct ContentView: View {
         @Bindable var model = model
         return List(selection: $model.page) {
             Section("Work") {
-                ForEach([SidebarItem.overview, .discoveries, .opportunities, .maps, .meetings]) { item in
+                ForEach([SidebarItem.overview, .discoveries, .opportunities, .maps, .meetings, .mining]) { item in
                     row(item)
                 }
             }
@@ -127,6 +127,7 @@ struct ContentView: View {
         case .opportunities: OpportunitiesPage()
         case .maps: MapsPage()
         case .meetings: MeetingsPage()
+        case .mining: MiningPage()
         case .graph: GraphPage()
         case .improvements: ImprovementsPage()
         case .ask: AskPage()

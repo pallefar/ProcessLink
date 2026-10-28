@@ -264,3 +264,55 @@ func closedNodes() {
     ]
     #expect(KGGraph.duplicatePairs(nodes: nodes).isEmpty)
 }
+
+// MARK: - Mining
+
+@Test("The sample CSV imports and hashes case ids")
+func importSample() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    #expect(result.caseCount == 24)
+    #expect(result.events.count > 100)
+    #expect(result.events.allSatisfy { $0.caseID.hasPrefix("case-") })
+    #expect(!result.events.contains { $0.caseID.contains("ORD-2026") })
+    #expect(result.skippedRows == 0)
+}
+
+@Test("Mining finds variants, rework and a bottleneck")
+func mineSample() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let mined = ProcessMining.mine(result.events, name: "Order intake")
+    #expect(mined.cases == 24)
+    #expect(mined.variants.count == 3, "found \(mined.variants.count)")
+    #expect(abs(mined.variants.map(\.share).reduce(0, +) - 1) < 0.001)
+    #expect(mined.reworkRate > 0)
+    #expect(mined.medianCycleMinutes > 0)
+    #expect(mined.edges.contains { $0.from == "Receive order" && $0.to == "Check customer master" })
+    #expect(mined.bottleneck != nil)
+}
+
+@Test("Conformance reports exact cases and missing activities")
+func conformance() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let reference = ["Receive order", "Check customer master", "Validate pricing",
+                     "Create sales order", "Send confirmation"]
+    let report = ProcessMining.conformance(events: result.events, reference: reference)
+    #expect(report.fitness > 0.8)
+    #expect(report.exactCases > 0)
+    #expect(report.extraActivities.contains("Clear exception queue"))
+}
+
+@Test("Personal-looking activities are masked on import")
+func miningMasksPII() throws {
+    let csv = "case_id,activity,timestamp,resource\n1,Send to anna.schmidt@example.com,2026-01-01 09:00,Order Desk\n2,Check,2026-01-01 10:00,Order Desk\n"
+    let result = try EventLogImporter.importCSV(csv)
+    #expect(result.events.contains { $0.activity.contains("[redacted:email]") })
+    #expect(!result.events.contains { $0.activity.contains("anna.schmidt") })
+}
+
+@Test("Resource values that look personal become roles")
+func miningResourcePrivacy() throws {
+    let csv = "case_id,activity,timestamp,resource\n1,Check,2026-01-01 09:00,anna.schmidt@example.com\n"
+    let result = try EventLogImporter.importCSV(csv)
+    #expect(result.events[0].resource.hasPrefix("role-"))
+    #expect(!result.events[0].resource.contains("@"))
+}
