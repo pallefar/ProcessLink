@@ -35,9 +35,11 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 3. **Improvement** — a promoted opportunity becomes an A3/kaizen initiative
    with an owner, a stage and a saving that moves estimated → committed →
    validated. Validation needs a named human and before/after evidence.
-4. **Map** — the process is drawn as swimlanes bound shape-by-shape to KG
-   nodes, with overlays for cycle time, handoffs, rework and automation
-   potential. Stale evidence is flagged, not hidden.
+4. **Maps** — ProcessLink reads and writes real Flightdeck `signavio-map/1`
+   documents. Shapes carry a `processLink` binding, so the map inspector shows
+   the mined step, opportunity and saving; map edits come back as drift and
+   audited proposals. Overlays cover cycle time, handoffs, rework and
+   automation potential.
 5. **Graph** — typed nodes and edges with confidence, validity and source; a
    human review queue for uncertain matches; no silent merges.
 6. **Ask** — a governed assistant over the same facts. Every number cites a
@@ -56,7 +58,7 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 
 | Overview | Process map |
 |---|---|
-| ![Overview](docs/shots/overview-light.png) | ![Map](docs/shots/maps-light.png) |
+| ![Overview](docs/shots/overview-light.png) | ![Flightdeck map with ProcessLink inspector](docs/shots/maps-light.png) |
 
 | Opportunities | Knowledge graph |
 |---|---|
@@ -162,6 +164,7 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Three forms, shared packages, sync pipeline, gates, AI layer, performance, security boundaries |
 | [`docs/KG-ONTOLOGY.md`](docs/KG-ONTOLOGY.md) | 25 node types, 15 relations, provenance, entity resolution, ACL, GraphRAG, migration plan M0–M6 |
 | [`docs/RISKS-AND-MVP.md`](docs/RISKS-AND-MVP.md) | Feasibility/risk table, build-vs-buy with licence notes, MVP cut line, phase plan |
+| [`docs/MAPS-INTEGRATION.md`](docs/MAPS-INTEGRATION.md) | The two-way `signavio-map/1` contract, schema extension, host routes, drift rules |
 
 ## Repository
 

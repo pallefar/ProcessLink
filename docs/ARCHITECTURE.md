@@ -107,7 +107,19 @@ flowchart TB
 8. **Commit** — idempotent upsert into the local store, then propose KG nodes.
 9. **Audit** — one immutable event per step, counts only.
 
-### 3.2 Meetings and graph write-through
+### 3.2 Maps: the document is the contract
+
+ProcessLink does not own a private map format. It reads and writes
+`signavio-map/1` documents through the Flightdeck Maps API, adding two
+optional fields: `node.data.processLink` (binding + metrics snapshot) and
+`meta.processLink` (process, generation, source). Flightdeck's own shape
+inspector renders a read-only ProcessLink panel from the node snapshot, so the
+mined step, opportunity and saving are visible inside the map. Map edits are
+read back by ProcessLink, compared with the mined step, and recorded as drift
+plus an audited proposal; they never overwrite discovery. The full contract is
+in [`MAPS-INTEGRATION.md`](MAPS-INTEGRATION.md).
+
+### 3.3 Meetings and graph write-through
 
 A meeting is a **page of typed blocks**, not a free-text note:
 
@@ -130,7 +142,7 @@ This is why there is no separate "notes database": the page, the decision, the
 action and the improvement work are the same graph, read at different
 granularity.
 
-### 3.3 Write paths that need a human
+### 3.4 Write paths that need a human
 
 | Write | Gate |
 |---|---|
@@ -212,6 +224,7 @@ Structured logs carry ids and counts, never process content: `sync.run`,
 | Opportunity scoring + route + method recommendation | ✅ | ✅ | via web |
 | Savings ledger (estimate → commit → validate, conflicts) | ✅ | ✅ | via web |
 | Discovery → opportunity → initiative → A3 | ✅ | ✅ | via web |
+| Flightdeck `signavio-map/1` read/write + drift | ✅ | adapter next | via web |
 | Map generation with KG-bound shapes + overlays | ✅ | ✅ | via web |
 | Meetings, block pages, decisions and actions | ✅ | ✅ | via web |
 | Graph canvas, search, quality filters, backlinks | ✅ | list + backlinks | via web |

@@ -3,5 +3,7 @@
 set -u
 rm -rf ~/Library/Saved\ Application\ State/com.te.processlink.savedState
 store=/tmp/ProcessLink-self.store
+maps=/tmp/ProcessLink-maps-self
 rm -f $store $store-shm $store-wal
-APP_STORE=$store ~/Applications/ProcessLink.app/Contents/MacOS/ProcessLink --selftest
+rm -rf $maps
+APP_STORE=$store APP_MAPS_DIR=$maps ~/Applications/ProcessLink.app/Contents/MacOS/ProcessLink --selftest

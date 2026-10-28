@@ -107,7 +107,7 @@ struct GraphPage: View {
     private var metrics: some View {
         HStack(alignment: .top, spacing: Space.md) {
             MetricTile(title: "Nodes", value: "\(nodes.count)",
-                       detail: "\(Set(nodes.map(\.kind)).count) of 28 types in use",
+                       detail: "\(Set(nodes.map(\.kind)).count) of 29 types in use",
                        symbol: "circle.hexagongrid", tint: .blue)
             MetricTile(title: "Edges", value: "\(edges.count)",
                        detail: "Provenance on every one", symbol: "arrow.triangle.branch", tint: .purple)

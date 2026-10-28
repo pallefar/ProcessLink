@@ -35,6 +35,7 @@ struct GraphCanvas: View {
         case .meeting: .pink
         case .decision: .green
         case .action: .yellow
+        case .map: .brown
         default: .secondary
         }
     }

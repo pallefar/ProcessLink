@@ -1,467 +1,567 @@
+import AppKit
 import ProcessLinkKit
 import SwiftData
 import SwiftUI
 
-/// Flightdeck Maps, generated from the discovered process and bound to KG
-/// nodes. Shapes are live: the overlay is a query, not a screenshot.
+/// Flightdeck Maps, read and written as `signavio-map/1` documents.
+///
+/// Two-way: the shape inspector shows the mined step, opportunity and saving
+/// from ProcessLink; edits made on the map are saved to the document and
+/// proposed to the graph instead of overwriting discovery.
 struct MapsPage: View {
     @Environment(AppModel.self) private var model
     @Query(sort: \ProcessRecord.name) private var processes: [ProcessRecord]
     @Query(sort: \StepRecord.order) private var steps: [StepRecord]
-    @Query(sort: \VariantRecord.share, order: .reverse) private var variants: [VariantRecord]
     @Query private var opportunities: [OpportunityRecord]
+    @Query private var initiatives: [InitiativeRecord]
 
-    private var eligible: [ProcessRecord] {
-        processes.filter { $0.status == .discovered }
+    @State private var documents: [MapsBridge.Document] = []
+    @State private var selectedMapID: String?
+    @State private var selectedNodeID: String?
+    @State private var overlay: MapOverlay = .cycleTime
+    @State private var search = ""
+
+    private var filtered: [MapsBridge.Document] {
+        let query = search.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return documents }
+        return documents.filter { $0.label.lowercased().contains(query) || $0.processID.lowercased().contains(query) }
+    }
+
+    private var current: MapsBridge.Document? {
+        documents.first { $0.id == selectedMapID } ?? filtered.first ?? documents.first
     }
 
     private var process: ProcessRecord? {
-        eligible.first { $0.id == model.selectedProcessID } ?? eligible.first
+        processes.first { $0.id == current?.processID }
     }
 
-    private var processSteps: [StepRecord] {
-        guard let process else { return [] }
-        return steps.filter { $0.processID == process.id }.sorted { $0.order < $1.order }
+    private var selectedNode: MapsBridge.Node? {
+        current?.nodes.first { $0.id == selectedNodeID }
     }
 
-    private var processVariants: [VariantRecord] {
-        guard let process else { return [] }
-        return variants.filter { $0.processID == process.id }
+    private var stepsByID: [String: StepRecord] {
+        Dictionary(uniqueKeysWithValues: steps.map { ($0.id, $0) })
     }
 
-    private var selectedStep: StepRecord? {
-        processSteps.first { $0.id == model.selectedMapStepID }
+    private func step(for node: MapsBridge.Node) -> StepRecord? {
+        guard let link = node.link else { return nil }
+        return stepsByID[link.stepID]
     }
 
-    private var bestOpportunity: OpportunityRecord? {
-        guard let process else { return nil }
-        return opportunities.filter { $0.processID == process.id && $0.status != .deferred }
-            .max { $0.score.total < $1.score.total }
+    private var driftIDs: Set<String> {
+        guard let document = current else { return [] }
+        return Set(document.nodes.compactMap { node in
+            guard let mined = step(for: node) else { return nil }
+            let systemMismatch = !node.system.isEmpty && node.system != mined.application
+            let timingMismatch = node.estimateMin.map { abs($0 - mined.minutes) > 0.5 } ?? false
+            return node.role != mined.role || systemMismatch || timingMismatch ? node.id : nil
+        })
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Space.xl) {
-                PageHeader("Process map",
-                           subtitle: "Generated from KYP.ai, bound shape by shape to the knowledge graph. Edits here propose a KG change; they never overwrite discovery.") {
-                    HStack(spacing: Space.md) {
-                        Picker("Process", selection: Binding(get: { process?.id }, set: { model.selectedProcessID = $0; model.selectedMapStepID = nil })) {
-                            ForEach(eligible) { item in
-                                Text(item.name).tag(Optional(item.id))
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(maxWidth: 300)
-                        .accessibilityLabel("Process to map")
-
-                        Button {
-                            model.showToast("Map regenerated", detail: "\(processSteps.count) shapes re-bound to live KG nodes.",
-                                            symbol: "arrow.triangle.2.circlepath")
-                        } label: {
-                            Label("Regenerate", systemImage: "arrow.triangle.2.circlepath")
-                        }
+        VStack(spacing: 0) {
+            toolbar
+            Divider().opacity(0.6)
+            if let document = current {
+                GeometryReader { _ in
+                    FlightdeckMapCanvas(document: document, selectedID: selectedNodeID,
+                                        overlay: overlay, driftIDs: driftIDs,
+                                        stepsByID: stepsByID) { id in
+                        selectedNodeID = id
                     }
                 }
-
-                if let process, !processSteps.isEmpty {
-                    if process.isStale {
-                        driftBanner(process)
+                .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .overlay(alignment: .topTrailing) {
+                    if document.nodes.count > 5 {
+                        Chip(text: "Scroll to see all \(document.nodes.count) shapes",
+                             symbol: "arrow.right", tint: .secondary)
+                            .padding(12)
+                            .allowsHitTesting(false)
                     }
-                    mapCard(process)
-                    HStack(alignment: .top, spacing: Space.lg) {
-                        nodeInspector
-                        variantCard
-                    }
-                    toBeCard(process)
-                } else {
-                    ContentUnavailableView("No map to draw",
-                                           systemImage: "point.topleft.down.to.point.bottomright.curvepath",
-                                           description: Text("A process with mined steps is needed. Blocked and suppressed records are never mapped."))
-                        .frame(maxWidth: .infinity, minHeight: 300)
                 }
+            } else {
+                ContentUnavailableView("No maps yet", systemImage: "map",
+                                       description: Text("Create one from a discovered process."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(Space.margin)
+            Divider().opacity(0.6)
+            inspectorBar
+                .frame(height: 312)
         }
-        .gridArea("maps")
         .navigationTitle("Maps")
-        .onAppear {
-            if model.selectedMapStepID == nil,
-               let hottest = processSteps.max(by: { $0.minutes < $1.minutes }) {
-                model.selectedMapStepID = hottest.id
-            }
+        .onAppear(perform: load)
+    }
+
+    private func load() {
+        MapsBridge.seedIfNeeded(processes: processes, steps: steps)
+        documents = MapsBridge.loadAll()
+        for document in documents {
+            model.registerMap(document, process: processes.first { $0.id == document.processID })
+        }
+        if selectedMapID == nil || !documents.contains(where: { $0.id == selectedMapID }) {
+            selectedMapID = documents.first?.id
+            selectedNodeID = documents.first?.nodes.first(where: { $0.link != nil })?.id
         }
     }
 
-    private func driftBanner(_ process: ProcessRecord) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-                .accessibilityHidden(true)
-            Text("This map was last generated from evidence \(process.staleDays) days old. It no longer matches the latest discovery; regenerate or review before using it in a review.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: Space.sm)
-            Button("Sync now") {
-                Task { await model.runSync() }
-            }
-            .controlSize(.small)
-        }
-        .padding(Space.md)
-        .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(.orange.opacity(0.3), lineWidth: 1)
-        }
-    }
+    // MARK: List
 
-    private func mapCard(_ process: ProcessRecord) -> some View {
-        Card("As-is · \(process.name)",
-             subtitle: "\(processSteps.count) steps · \(process.handoffs) handoffs · \(Fmt.minutes(process.cycleMinutes)) median cycle · every shape is a KG node",
-             symbol: "point.topleft.down.to.point.bottomright.curvepath") {
-            VStack(alignment: .leading, spacing: Space.md) {
-                HStack(spacing: Space.md) {
-                    Picker("Overlay", selection: Binding(get: { model.mapOverlay }, set: { model.mapOverlay = $0 })) {
-                        ForEach(MapOverlay.allCases) { overlay in
-                            Label(overlay.label, systemImage: overlay.symbol).tag(overlay)
+    private var mapList: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: Space.sm) {
+                Text("\(filtered.count) maps")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Menu {
+                    ForEach(processes.filter { process in
+                        !steps.filter { $0.processID == process.id }.isEmpty
+                    }) { process in
+                        Button {
+                            newMap(for: process)
+                        } label: {
+                            Label(process.name, systemImage: "plus.rectangle.on.folder")
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(maxWidth: 520)
-                    Spacer()
-                    overlayLegend
+                } label: {
+                    Label("New", systemImage: "plus")
                 }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Create a Flightdeck map from a discovered process")
+                .accessibilityLabel("New map from process")
+            }
+            .padding(.horizontal, Space.lg)
+            .padding(.top, Space.md)
 
-                ProcessMapCanvas(steps: processSteps, overlay: model.mapOverlay,
-                                 selectedID: selectedStep?.id,
-                                 onSelect: { step in model.selectedMapStepID = step.id })
-
-                Text("Drawn from \(process.kypID). Hue and the number on each shape carry the same overlay value; the number is the primary channel and the colour is the second.")
+            HStack(spacing: Space.xs) {
+                Image(systemName: "magnifyingglass")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                TextField("Search maps", text: $search)
+                    .textFieldStyle(.plain)
+                    .font(.caption)
+            }
+            .padding(.horizontal, Space.sm)
+            .padding(.vertical, 4)
+            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .padding(.horizontal, Space.lg)
+            .padding(.vertical, Space.sm)
+
+            Divider().opacity(0.6)
+
+            ScrollView {
+                LazyVStack(spacing: 2) {
+                    ForEach(filtered) { document in
+                        Button {
+                            selectedMapID = document.id
+                            selectedNodeID = nil
+                        } label: {
+                            SelectableRow(selected: current?.id == document.id) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: Space.xs) {
+                                        Image(systemName: "map")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(document.label)
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(2)
+                                            .multilineTextAlignment(.leading)
+                                    }
+                                    Text(processes.first { $0.id == document.processID }?.name ?? "No linked process")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    HStack(spacing: Space.xs) {
+                                        Chip(text: "\(document.nodes.count) shapes", symbol: "square.on.square", tint: .secondary)
+                                        if !driftIDs.isEmpty {
+                                            Chip(text: "\(driftIDs.count) drifted", symbol: "exclamationmark.triangle", tint: .orange)
+                                        }
+                                        if document.approved {
+                                            Chip(text: "Approved", symbol: "checkmark.seal", tint: .green)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(Space.sm)
             }
         }
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 
-    private var overlayLegend: some View {
-        HStack(spacing: Space.xs) {
-            Text("low").font(.caption2).foregroundStyle(.tertiary)
-            LinearGradient(colors: [.green.opacity(0.35), .orange.opacity(0.7), .red.opacity(0.8)],
-                           startPoint: .leading, endPoint: .trailing)
-                .frame(width: 56, height: 8)
-                .clipShape(Capsule())
-                .accessibilityHidden(true)
-            Text("high").font(.caption2).foregroundStyle(.tertiary)
-            Text("· \(model.mapOverlay.label)").font(.caption2).foregroundStyle(.secondary)
+    // MARK: Toolbar and inspector
+
+    private var toolbar: some View {
+        VStack(spacing: Space.xs) {
+            HStack(spacing: Space.sm) {
+                Menu {
+                    ForEach(documents) { document in
+                        Button(document.label) {
+                            selectedMapID = document.id
+                            selectedNodeID = nil
+                        }
+                    }
+                } label: {
+                    Label(current?.label ?? "No map", systemImage: "map")
+                        .font(.subheadline.weight(.medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .menuStyle(.borderlessButton)
+                .frame(maxWidth: 260, alignment: .leading)
+                .accessibilityLabel("Choose a map")
+
+                if !driftIDs.isEmpty {
+                    Chip(text: "\(driftIDs.count) differ", symbol: "exclamationmark.triangle", tint: .orange)
+                }
+                Spacer(minLength: Space.sm)
+
+                Menu {
+                    ForEach(processes.filter { process in
+                        !steps.filter { $0.processID == process.id }.isEmpty
+                    }) { process in
+                        Button {
+                            newMap(for: process)
+                        } label: {
+                            Label(process.name, systemImage: "plus.rectangle.on.folder")
+                        }
+                    }
+                } label: {
+                    Label("New", systemImage: "plus")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Publish a discovered process as a Flightdeck map")
+                .accessibilityLabel("New map from process")
+
+                Button {
+                    load()
+                    model.showToast("Maps reloaded", detail: "Pulled the latest signavio-map/1 documents.",
+                                    symbol: "arrow.down.doc")
+                } label: {
+                    Label("Pull", systemImage: "arrow.down.doc")
+                }
+                .help("Pull the latest documents from Flightdeck Maps")
+
+                Menu {
+                    Button("Open document folder") { NSWorkspace.shared.open(MapsBridge.folderURL) }
+                    Button("Reveal current file") {
+                        if let document = current {
+                            NSWorkspace.shared.activateFileViewerSelecting([document.fileURL])
+                        }
+                    }
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
+                        .labelStyle(.iconOnly)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Flightdeck map actions")
+                .accessibilityLabel("Map actions")
+            }
+
+            HStack(spacing: Space.sm) {
+                if let process {
+                    Text("\(process.name) · \(process.site)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: 320, alignment: .leading)
+                }
+                Spacer(minLength: Space.sm)
+                Picker("Overlay", selection: $overlay) {
+                    ForEach(MapOverlay.allCases) { item in
+                        Label(item.label, systemImage: item.symbol).tag(item)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .frame(width: 152)
+                .accessibilityLabel("Map overlay")
+            }
         }
-        .accessibilityLabel("\(model.mapOverlay.label) overlay, low to high")
+        .padding(.horizontal, Space.lg)
+        .padding(.vertical, Space.sm)
+        .background(.bar)
     }
 
     @ViewBuilder
-    private var nodeInspector: some View {
-        Card("Shape detail", subtitle: "Click any shape on the map.", symbol: "cursorarrow.click") {
-            if let step = selectedStep {
-                VStack(alignment: .leading, spacing: Space.sm) {
-                    HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
-                        Text(step.name).font(.headline)
-                        Spacer(minLength: Space.sm)
-                        Chip(text: step.waste.label, symbol: step.waste.symbol, tint: .orange)
-                    }
-                    DetailRow(label: "Role", value: step.role)
-                    DetailRow(label: "Application", value: step.application)
-                    DetailRow(label: "Time", value: Fmt.minutes(step.minutes))
-                    DetailRow(label: "Handoffs", value: "\(step.handoffs)")
-                    DetailRow(label: "Rework share", value: Fmt.percent(step.reworkShare))
-                    DetailRow(label: "Evidence", value: "\(step.evidenceCount) mined events")
-                    DetailRow(label: "Standard", value: step.standardAligned ? "Aligned with the SOP" : "Deviates from the SOP")
-                    DetailRow(label: "KG node", value: step.kgID, mono: true)
-                    HStack(spacing: Space.md) {
-                        Button("Open in KG") {
-                            model.selectedKGID = step.kgID
-                            model.page = .graph
-                        }
-                        .controlSize(.small)
-                        Button("Open SOP") {
-                            model.showToast("SOP linked", detail: "Knowledge Guardian will open the linked document.",
-                                            symbol: "doc.text")
-                        }
-                        .controlSize(.small)
-                        .disabled(process?.standardDocument.isEmpty ?? true)
-                    }
-                    GuardrailNote(text: "This shape shows an aggregate. There is no per-person drill-down, by design.")
+    private var inspectorBar: some View {
+        if let document = current, let node = selectedNode {
+            MapShapeInspector(
+                document: document,
+                node: node,
+                process: process,
+                step: step(for: node),
+                opportunities: opportunities.filter { $0.processID == document.processID },
+                initiatives: initiatives.filter { $0.processID == document.processID },
+                drifted: driftIDs.contains(node.id),
+                horizontal: true,
+                onSave: { label, role, system, estimate in
+                    save(document: document, node: node, label: label, role: role,
+                         system: system, estimate: estimate)
+                },
+                onRestore: {
+                    guard let mined = step(for: node) else { return }
+                    let json = MapsBridge.updateNode(document, nodeID: node.id,
+                                                     label: mined.name, role: mined.role,
+                                                     system: mined.application,
+                                                     estimateMin: mined.minutes)
+                    persist(json, summary: "Restored \(node.id) from discovery")
+                },
+                onBind: { mined in
+                    let updated = MapsBridge.bindNode(document, nodeID: node.id,
+                                                      step: mined, process: process ?? processes[0])
+                    persist(updated, summary: "Bound \(node.id) to \(mined.name)")
+                },
+                onOpenProcess: {
+                    model.selectedProcessID = document.processID
+                    model.page = .discoveries
+                },
+                onOpenOpportunity: { id in
+                    model.selectedOpportunityID = id
+                    model.page = .opportunities
+                },
+                onOpenKG: {
+                    model.selectedKGID = node.link?.kgNodeID ?? "kg-map-\(document.id)"
+                    model.page = .graph
                 }
-            } else {
-                VStack(alignment: .leading, spacing: Space.sm) {
-                    Text("Select a shape to see its KG binding and evidence.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Text("Each shape carries frequency, cycle time, effort, rework and automation potential. Values come from the last successful sync.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
+            )
+            .id(node.id)
+        } else if let document = current {
+            MapDocumentSummary(document: document, process: process,
+                               opportunities: opportunities.filter { $0.processID == document.processID },
+                               initiatives: initiatives.filter { $0.processID == document.processID },
+                               driftCount: driftIDs.count,
+                               onOpenFolder: { NSWorkspace.shared.open(MapsBridge.folderURL) },
+                               onOpenKG: {
+                                   model.selectedKGID = "kg-map-\(document.id)"
+                                   model.page = .graph
+                               },
+                               onRegenerate: { regenerate(document) })
+        } else {
+            ContentUnavailableView("Select a map", systemImage: "map")
         }
-        .frame(maxWidth: .infinity)
     }
 
-    private var variantCard: some View {
-        Card("Variant comparison", subtitle: "Where the paths diverge.", symbol: "arrow.triangle.swap") {
-            VStack(alignment: .leading, spacing: Space.md) {
-                ForEach(processVariants.prefix(4)) { variant in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: Space.sm) {
-                            Text(variant.name).font(.subheadline)
-                            Spacer(minLength: Space.sm)
-                            Text(Fmt.minutes(variant.cycleMinutes)).font(.caption.monospacedDigit())
-                            Text(Fmt.percent(variant.reworkRate) + " rework")
-                                .font(.caption)
-                                .foregroundStyle(variant.reworkRate > 0.3 ? Color.orange : Color.secondary)
-                        }
-                        GeometryReader { proxy in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(.quaternary)
-                                Capsule().fill(variant.reworkRate > 0.3 ? Color.orange : Palette.accent)
-                                    .frame(width: max(4, proxy.size.width * variant.share))
-                            }
-                        }
-                        .frame(height: 4)
-                        .accessibilityHidden(true)
-                        Text(variant.path).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
-                    }
-                }
-            }
+    private func newMap(for process: ProcessRecord) {
+        let processSteps = steps.filter { $0.processID == process.id }.sorted { $0.order < $1.order }
+        guard !processSteps.isEmpty else { return }
+        var document = MapsBridge.makeMap(process: process, steps: processSteps)
+        if documents.contains(where: { $0.id == document.id }) {
+            document.json["id"] = "\(document.id)-\(Int(Date().timeIntervalSince1970))"
+            document.id = document.json["id"] as? String ?? document.id
+            document.fileURL = MapsBridge.folderURL.appendingPathComponent("\(document.id).json")
         }
-        .frame(width: 340)
+        try? MapsBridge.save(document)
+        documents = MapsBridge.loadAll()
+        selectedMapID = document.id
+        selectedNodeID = nil
+        model.registerMap(document, process: process)
+        model.showToast("Map published", detail: "\(document.nodes.count) shapes · signavio-map/1",
+                        symbol: "map")
     }
 
-    private func toBeCard(_ process: ProcessRecord) -> some View {
-        Card("As-is vs to-be", subtitle: "A to-be map is an opportunity, not a promise. Projected saving stays an estimate until validated.", symbol: "rectangle.split.2x1") {
-            if let opportunity = bestOpportunity {
-                HStack(alignment: .top, spacing: Space.xl) {
-                    VStack(alignment: .leading, spacing: Space.xs) {
-                        Text("As-is").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        Text(Fmt.hoursPerYear(process.annualHours))
-                            .font(.system(.title2, design: .rounded, weight: .semibold))
-                        Text("\(processSteps.count) steps · \(Fmt.percent(process.reworkRate)) rework")
-                            .font(.caption).foregroundStyle(.tertiary)
-                    }
-                    Image(systemName: "arrow.right")
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: Space.xs) {
-                        Text("To-be").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        Text(Fmt.hoursPerYear(max(0, process.annualHours - opportunity.annualHours)))
-                            .font(.system(.title2, design: .rounded, weight: .semibold))
-                        Text("\(opportunity.route.label): \(opportunity.title)")
-                            .font(.caption).foregroundStyle(.tertiary).lineLimit(2)
-                    }
-                    Spacer(minLength: Space.lg)
-                    VStack(alignment: .trailing, spacing: Space.xs) {
-                        Chip(text: "Projected −\(Fmt.hours(opportunity.annualHours))", symbol: "arrow.down.right", tint: .orange)
-                        Text("Estimate · \(Fmt.percent(opportunity.confidence)) confidence")
-                            .font(.caption).foregroundStyle(.tertiary)
-                        Button("Open opportunity") {
-                            model.selectedOpportunityID = opportunity.id
-                            model.page = .opportunities
-                        }
-                        .controlSize(.small)
-                    }
-                }
-            } else {
-                Text("No opportunity is linked to this process yet.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
+    private func regenerate(_ document: MapsBridge.Document) {
+        guard let process else { return }
+        let processSteps = steps.filter { $0.processID == process.id }.sorted { $0.order < $1.order }
+        let fresh = MapsBridge.makeMap(process: process, steps: processSteps)
+        var updated = document
+        updated.json["nodes"] = fresh.json["nodes"]
+        updated.json["edges"] = fresh.json["edges"]
+        updated.nodes = fresh.nodes
+        updated.edges = fresh.edges
+        persist(updated, summary: "Regenerated from discovery")
+    }
+
+    private func save(document: MapsBridge.Document, node: MapsBridge.Node,
+                      label: String, role: String, system: String, estimate: Double?) {
+        let updated = MapsBridge.updateNode(document, nodeID: node.id, label: label,
+                                            role: role, system: system, estimateMin: estimate)
+        var changes: [String] = []
+        if label != node.label { changes.append("label '\(node.label)' → '\(label)'") }
+        if role != node.role { changes.append("role '\(node.role)' → '\(role)'") }
+        if system != node.system { changes.append("system '\(node.system)' → '\(system)'") }
+        if let estimate, let old = node.estimateMin, abs(estimate - old) > 0.01 {
+            changes.append("time \(Int(old)) → \(Int(estimate)) min")
         }
+        persist(updated, summary: changes.isEmpty ? "Saved without a semantic change" : changes.joined(separator: "; "))
+    }
+
+    private func persist(_ document: MapsBridge.Document, summary: String) {
+        try? MapsBridge.save(document)
+        documents = documents.map { $0.id == document.id ? document : $0 }
+        model.registerMap(document, process: processes.first { $0.id == document.processID })
+        model.recordMapEdit(document, nodeID: selectedNodeID ?? "map", summary: summary)
+        model.showToast("Map saved", detail: summary, symbol: "square.and.arrow.down")
     }
 }
 
-// MARK: - The canvas
+// MARK: - Canvas
 
-/// Swimlanes by role, steps left to right, one arrow per handoff. Built from
-/// plain SwiftUI shapes so it can be snapshotted and read by VoiceOver; a
-/// production build hands the same node/edge data to DiagramForge.
-struct ProcessMapCanvas: View {
-    var steps: [StepRecord]
-    var overlay: MapOverlay
+/// Draws the document exactly as Maps stores it: absolute positions, lane
+/// bands by role, arrows between shapes. Shape size is fixed so labels stay
+/// readable; long processes scroll rather than shrink.
+private struct FlightdeckMapCanvas: View {
+    var document: MapsBridge.Document
     var selectedID: String?
-    var onSelect: (StepRecord) -> Void
+    var overlay: MapOverlay
+    var driftIDs: Set<String>
+    var stepsByID: [String: StepRecord]
+    var onSelect: (String) -> Void
 
-    private var lanes: [String] {
-        var seen: [String] = []
-        for step in steps where !seen.contains(step.role) { seen.append(step.role) }
-        return seen
+    private let nodeWidth: CGFloat = 176
+    private let nodeHeight: CGFloat = 70
+
+    private var lanes: [(role: String, y: CGFloat)] {
+        var result: [(String, CGFloat)] = []
+        for node in document.nodes where !result.contains(where: { $0.0 == (node.role.isEmpty ? "Unassigned" : node.role) }) {
+            result.append((node.role.isEmpty ? "Unassigned" : node.role, CGFloat(node.y)))
+        }
+        return result.sorted { $0.1 < $1.1 }
     }
 
-    private func overlayValue(_ step: StepRecord) -> Double {
+    private var canvasSize: CGSize {
+        let maxX = document.nodes.map(\.x).max() ?? 0
+        let maxY = document.nodes.map(\.y).max() ?? 0
+        return CGSize(width: max(920, CGFloat(maxX) + nodeWidth + 180),
+                      height: max(420, CGFloat(maxY) + nodeHeight + 80))
+    }
+
+    private func point(_ node: MapsBridge.Node) -> CGPoint {
+        CGPoint(x: CGFloat(node.x) + 120 + nodeWidth / 2,
+                y: CGFloat(node.y) + nodeHeight / 2)
+    }
+
+    private func overlayValue(_ node: MapsBridge.Node) -> Double {
+        guard let step = node.link.flatMap({ stepsByID[$0.stepID] }) else { return 0 }
         switch overlay {
-        case .cycleTime:
-            let maxMinutes = max(steps.map(\.minutes).max() ?? 1, 1)
-            return step.minutes / maxMinutes
-        case .handoffs:
-            let maxHandoffs = max(steps.map(\.handoffs).max() ?? 1, 1)
-            return Double(step.handoffs) / Double(maxHandoffs)
-        case .rework:
-            let maxRework = max(steps.map(\.reworkShare).max() ?? 0.01, 0.01)
-            return step.reworkShare / maxRework
+        case .cycleTime: return step.minutes / 20
+        case .handoffs: return Double(step.handoffs) / 2
+        case .rework: return step.reworkShare / 0.4
         case .automation:
-            return Self.automationPotential(step.waste)
+            switch step.waste {
+            case .unusedTalent: return 0.9
+            case .overProcessing: return 0.8
+            case .rework: return 0.65
+            case .handoffs: return 0.6
+            case .contextSwitching: return 0.5
+            case .defects: return 0.45
+            case .waiting: return 0.35
+            case .backlog: return 0.25
+            }
         }
     }
 
-    private func overlayText(_ step: StepRecord) -> String {
+    private func overlayText(_ node: MapsBridge.Node) -> String {
+        guard let step = node.link.flatMap({ stepsByID[$0.stepID] }) else { return "Not bound" }
         switch overlay {
-        case .cycleTime: Fmt.minutes(step.minutes)
-        case .handoffs: "\(step.handoffs) handoff\(step.handoffs == 1 ? "" : "s")"
-        case .rework: Fmt.percent(step.reworkShare) + " rework"
-        case .automation: Fmt.percent(Self.automationPotential(step.waste)) + " fit"
+        case .cycleTime: return Fmt.minutes(step.minutes)
+        case .handoffs: return "\(step.handoffs) handoffs"
+        case .rework: return "\(Fmt.percent(step.reworkShare)) rework"
+        case .automation: return "\(step.waste.label) · \(Fmt.percent(step.reworkShare)) rework"
         }
     }
 
-    static func automationPotential(_ waste: WasteType) -> Double {
-        switch waste {
-        case .unusedTalent: 0.9
-        case .overProcessing: 0.8
-        case .rework: 0.65
-        case .handoffs: 0.6
-        case .contextSwitching: 0.5
-        case .defects: 0.45
-        case .waiting: 0.35
-        case .backlog: 0.25
-        }
+    private func tint(_ value: Double) -> Color {
+        let t = min(1, max(0, value))
+        return t < 0.5 ? Color.green.mix(with: .orange, by: t * 2) : Color.orange.mix(with: .red, by: (t - 0.5) * 2)
     }
-
-    private func heat(_ value: Double) -> Color {
-        let clamped = min(1, max(0, value))
-        if clamped < 0.5 {
-            return Color.green.mix(with: .orange, by: clamped * 2)
-        }
-        return Color.orange.mix(with: .red, by: (clamped - 0.5) * 2)
-    }
-
-    private let laneHeight: CGFloat = 116
-    private let labelWidth: CGFloat = 120
-
-    private var canvasHeight: CGFloat { CGFloat(max(lanes.count, 1)) * laneHeight + 16 }
 
     var body: some View {
-        GeometryReader { proxy in
-            // A 500-node production map gets a viewport and a scroll; the demo
-            // map keeps every shape legible instead of squeezing six lanes
-            // into one screen and clipping the last step.
-            // Fit the columns when they can be legible; scroll only when the
-            // process is wider than the window (a real 500-node map always is).
-            let available = proxy.size.width - labelWidth - 32
-            let columnWidth = max(178, available / CGFloat(max(steps.count, 1)))
-            let nodeWidth = min(160, columnWidth - 18)
-            let needed = labelWidth + 32 + columnWidth * CGFloat(steps.count)
-            let canvasWidth = max(needed, proxy.size.width)
+        ScrollView([.horizontal, .vertical]) {
+            ZStack(alignment: .topLeading) {
+                ForEach(lanes, id: \.role) { lane in
+                    let y = lane.y
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+                        .frame(width: canvasSize.width, height: nodeHeight + 48)
+                        .offset(y: y + 12) // grid: ok map document coordinate
+                    Text(lane.role)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 108, alignment: .leading)
+                        .offset(x: 10, y: y + 34) // grid: ok map document coordinate
+                }
 
-            ScrollView(.horizontal) {
-                ZStack(alignment: .topLeading) {
-                    ForEach(Array(lanes.enumerated()), id: \.element) { index, lane in
-                        let y = CGFloat(index) * laneHeight + 8
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(index.isMultiple(of: 2)
-                                  ? Color(nsColor: .controlBackgroundColor).opacity(0.55)
-                                  : Color(nsColor: .windowBackgroundColor).opacity(0.35))
-                            .frame(width: canvasWidth, height: laneHeight - 8)
-                            .offset(y: y) // grid: ok computed lane geometry
-
-                        HStack(spacing: Space.xs) {
-                            Image(systemName: "person.crop.rectangle")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                            Text(lane)
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
+                Canvas { context, _ in
+                    for edge in document.edges {
+                        guard let source = document.nodes.first(where: { $0.id == edge.source }),
+                              let target = document.nodes.first(where: { $0.id == edge.target }) else { continue }
+                        let start = CGPoint(x: point(source).x + nodeWidth / 2, y: point(source).y)
+                        let end = CGPoint(x: point(target).x - nodeWidth / 2, y: point(target).y)
+                        var path = Path()
+                        path.move(to: start)
+                        if abs(start.y - end.y) < 2 {
+                            path.addLine(to: end)
+                        } else {
+                            let mid = (start.x + end.x) / 2
+                            path.addCurve(to: end, control1: CGPoint(x: mid, y: start.y),
+                                          control2: CGPoint(x: mid, y: end.y))
                         }
-                        .frame(width: labelWidth - 16, alignment: .leading)
-                        .offset(x: 12, y: y + (laneHeight - 8) / 2 - 14) // grid: ok computed lane geometry
+                        context.stroke(path, with: .color(Color.secondary.opacity(0.5)),
+                                       style: StrokeStyle(lineWidth: 1, lineCap: .round))
                     }
+                }
+                .frame(width: canvasSize.width, height: canvasSize.height)
+                .accessibilityHidden(true)
 
-                    ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
-                        if index > 0, let laneIndex = lanes.firstIndex(of: step.role),
-                           let previousLane = lanes.firstIndex(of: steps[index - 1].role) {
-                            let x1: CGFloat = labelWidth + 16 + CGFloat(index - 1) * columnWidth
-                            let x2: CGFloat = labelWidth + 16 + CGFloat(index) * columnWidth
-                            let y1: CGFloat = CGFloat(previousLane) * laneHeight + laneHeight / 2 + 4
-                            let y2: CGFloat = CGFloat(laneIndex) * laneHeight + laneHeight / 2 + 4
-                            let from = CGPoint(x: x1 + nodeWidth, y: y1)
-                            let to = CGPoint(x: x2, y: y2)
-                            FlowEdgeShape(from: from, to: to)
-                                .stroke(Color.secondary.opacity(0.45),
-                                        style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                                .accessibilityHidden(true)
-                        }
-                    }
-
-                    ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
-                        let laneIndex = lanes.firstIndex(of: step.role) ?? 0
-                        let value = overlayValue(step)
-                        let x: CGFloat = labelWidth + 16 + CGFloat(index) * columnWidth
-                        let y: CGFloat = CGFloat(laneIndex) * laneHeight + (laneHeight - 8) / 2 - 30
-                        MapNodeView(step: step, overlayText: overlayText(step),
-                                    heat: heat(value), selected: selectedID == step.id,
-                                    width: nodeWidth, showWaste: nodeWidth >= 140)
-                            .frame(width: nodeWidth)
-                            .offset(x: x, y: y) // grid: ok computed lane geometry
-                            .onTapGesture { onSelect(step) }
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("\(step.name), \(step.role), \(overlayText(step))")
-                            .accessibilityAddTraits(.isButton)
-                    }
-                }
-                .frame(width: canvasWidth, height: canvasHeight, alignment: .topLeading)
-            }
-            .scrollIndicators(.visible)
-            .overlay(alignment: .bottomTrailing) {
-                if needed > proxy.size.width + 1 {
-                    Chip(text: "Scroll for the remaining steps", symbol: "arrow.right", tint: .secondary)
-                        .padding(12)
-                        .allowsHitTesting(false)
+                ForEach(document.nodes) { node in
+                    let step = node.link.flatMap { stepsByID[$0.stepID] }
+                    let drifted = driftIDs.contains(node.id)
+                    MapShapeCard(node: node, step: step, overlayText: overlayText(node),
+                                 heat: tint(overlayValue(node)), drifted: drifted,
+                                 selected: selectedID == node.id, width: nodeWidth)
+                        .frame(width: nodeWidth, height: nodeHeight)
+                        .position(point(node)) // grid: ok map document coordinate
+                        .onTapGesture { onSelect(node.id) }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(node.label), \(node.role.isEmpty ? "unassigned" : node.role), \(overlayText(node))")
+                        .accessibilityAddTraits(.isButton)
                 }
             }
-            .overlay(alignment: .trailing) {
-                if needed > proxy.size.width + 1 {
-                    LinearGradient(colors: [.clear, Color(nsColor: .windowBackgroundColor)],
-                                   startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 36)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-            }
+            .frame(width: canvasSize.width, height: canvasSize.height)
         }
-        .frame(height: canvasHeight)
-        .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
-private struct MapNodeView: View {
-    var step: StepRecord
+private struct MapShapeCard: View {
+    var node: MapsBridge.Node
+    var step: StepRecord?
     var overlayText: String
     var heat: Color
+    var drifted: Bool
     var selected: Bool
     var width: CGFloat
-    var showWaste: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
-                Text(step.name)
+                Text(node.label)
                     .font(.caption.weight(.semibold))
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: 0)
-                if step.waste == .handoffs {
-                    Image(systemName: "arrow.left.arrow.right")
+                if drifted {
+                    Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.orange)
+                        .help("This shape differs from the mined step")
+                } else if node.link != nil {
+                    Image(systemName: "hexagon")
+                        .font(.caption2)
+                        .foregroundStyle(.teal)
+                        .help("Bound to \(node.link?.kgNodeID ?? "")")
                 }
             }
-            Text(step.application)
+            Text(node.system.isEmpty ? node.role : node.system)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -469,71 +569,406 @@ private struct MapNodeView: View {
                 Text(overlayText)
                     .font(.caption2.weight(.medium).monospacedDigit())
                 Spacer(minLength: 0)
-                if showWaste {
+                if let step {
                     Text(step.waste.label)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
-                } else {
-                    Image(systemName: step.waste.symbol)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
                 }
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .frame(height: 60)
-        .background(heat.opacity(0.22), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(heat.opacity(0.2), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .strokeBorder(selected ? Palette.accent : Color(nsColor: .separatorColor),
                               lineWidth: selected ? 2 : 1)
         }
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .help("\(step.name) · \(step.application) · \(overlayText)")
     }
 }
 
-/// A left-to-right flow with a visible arrowhead, so direction never depends
-/// on colour or animation.
-private nonisolated struct FlowEdgeShape: Shape {
-    var from: CGPoint
-    var to: CGPoint
+// MARK: - Inspector
 
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let dx = max(24, (to.x - from.x) * 0.45)
-        path.move(to: from)
-        path.addCurve(to: to,
-                      control1: CGPoint(x: from.x + dx, y: from.y),
-                      control2: CGPoint(x: to.x - dx, y: to.y))
+private struct MapShapeInspector: View {
+    @Environment(AppModel.self) private var model
+    var document: MapsBridge.Document
+    var node: MapsBridge.Node
+    var process: ProcessRecord?
+    var step: StepRecord?
+    var opportunities: [OpportunityRecord]
+    var initiatives: [InitiativeRecord]
+    var drifted: Bool
+    var horizontal = false
+    var onSave: (String, String, String, Double?) -> Void
+    var onRestore: () -> Void
+    var onBind: (StepRecord) -> Void
+    var onOpenProcess: () -> Void
+    var onOpenOpportunity: (String) -> Void
+    var onOpenKG: () -> Void
 
-        let angle = atan2(to.y - from.y, to.x - from.x)
-        let head: CGFloat = 6
-        let left = CGPoint(x: to.x - head * cos(angle - .pi / 7),
-                           y: to.y - head * sin(angle - .pi / 7))
-        let right = CGPoint(x: to.x - head * cos(angle + .pi / 7),
-                            y: to.y - head * sin(angle + .pi / 7))
-        path.move(to: to)
-        path.addLine(to: left)
-        path.addLine(to: right)
-        path.closeSubpath()
-        return path
+    @State private var label: String
+    @State private var role: String
+    @State private var system: String
+    @State private var estimate: String
+
+    init(document: MapsBridge.Document, node: MapsBridge.Node, process: ProcessRecord?,
+         step: StepRecord?, opportunities: [OpportunityRecord], initiatives: [InitiativeRecord],
+         drifted: Bool, horizontal: Bool = false,
+         onSave: @escaping (String, String, String, Double?) -> Void,
+         onRestore: @escaping () -> Void, onBind: @escaping (StepRecord) -> Void,
+         onOpenProcess: @escaping () -> Void, onOpenOpportunity: @escaping (String) -> Void,
+         onOpenKG: @escaping () -> Void) {
+        self.document = document
+        self.node = node
+        self.process = process
+        self.step = step
+        self.opportunities = opportunities
+        self.initiatives = initiatives
+        self.drifted = drifted
+        self.horizontal = horizontal
+        self.onSave = onSave
+        self.onRestore = onRestore
+        self.onBind = onBind
+        self.onOpenProcess = onOpenProcess
+        self.onOpenOpportunity = onOpenOpportunity
+        self.onOpenKG = onOpenKG
+        _label = State(initialValue: node.label)
+        _role = State(initialValue: node.role)
+        _system = State(initialValue: node.system)
+        _estimate = State(initialValue: node.estimateMin.map { String(Int($0)) } ?? "")
+    }
+
+    private var topOpportunity: OpportunityRecord? {
+        opportunities.max { $0.score.total < $1.score.total }
+    }
+
+    private var validated: Double {
+        SavingsLedger.totals(initiatives.map(\.savingLine)).validated
+    }
+
+    var body: some View {
+        Group {
+            if horizontal {
+                HStack(alignment: .top, spacing: Space.lg) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: Space.md) {
+                            header
+                            mapFields
+                            actions
+                        }
+                        .padding(Space.md)
+                    }
+                    .frame(width: 392)
+
+                    ScrollView {
+                        Group {
+                            if let step { processLinkCard(step) } else { unboundCard }
+                        }
+                        .padding(Space.md)
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: Space.md) {
+                            if drifted, let step { driftCard(step) }
+                            GuardrailNote(text: "Saving records a map change proposal. The mined step is not overwritten.")
+                        }
+                        .padding(Space.md)
+                    }
+                    .frame(width: 280)
+                }
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Space.lg) {
+                        header
+                        mapFields
+                        if let step { processLinkCard(step) } else { unboundCard }
+                        if drifted, let step { driftCard(step) }
+                        actions
+                    }
+                    .padding(Space.lg)
+                }
+            }
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(node.type.capitalized)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            Text(node.label)
+                .font(.headline)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Space.xs) {
+                if node.link != nil {
+                    Chip(text: "KG bound", symbol: "hexagon", tint: .teal)
+                } else {
+                    Chip(text: "Not bound", symbol: "link.badge.plus", tint: .orange)
+                }
+                if drifted {
+                    Chip(text: "Map proposal", symbol: "pencil", tint: .orange)
+                }
+            }
+        }
+    }
+
+    private var mapFields: some View {
+        Card("Map fields", subtitle: "Owned by Flightdeck Maps. Saving writes the document.", symbol: "map") {
+            VStack(alignment: .leading, spacing: Space.sm) {
+                TextField("Label", text: $label)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Role / lane", text: $role)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Application / system", text: $system)
+                    .textFieldStyle(.roundedBorder)
+                HStack(spacing: Space.sm) {
+                    TextField("Minutes", text: $estimate)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 92)
+                    Text("estimate").font(.caption).foregroundStyle(.tertiary)
+                }
+                HStack(spacing: Space.sm) {
+                    Button("Save to map") {
+                        onSave(label, role, system, Double(estimate))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Button("Restore") { onRestore() }
+                        .disabled(step == nil)
+                        .help("Restore this shape from the mined step")
+                }
+            }
+        }
+    }
+
+    private func processLinkCard(_ step: StepRecord) -> some View {
+        Card("ProcessLink", subtitle: "Live mined facts for this shape.", symbol: "hexagon") {
+            VStack(alignment: .leading, spacing: Space.sm) {
+                DetailRow(label: "Process", value: process?.name ?? "Unknown")
+                DetailRow(label: "Step", value: step.name)
+                DetailRow(label: "Time", value: Fmt.minutes(step.minutes))
+                DetailRow(label: "Handoffs", value: "\(step.handoffs)")
+                DetailRow(label: "Rework", value: Fmt.percent(step.reworkShare))
+                DetailRow(label: "Waste", value: step.waste.label)
+                DetailRow(label: "KG node", value: step.kgID, mono: true)
+                DetailRow(label: "Mined events", value: "\(step.evidenceCount)")
+
+                if let topOpportunity {
+                    Divider().opacity(0.6)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(opportunities.count) opportunit\(opportunities.count == 1 ? "y" : "ies") on this process")
+                            .font(.caption.weight(.semibold))
+                        Text(topOpportunity.title)
+                            .font(.caption)
+                            .lineLimit(2)
+                        HStack(spacing: Space.xs) {
+                            Chip(text: Fmt.hoursPerYear(topOpportunity.annualHours), tint: .orange)
+                            Button("Open") { onOpenOpportunity(topOpportunity.id) }
+                                .controlSize(.mini)
+                        }
+                    }
+                }
+                if validated > 0 {
+                    Divider().opacity(0.6)
+                    HStack(spacing: Space.xs) {
+                        Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
+                        Text("\(Fmt.hours(validated)) validated on this process")
+                            .font(.caption)
+                    }
+                }
+                HStack(spacing: Space.md) {
+                    Button("Open process") { onOpenProcess() }
+                        .controlSize(.small)
+                    Button("Open KG node") { onOpenKG() }
+                        .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private var unboundCard: some View {
+        Card("Not in ProcessLink yet", subtitle: "Bind this shape to a mined step to see live metrics.", symbol: "link.badge.plus") {
+            if let process {
+                let candidates = (try? model.context.fetch(FetchDescriptor<StepRecord>()))?
+                    .filter { $0.processID == process.id }
+                    .sorted { $0.order < $1.order } ?? []
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Text("This shape was added or renamed on the map. A binding makes it part of the graph; it does not overwrite the map.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Menu("Bind to a step") {
+                        ForEach(candidates) { candidate in
+                            Button(candidate.name) { onBind(candidate) }
+                        }
+                    }
+                    .fixedSize()
+                }
+            } else {
+                Text("Link the map to a process first.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func driftCard(_ step: StepRecord) -> some View {
+        Card("Map differs from discovery", subtitle: "A proposal, not a silent overwrite.", symbol: "exclamationmark.triangle") {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                if node.role != step.role {
+                    Text("Role: map '\(node.role)' · mined '\(step.role)'")
+                        .font(.caption)
+                }
+                if !node.system.isEmpty && node.system != step.application {
+                    Text("System: map '\(node.system)' · mined '\(step.application)'")
+                        .font(.caption)
+                }
+                if let estimate = node.estimateMin, abs(estimate - step.minutes) > 0.5 {
+                    Text("Time: map \(Int(estimate)) min · mined \(Int(step.minutes)) min")
+                        .font(.caption)
+                }
+                GuardrailNote(text: "Saving records a map change proposal against \(step.kgID). A human decides whether to update standard work or the map.")
+            }
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: Space.sm) {
+            Text(document.id)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+            Spacer()
+            Button("Reveal file") {
+                NSWorkspace.shared.activateFileViewerSelecting([document.fileURL])
+            }
+            .controlSize(.small)
+        }
     }
 }
 
-extension Color {
-    /// Mixes two colors in sRGB. Used only for the heat ramp, where a
-    /// continuous scale is the point and the number is always printed too.
-    func mix(with other: Color, by amount: Double) -> Color {
-        let t = min(1, max(0, amount))
-        let base = NSColor(self).usingColorSpace(.sRGB) ?? .systemGray
-        let target = NSColor(other).usingColorSpace(.sRGB) ?? .systemGray
-        return Color(nsColor: NSColor(
-            srgbRed: base.redComponent + (target.redComponent - base.redComponent) * t,
-            green: base.greenComponent + (target.greenComponent - base.greenComponent) * t,
-            blue: base.blueComponent + (target.blueComponent - base.blueComponent) * t,
-            alpha: base.alphaComponent + (target.alphaComponent - base.alphaComponent) * t))
+private struct MapDocumentSummary: View {
+    var document: MapsBridge.Document
+    var process: ProcessRecord?
+    var opportunities: [OpportunityRecord]
+    var initiatives: [InitiativeRecord]
+    var driftCount: Int
+    var onOpenFolder: () -> Void
+    var onOpenKG: () -> Void
+    var onRegenerate: () -> Void
+
+    private var validated: Double {
+        SavingsLedger.totals(initiatives.map(\.savingLine)).validated
+    }
+
+    var body: some View {
+        ScrollView {
+            HStack(alignment: .top, spacing: Space.lg) {
+                Card("Document", subtitle: "signavio-map/1, owned by Flightdeck Maps.", symbol: "doc") {
+                    VStack(alignment: .leading, spacing: Space.sm) {
+                        DetailRow(label: "Map id", value: document.id, mono: true)
+                        DetailRow(label: "Label", value: document.label)
+                        DetailRow(label: "Process", value: process?.name ?? "Not linked")
+                        DetailRow(label: "Shapes", value: "\(document.nodes.count) · \(document.boundNodes) bound")
+                        DetailRow(label: "Generated", value: document.generatedAt.map { Fmt.day($0) } ?? "—")
+                    }
+                }
+                .frame(width: 392)
+
+                Card("ProcessLink", subtitle: "What the map is about.", symbol: "hexagon") {
+                    VStack(alignment: .leading, spacing: Space.sm) {
+                        DetailRow(label: "Annual effort", value: process.map { Fmt.hoursPerYear($0.annualHours) } ?? "—")
+                        DetailRow(label: "Rework", value: process.map { Fmt.percent($0.reworkRate) } ?? "—")
+                        DetailRow(label: "Opportunities", value: "\(opportunities.count)")
+                        DetailRow(label: "Validated", value: Fmt.hours(validated))
+                        if driftCount > 0 {
+                            DetailRow(label: "Drifted shapes", value: "\(driftCount)")
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                VStack(alignment: .leading, spacing: Space.md) {
+                    Button("Open folder") { onOpenFolder() }
+                    Button("KG node") { onOpenKG() }
+                    Button("Regenerate from discovery") { onRegenerate() }
+                        .disabled(process == nil)
+                    GuardrailNote(text: "Select a shape to see its ProcessLink facts and map fields.")
+                }
+                .controlSize(.small)
+                .frame(width: 260, alignment: .leading)
+            }
+            .padding(Space.md)
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
+}
+
+private struct MapDocumentInspector: View {
+    var document: MapsBridge.Document
+    var process: ProcessRecord?
+    var opportunities: [OpportunityRecord]
+    var initiatives: [InitiativeRecord]
+    var driftCount: Int
+    var onOpenFolder: () -> Void
+    var onOpenKG: () -> Void
+    var onRegenerate: () -> Void
+
+    private var validated: Double {
+        SavingsLedger.totals(initiatives.map(\.savingLine)).validated
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.lg) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Map").font(.caption).foregroundStyle(.tertiary)
+                    Text(document.label).font(.headline)
+                    HStack(spacing: Space.xs) {
+                        Chip(text: document.approved ? "Approved" : "Draft",
+                             tint: document.approved ? .green : .orange)
+                        if driftCount > 0 {
+                            Chip(text: "\(driftCount) drifted", symbol: "exclamationmark.triangle", tint: .orange)
+                        }
+                    }
+                }
+
+                Card("Document", subtitle: "signavio-map/1, owned by Flightdeck Maps.", symbol: "doc") {
+                    VStack(alignment: .leading, spacing: Space.sm) {
+                        DetailRow(label: "Map id", value: document.id, mono: true)
+                        DetailRow(label: "Process", value: process?.name ?? "Not linked")
+                        DetailRow(label: "KG process", value: document.kgProcessID.isEmpty ? "—" : document.kgProcessID, mono: true)
+                        DetailRow(label: "Shapes", value: "\(document.nodes.count) · \(document.boundNodes) bound")
+                        DetailRow(label: "Generated", value: document.generatedAt.map { Fmt.day($0) } ?? "—")
+                        DetailRow(label: "Updated", value: Fmt.stamp(document.updatedAt))
+                    }
+                }
+
+                if let process {
+                    Card("ProcessLink", subtitle: "What the map is about.", symbol: "hexagon") {
+                        VStack(alignment: .leading, spacing: Space.sm) {
+                            DetailRow(label: "Annual effort", value: Fmt.hoursPerYear(process.annualHours))
+                            DetailRow(label: "Rework", value: Fmt.percent(process.reworkRate))
+                            DetailRow(label: "Opportunities", value: "\(opportunities.count)")
+                            DetailRow(label: "Validated", value: Fmt.hours(validated))
+                        }
+                    }
+                }
+
+                HStack(spacing: Space.sm) {
+                    Button("Open folder") { onOpenFolder() }
+                    Button("KG node") { onOpenKG() }
+                    Button("Regenerate") { onRegenerate() }
+                        .disabled(process == nil)
+                }
+                .controlSize(.small)
+
+                GuardrailNote(text: "ProcessLink reads and writes the same map document as Flightdeck Maps. Shape edits create proposals; they never overwrite discovery.")
+            }
+            .padding(Space.lg)
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 }

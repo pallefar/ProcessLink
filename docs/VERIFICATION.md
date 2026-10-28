@@ -8,7 +8,7 @@ Run on macOS 27.0.1, Swift 6.4, Xcode 27.1, Node 22.23.3, 28 October 2026.
 |---|---|---|
 | Build (release) | `./build.sh` | `Build complete!`, 0 errors, 0 warnings, installed to `~/Applications/ProcessLink.app` |
 | Unit tests | `swift test --scratch-path ~/Library/Developer/ProcessLink/test-build` | **22 tests passed** (scoring, statutory guard, privacy, PII, ledger, conflicts, ask citations, formatting, graph orphans/neighbourhood/similarity/duplicates) |
-| In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 44 checks** |
+| In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 51 checks** |
 | Grid lint | `tools/grid-lint.sh` | **PASS** |
 | Layout probes | `swift tools/check-layout.swift /tmp/ProcessLink-shots/*-layout.json` | **22 PASS**, 0 fail |
 | Snapshots | `tools/snap.sh` | 8 pages + 5 Settings tabs, light and dark, 2520×1640 page PNGs; reviewed |
@@ -21,7 +21,8 @@ detection, handoff citation, promotion, commit-before-validate, evidence
 requirement, blocked promotion, sync + audit, human entity-resolution merge
 (with edge re-pointing), "restricted process never enters the ask context",
 meeting pages and blocks, meeting/decision graph nodes and edges, action
-promotion, and decision answers citing a meeting.
+promotion, decision answers citing a meeting, and the Maps document contract
+(schema, bindings, drift, persistence, map KG node/edge).
 
 ## Web app
 
@@ -45,6 +46,8 @@ and the build commands.
 
 ## Deliberately not verified
 
+- A live Flightdeck Maps server (the folder bridge writes the same documents;
+  the host routes are documented in `MAPS-INTEGRATION.md`).
 - A real KYP.ai tenant (no credentials, no tenant; Q1/Q2 unanswered).
 - A real Knowledge Guardian write (no store/ACL; Q5 unanswered).
 - DeckForge binary integration (Markdown brief only).

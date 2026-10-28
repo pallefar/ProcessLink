@@ -774,6 +774,38 @@ final class AppModel {
         showToast("Meeting deleted", detail: meeting.title, symbol: "trash")
     }
 
+    // MARK: Flightdeck Maps
+
+    /// A map is a node in the graph. The map document stays owned by Maps;
+    /// ProcessLink only binds it to the process and records provenance.
+    @discardableResult
+    func registerMap(_ document: MapsBridge.Document, process: ProcessRecord?) -> KGNodeRecord {
+        let node = ensureKGNode(id: "kg-map-\(document.id)", kind: .map,
+                                name: document.label, confidence: 0.94,
+                                source: "Flightdeck Maps · signavio-map/1",
+                                sourceID: document.id, processID: document.processID)
+        node.note = "\(document.nodes.count) shapes, \(document.boundNodes) bound to KG steps."
+        node.updatedAt = now
+        if let process {
+            ensureKGEdge(from: process.kgID, .documentedIn, to: node.id, confidence: 0.95)
+        }
+        return node
+    }
+
+    /// An edit made on a map is a proposal, not a silent rewrite of discovery.
+    /// It is written to the map's node in the graph and to the audit log.
+    func recordMapEdit(_ document: MapsBridge.Document, nodeID: String, summary: String) {
+        let mapNode = ensureKGNode(id: "kg-map-\(document.id)", kind: .map,
+                                   name: document.label, confidence: 0.94,
+                                   source: "Flightdeck Maps · signavio-map/1",
+                                   sourceID: document.id, processID: document.processID)
+        mapNode.note = "\(mapNode.note)\n\(Fmt.stamp(now)) · \(nodeID): \(summary)".trimmingCharacters(in: .whitespacesAndNewlines)
+        mapNode.updatedAt = now
+        audit(action: "map.edit.proposed", subject: document.label,
+              detail: "\(nodeID): \(summary)")
+        try? context.save()
+    }
+
     // MARK: Sync
 
     /// Incremental sandbox sync. In production this is the `kyp-connector`

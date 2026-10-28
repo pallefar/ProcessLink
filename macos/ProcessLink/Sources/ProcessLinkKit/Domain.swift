@@ -325,6 +325,7 @@ public enum KGKind: String, CaseIterable, Sendable, Codable, Identifiable {
     case meeting
     case decision
     case action
+    case map
 
     public var id: String { rawValue }
 
@@ -358,6 +359,7 @@ public enum KGKind: String, CaseIterable, Sendable, Codable, Identifiable {
         case .meeting: "Meeting"
         case .decision: "Decision"
         case .action: "Action"
+        case .map: "Map"
         }
     }
 
@@ -391,6 +393,7 @@ public enum KGKind: String, CaseIterable, Sendable, Codable, Identifiable {
         case .meeting: "person.3.sequence"
         case .decision: "checkmark.bubble"
         case .action: "checklist"
+        case .map: "map"
         }
     }
 }

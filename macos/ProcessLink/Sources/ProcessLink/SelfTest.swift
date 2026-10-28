@@ -205,6 +205,37 @@ enum SelfTest {
             check("the restricted process never enters the ask context",
                   !visibleForAsk.contains { $0.id == "p-export" })
 
+            // Flightdeck Maps: documents, bindings, drift and persistence.
+            MapsBridge.seedIfNeeded(processes: processes, steps: fetch(StepRecord.self))
+            let maps = MapsBridge.loadAll()
+            check("seeded Flightdeck maps", maps.count >= 2, "found \(maps.count)")
+            if let order = maps.first(where: { $0.processID == "p-order-intake" }) {
+                check("map shapes are bound to KG steps", order.boundNodes >= 5, "bound \(order.boundNodes)")
+                check("map is a signavio-map/1 document", order.json["schema"] as? String == "signavio-map/1")
+                let drifted = order.nodes.contains { node in
+                    guard let link = node.link, let step = fetch(StepRecord.self).first(where: { $0.id == link.stepID }) else { return false }
+                    return node.role != step.role
+                }
+                check("a human map edit is visible as drift", drifted)
+                if let target = order.nodes.first(where: { $0.link != nil }) {
+                    let edited = MapsBridge.updateNode(order, nodeID: target.id, label: target.label,
+                                                       role: "Map Edited Role", system: target.system,
+                                                       estimateMin: (target.estimateMin ?? 0) + 1)
+                    try? MapsBridge.save(edited)
+                    let reloaded = MapsBridge.loadAll().first { $0.id == order.id }
+                    check("a map edit persists in the document",
+                          reloaded?.nodes.first { $0.id == target.id }?.role == "Map Edited Role")
+                }
+                model.registerMap(order, process: processes.first { $0.id == order.processID })
+                check("a map is a graph node",
+                      fetch(KGNodeRecord.self).contains { $0.id == "kg-map-\(order.id)" && $0.kind == .map })
+                check("the map is documented in the process",
+                      fetch(KGEdgeRecord.self).contains {
+                          $0.fromID == "kg-proc-p-order-intake" && $0.predicate == .documentedIn
+                              && $0.toID == "kg-map-\(order.id)"
+                      })
+            }
+
             // Creating a meeting writes blocks and graph facts.
             let created = model.createMeeting(kind: .a3Review, processID: "p-invoice")
             check("a new meeting gets template blocks", model.blocks(for: created).count >= 6)
