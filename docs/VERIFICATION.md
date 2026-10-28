@@ -1,0 +1,56 @@
+# Verification record
+
+Run on macOS 27.0.1, Swift 6.4, Xcode 27.1, Node 22.23.3, 28 October 2026.
+
+## macOS app
+
+| Check | Command | Result |
+|---|---|---|
+| Build (release) | `./build.sh` | `Build complete!`, 0 errors, 0 warnings, installed to `~/Applications/ProcessLink.app` |
+| Unit tests | `swift test --scratch-path ~/Library/Developer/ProcessLink/test-build` | **17 tests passed** (scoring, statutory guard, privacy, PII, ledger, conflicts, ask citations, formatting) |
+| In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 26 checks** |
+| Grid lint | `tools/grid-lint.sh` | **PASS** |
+| Layout probes | `swift tools/check-layout.swift /tmp/ProcessLink-shots/*-layout.json` | **22 PASS**, 0 fail |
+| Snapshots | `tools/snap.sh` | 8 pages + 5 Settings tabs, light and dark, 2520×1640 page PNGs; reviewed |
+| Activation | snapshot script brings the app forward before capture | Traffic lights/key state verified; inactive-window captures rejected |
+
+Self-test coverage: seed integrity, Restricted refusal, group-size
+suppression, purpose limitation, PII detection and masking, score monotonicity
+and bounds, statutory route exclusion, ledger credit-once rule, double-count
+detection, handoff citation, promotion, commit-before-validate, evidence
+requirement, blocked promotion, sync + audit, human entity-resolution merge,
+and "restricted process never enters the ask context".
+
+## Web app
+
+| Check | Command | Result |
+|---|---|---|
+| Typecheck + build | `npm run build` | `tsc --noEmit` clean; Vite build 326 kB JS / 13.4 kB CSS (≈103 kB gzip) |
+| Render review | headless Chrome, 1440×1000 | Overview, Discoveries, Opportunities, Maps, Graph, Improvements, Ask, Governance; light and dark |
+| Deep links | `#/overview`, `?theme=light|dark`, `?q=...` | Verified via screenshots |
+| Local preview | `npm run preview` on port 4175 | 200 OK |
+
+The web form uses the same seed facts and the same rule set as the app. It is
+not connected to a host API in this build; the adapter in
+`web/src/flightdeck` defines the seam.
+
+## Windows
+
+Scaffolded only. `tauri.conf.json`, `Cargo.toml`, `lib.rs`, `main.rs` and the
+capability file are complete, but **no Windows build was run** (this machine
+is macOS). See `windows/ProcessLink.Windows/README.md` for the honest status
+and the build commands.
+
+## Deliberately not verified
+
+- A real KYP.ai tenant (no credentials, no tenant; Q1/Q2 unanswered).
+- A real Knowledge Guardian write (no store/ACL; Q5 unanswered).
+- DeckForge binary integration (Markdown brief only).
+- Flightdeck sub-app mount (adapter + migration sketch, not applied).
+- Works-council, DPIA, legal sign-off (governance checklist only).
+
+## Screenshot inventory
+
+`docs/shots/` contains macOS light/dark pages, two Settings tabs, and three
+web captures. Raw snapshots remain in `/tmp/ProcessLink-shots/` on the build
+machine.

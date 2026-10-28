@@ -247,7 +247,7 @@ struct OverviewPage: View {
     private var governanceSummary: some View {
         Card("Launch posture", subtitle: "Nothing here is production-ready until the checklist is signed.", symbol: "checkmark.shield") {
             VStack(alignment: .leading, spacing: Space.sm) {
-                ForEach(governance.filter { $0.status != .done }.prefix(3)) { item in
+                ForEach(governance.filter { $0.status != .done }.sorted { $0.sortKey < $1.sortKey }.prefix(3)) { item in
                     HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
                         Image(systemName: item.status.symbol)
                             .foregroundStyle(item.status.tint)
