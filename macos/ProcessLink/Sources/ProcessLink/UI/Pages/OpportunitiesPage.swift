@@ -237,14 +237,14 @@ struct OpportunitiesPage: View {
     }
 
     private func evidence(_ opportunity: OpportunityRecord) -> some View {
-        Card("Evidence", subtitle: "Each figure traces to a KYP.ai object or a KG node.", symbol: "doc.text.magnifyingglass") {
+        Card("Evidence", subtitle: "Each figure traces to a discovery object or a KG node.", symbol: "doc.text.magnifyingglass") {
             VStack(alignment: .leading, spacing: Space.sm) {
                 DetailRow(label: "Annual effort", value: Fmt.hoursPerYear(opportunity.annualHours))
                 DetailRow(label: "Error reduction", value: "\(Int(opportunity.errorReductionPct.rounded()))%")
                 DetailRow(label: "Effort estimate", value: "\(String(format: "%.0f", opportunity.effortWeeks)) weeks")
                 DetailRow(label: "Risk", value: "\(opportunity.risk)/5")
                 DetailRow(label: "Hoshin alignment", value: "\(opportunity.alignment)/5")
-                DetailRow(label: "KYP.ai id", value: opportunity.processID, mono: true)
+                DetailRow(label: "Discovery id", value: opportunity.processID, mono: true)
                 DetailRow(label: "KG node", value: opportunity.kgID, mono: true)
                 DetailRow(label: "Owner role", value: opportunity.ownerRole)
                 Divider().opacity(0.6)

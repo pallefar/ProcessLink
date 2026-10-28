@@ -15,11 +15,11 @@ additive layer; nothing in the existing schema is renamed or dropped.
 
 | Kind | Identity | Required claims | Natural key |
 |---|---|---|---|
-| `Process` | KYP process id + site | name, value stream, owner role | `kyp:process/{id}` |
+| `Process` | discovery process id + site | name, value stream, owner role | `discovery:process/{id}` |
 | `Subprocess` | parent + name | parent process | `pl:subprocess/{id}` |
-| `Task` | KYP task id | parent step | `kyp:task/{id}` |
-| `Step` | KYP step id / map node | role, application | `kyp:step/{id}` |
-| `Variant` | KYP variant id | share, path | `kyp:variant/{id}` |
+| `Task` | discovery task id | parent step | `discovery:task/{id}` |
+| `Step` | discovery step id / map node | role, application | `discovery:step/{id}` |
+| `Variant` | discovery variant id | share, path | `discovery:variant/{id}` |
 | `Application` | normalised app name | vendor optional | `registry:app/{slug}` |
 | `System` | system of record | owner | `registry:system/{slug}` |
 | `Role` | role name | site/team optional | `registry:role/{slug}` |
@@ -54,7 +54,7 @@ additive layer; nothing in the existing schema is renamed or dropped.
   confidence: number         // 0..1, from the extractor
   validFrom: string          // ISO date
   validTo: string | null     // null = current
-  source: string             // "KYP.ai task mining", "registry", "user:role"
+  source: string             // "ProcessLink discovery", "registry", "user:role"
   sourceId: string
   classification: DataClass  // public | internal | confidential | restricted
   groupSize: number | null   // for aggregates; drives suppression
@@ -95,7 +95,7 @@ created and refreshed when it changes; the meeting page is the evidence.
 
 Deterministic, explainable, and never silent:
 
-1. **Exact key** — registry code, KYP id, SOP id. Confidence 1.0.
+1. **Exact key** — registry code, discovery id, SOP id. Confidence 1.0.
 2. **Normalised name** — case/space/punctuation folding, language variants.
 3. **Alias table** — reviewed aliases, versioned.
 4. **Fuzzy** — trigram similarity + token overlap, threshold 0.6.
@@ -127,7 +127,7 @@ content-hash idempotency key.
 2. Resolve entities to candidate nodes (alias + embedding + context).
 3. Traverse 1–2 hops along allowlisted predicates; rank by confidence and
    recency.
-4. Hydrate metrics from KYP aggregates, subject to the group threshold.
+4. Hydrate metrics from discovery aggregates, subject to the group threshold.
 5. Compose a context pack where every fact carries `(nodeId, sourceId,
    window)`.
 6. Answer; validate that each number has a citation; emit `toVerify` for gaps.
@@ -155,7 +155,7 @@ The macOS Graph page shows nodes, edges, orphans and the review queue today.
 | M0 | Add the ontology document + zod schema in `kg-client`; no writes | Yes |
 | M1 | Add `kgNodeRecord`/`kgEdgeRecord` tables (new prefix `kg_processlink_*`); no host tables touched | Yes, drop tables |
 | M2 | Backfill sites, BUs, value streams and applications from the registry/catalogue (idempotent) | Yes, delete by `source = "backfill/1"` |
-| M3 | Propose process/step nodes from a KYP sandbox; human review queue only | Yes |
+| M3 | Propose process/step nodes from an event log; human review queue only | Yes |
 | M4 | Add `kgNodeId` to `signavio-map/1` node data and bind generated maps | Additive; default nil |
 | M5 | Add `kgNodeId` to Advantage opportunities | Additive; nullable |
 | M5b | Add `processlink_meeting` / `_block` tables and their node ids | Additive; new prefix |

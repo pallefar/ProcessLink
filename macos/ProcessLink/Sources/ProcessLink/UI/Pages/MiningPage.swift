@@ -4,7 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// In-house discovery: mine an event log or capture desktop task activity,
-/// then turn the result into the same process/step/variant records KYP.ai
+/// then turn the result into the same process/step/variant records discovery
 /// produces. No tenant dependency; no screenshots or keystrokes.
 struct MiningPage: View {
     enum Mode: String, CaseIterable, Identifiable {

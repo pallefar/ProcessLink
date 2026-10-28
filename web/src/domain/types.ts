@@ -118,7 +118,7 @@ export interface Process {
   standard: string
   standardVersion: string
   staleDays: number
-  kypId: string
+  discoveryId: string
   kgId: string
   steps: Step[]
   variants: Variant[]
@@ -266,7 +266,7 @@ export interface PrivacyDecision {
 }
 
 export interface Citation {
-  kind: 'kyp' | 'kg' | 'initiative' | 'policy' | 'computed' | 'meeting'
+  kind: 'discovery' | 'kg' | 'initiative' | 'policy' | 'computed' | 'meeting'
   ref: string
   label: string
 }

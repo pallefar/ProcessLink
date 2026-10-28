@@ -39,7 +39,7 @@ must build (it does; 326 kB JS, 13 kB CSS gzipped to ~103 kB).
 ## Deliberately absent
 
 - Screen capture, keystroke capture, Accessibility, or control of other
-  applications. ProcessLink consumes KYP.ai; it does not capture work.
+  applications. ProcessLink performs discovery in-house; it does not require an external discovery tenant.
 - Any credential in `localStorage` or in the repository.
 - Autostart by default. Launch at login is a user choice, not an install
   side effect.

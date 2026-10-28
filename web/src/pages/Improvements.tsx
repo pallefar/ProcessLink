@@ -162,7 +162,7 @@ function ValidationDialog({ initiativeId, onClose, onValidate }: {
     <div className="backdrop" onClick={onClose}>
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="validate-title" onClick={event => event.stopPropagation()}>
         <h2 id="validate-title">Validate the saving</h2>
-        <p className="muted" style={{ margin: 0 }}>A saving becomes a claim only with a named validator and before/after evidence from KYP.ai.</p>
+        <p className="muted" style={{ margin: 0 }}>A saving becomes a claim only with a named validator and before/after evidence from in-house discovery.</p>
         <div className="field">
           <label htmlFor="validator">Validated by (name or role)</label>
           <input id="validator" value={validator} onChange={event => setValidator(event.target.value)} autoFocus />

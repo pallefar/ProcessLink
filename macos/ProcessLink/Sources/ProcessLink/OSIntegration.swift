@@ -156,7 +156,7 @@ struct QuickAskView: View {
                 .background(Color(nsColor: .controlBackgroundColor),
                             in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             } else {
-                Text("Answers cite KYP.ai objects and KG nodes. Press Return to ask · Escape to close.")
+                Text("Answers cite discovery objects and KG nodes. Press Return to ask · Escape to close.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }

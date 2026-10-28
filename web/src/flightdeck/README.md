@@ -8,9 +8,9 @@ This folder is the adapter, not a second implementation.
 
 | Today | After |
 |---|---|
-| `advantage` sub-app: framework, A3, boards, X-matrix, opportunities, benefit observation | ProcessLink keeps those tables readable and adds the KYP.ai source, the map binding and the savings lifecycle. |
+| `advantage` sub-app: framework, A3, boards, X-matrix, opportunities, benefit observation | ProcessLink keeps those tables readable and adds the discovery source, the map binding and the savings lifecycle. |
 | `advantage` nav entry | `processlink` nav entry under **Ops & insight**. |
-| Advantage opportunities computed on read from contracts + maps | Same shape, plus KYP.ai source; `impact ÷ effort` preserved. |
+| Advantage opportunities computed on read from contracts + maps | Same shape, plus discovery source; `impact ÷ effort` preserved. |
 
 **Do not delete `advantage` in the first release.** Install both, feature-flag
 the new nav entry, and read Advantage's tables for the existing TEOA records
@@ -81,7 +81,7 @@ ritual.
 ## What must be true before this ships
 
 - DPIA + works-council sign-off for each country.
-- Real KYP.ai sandbox contract tests (Q1/Q2).
+- Real in-house discovery contract tests (Q1/Q2).
 - KG migration approved (Q5).
 - Feature flag off by default; rollback is removing the nav entry, not a
   data rollback.

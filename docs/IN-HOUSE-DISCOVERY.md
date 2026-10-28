@@ -1,14 +1,13 @@
-# In-house discovery: replacing the KYP.ai dependency
+# In-house discovery
 
-ProcessLink now has its own discovery path for digital and administrative
-work. KYP.ai remains an optional source for enterprise-scale capture; the app
-no longer needs it to produce a process, variants, steps, a map or an
-opportunity.
+ProcessLink owns discovery end to end. It turns a CSV event log or an opt-in
+local task capture into a process, variants, cases, a map and an opportunity;
+there is no external discovery tenant or connector.
 
 ## 1. What is implemented
 
-| Capability | KYP.ai equivalent | Here |
-|---|---|---|
+| Capability | Job | Here |
+|---|---|---|---|
 | Process mining from event logs | Process discovery | Mapped CSV import with extra attributes and cost → directly-follows graph, cases, variants, filters, cycle/wait, rework, handoffs, weekly throughput |
 | Task mining | Desktop activity capture | Opt-in local sampler: frontmost app name, minutes, switches, idle; aggregated per app |
 | Variant analysis | Variant explorer | Case sequences, share, average cycle, rework share, variant-level conformance |
@@ -121,13 +120,13 @@ capacity simulator:
 - root causes are correlations by attribute, not causal inference;
 - the web form still uses the sample mining view; this workbench is macOS.
 
-## 4. What is still KYP.ai-shaped
+## 4. What used to be external
 
-The KYP connector and the `SandboxSync` fixture remain. A connected KYP tenant
-still provides broader capture (more applications, server-side aggregation,
-enterprise search). The difference is that ProcessLink now has a defensible
-**minimum viable discovery** path for a site or a team without waiting for a
-KYP licence.
+There is no vendor connector, sandbox sync or vendor API key in the app. The
+old prepared "sandbox batch" has been removed; the toolbar refresh now re-reads
+the local event logs and capture sessions. The trade-off is breadth: ProcessLink
+captures app-level activity on this Mac and imported event logs, not a
+fleet-wide screenshot or keystroke stream.
 
 ## 5. Limits and open questions
 
@@ -147,7 +146,7 @@ KYP licence.
 
 | Question | Answer |
 |---|---|
-| Can we run discovery without KYP.ai? | Yes, for event logs and app-level task capture. |
-| Does it replace KYP entirely? | No. It covers the administrative/digital slice; enterprise capture breadth is still KYP's advantage. |
+| Can we run discovery without a vendor? | Yes: event logs and opt-in app-level task capture. |
+| What is the trade-off? | Breadth: no fleet-wide screenshots or keystroke capture. That is deliberate. |
 | Is it private by construction? | The API choice is the boundary: hashes, roles, app names, masks. No content capture exists to disable. |
-| Where does it land? | Same KG, same maps, same opportunity pipeline, with `source` distinguishing in-house from KYP. |
+| Where does it land? | The KG, maps and opportunity pipeline, with `source` recording the imported log or capture. |

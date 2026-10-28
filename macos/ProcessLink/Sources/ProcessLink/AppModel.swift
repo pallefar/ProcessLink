@@ -287,7 +287,7 @@ final class AppModel {
             rootCause: opportunity.rationale,
             countermeasure: opportunity.method.summary,
             result: "",
-            followUp: "Validate with before/after KYP.ai data after 6 weeks.",
+            followUp: "Validate with before/after measurements after 6 weeks.",
             createdAt: now)
         context.insert(initiative)
         opportunity.statusRaw = OpportunityStatus.promoted.rawValue
@@ -868,8 +868,8 @@ final class AppModel {
         return dataset
     }
 
-    /// Turns a mined log into the same process/step/variant records KYP.ai
-    /// would produce, so every downstream surface works unchanged.
+    /// Turns a mined log into process/step/variant records so every
+    /// downstream surface works unchanged.
     @discardableResult
     func createProcess(from dataset: DatasetRecord) -> ProcessRecord? {
         let events = events(for: dataset)
@@ -885,7 +885,7 @@ final class AppModel {
         let process = ProcessRecord(
             id: id, name: name, site: dataset.site, businessUnit: "In-house discovery",
             valueStream: "Imported process log", ownerRole: "Process Owner",
-            kypID: dataset.id, kgID: "kg-proc-\(id)",
+            discoveryID: dataset.id, kgID: "kg-proc-\(id)",
             summary: "Mined from \(mined.cases) cases and \(mined.events) events in \(dataset.filename). \(mined.variants.count) variants; median cycle \(Fmt.minutes(mined.medianCycleMinutes)).",
             applications: Array(Set(events.map(\.application).filter { !$0.isEmpty })).sorted(),
             variantNames: mined.variants.prefix(5).map { $0.sequence.joined(separator: " → ") },
@@ -1023,7 +1023,7 @@ final class AppModel {
         let process = ProcessRecord(
             id: id, name: name, site: session.site, businessUnit: "In-house task mining",
             valueStream: "Digital work", ownerRole: session.role,
-            kypID: session.id, kgID: "kg-proc-\(id)",
+            discoveryID: session.id, kgID: "kg-proc-\(id)",
             summary: "Captured locally on this Mac: \(String(format: "%.0f", session.activeMinutes)) active minutes, \(session.switchCount) app switches. Aggregates only; no window titles or content.",
             applications: apps.map(\.appName), variantNames: apps.map(\.appName),
             capturedFrom: session.startedAt, capturedTo: session.endedAt ?? session.startedAt,
@@ -1100,36 +1100,33 @@ final class AppModel {
         try? context.save()
     }
 
-    // MARK: Sync
+    // MARK: Refresh
 
-    /// Incremental sandbox sync. In production this is the `kyp-connector`
-    /// worker calling the KYP.ai API with a checkpoint; here it inserts the
-    /// next prepared batch so the whole flow is demonstrable offline.
+    /// Re-read the local discovery store. There is no vendor sync: event logs
+    /// and task captures are already local, so refresh only proves they are
+    /// readable and records what is in scope.
     func runSync() async {
         guard !isSyncing else { return }
         isSyncing = true
         defer { isSyncing = false }
-        try? await Task.sleep(for: .milliseconds(700))
-        let batch = SandboxSync.nextBatch(after: count(SyncRecord.self))
-        let before = count(OpportunityRecord.self)
-        for opportunity in batch.opportunities {
-            guard !exists(OpportunityRecord.self, id: opportunity.id) else { continue }
-            context.insert(opportunity)
-        }
-        let inserted = count(OpportunityRecord.self) - before
-        let sync = SyncRecord(source: "KYP.ai sandbox · incremental", fetched: batch.fetched,
-                              inserted: inserted, updated: 0, skipped: batch.skipped,
-                              status: "success", note: batch.note)
+        try? await Task.sleep(for: .milliseconds(350))
+        let processes = count(ProcessRecord.self)
+        let datasets = count(DatasetRecord.self)
+        let captures = count(CaptureSessionRecord.self)
+        let events = count(EventItemRecord.self)
+        let sync = SyncRecord(
+            source: "ProcessLink in-house · local refresh",
+            fetched: processes + datasets + captures,
+            inserted: 0, updated: 0, skipped: 0,
+            status: "success",
+            note: "\(processes) processes, \(datasets) event logs, \(captures) captures, \(events) events read locally.")
         context.insert(sync)
-        audit(action: "sync.completed", subject: "KYP.ai sandbox",
-              detail: "\(batch.fetched) objects fetched, \(inserted) new opportunities, \(batch.skipped) skipped by policy.")
+        audit(action: "discovery.refreshed", subject: "In-house discovery",
+              detail: "\(processes) processes, \(datasets) datasets, \(captures) captures; no external connector.")
         try? context.save()
-        if inserted > 0 {
-            showToast("Sync complete", detail: "\(inserted) new opportunit\(inserted == 1 ? "y" : "ies") from KYP.ai.")
-            NotificationService.shared.postSyncSummary(newOpportunities: inserted)
-        } else {
-            showToast("Sync complete", detail: "No new opportunities in this window.", symbol: "checkmark.icloud")
-        }
+        showToast("Discovery refreshed",
+                  detail: "\(processes) processes · \(datasets) logs · \(captures) captures",
+                  symbol: "arrow.triangle.2.circlepath")
     }
 
     // MARK: Ask
@@ -1178,7 +1175,7 @@ final class AppModel {
                            reworkRate: process.reworkRate, handoffs: process.handoffs,
                            adherence: process.adherence, variantCount: process.variantCount,
                            confidence: process.confidence, staleDays: process.staleDays,
-                           kypID: process.kypID, kgID: process.kgID)
+                           discoveryID: process.discoveryID, kgID: process.kgID)
         }
         let stepInsights: [StepInsight] = steps.compactMap { step in
             guard let process = visible.first(where: { $0.id == step.processID }) else { return nil }
@@ -1260,14 +1257,14 @@ final class AppModel {
             text += "- Process: \(opportunity.processName) · \(opportunity.site)\n"
             text += "- Route: \(opportunity.route.label) · method: \(opportunity.method.title)\n"
             text += "- Estimate: \(Fmt.hoursPerYear(opportunity.annualHours)) · score \(Int(opportunity.score.total.rounded()))/100 · confidence \(Fmt.percent(opportunity.confidence))\n"
-            text += "- Source: KYP.ai \(opportunity.processID) · KG \(opportunity.kgID)\n\n"
+            text += "- Source: discovery \(opportunity.processID) · KG \(opportunity.kgID)\n\n"
         }
         text += "## Savings ledger\n\n"
         for initiative in initiatives.sorted(by: { $0.savingsHours > $1.savingsHours }) {
             text += "- \(initiative.title): \(Fmt.hours(initiative.savingsHours)) · \(initiative.savingsStage.label)"
             text += initiative.validatedBy.isEmpty ? "\n" : " · validated by \(initiative.validatedBy)\n"
         }
-        text += "\n> Estimates are not validated savings. Every figure traces to a KYP.ai object or KG node; unknowns stay on the to-verify list.\n"
+        text += "\n> Estimates are not validated savings. Every figure traces to a discovery object or KG node; unknowns stay on the to-verify list.\n"
 
         let panel = NSSavePanel()
         panel.nameFieldStringValue = "ProcessLink-review-\(Fmt.quarter(now)).md"

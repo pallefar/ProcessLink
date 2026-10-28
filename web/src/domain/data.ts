@@ -46,7 +46,7 @@ export const PROCESSES: Process[] = [
     people: 56, annualHours: 4270, cycleMinutes: 18, reworkRate: 0.22, handoffs: 3, adherence: 0.55,
     confidence: 0.9, maturity: 2, classification: 'internal', status: 'discovered', statusReason: '',
     standard: 'SOP CX-07 Case triage', standardVersion: 'v2.4', staleDays: 1,
-    kypId: 'kyp-proc-p-triage', kgId: 'kg-proc-p-triage',
+    discoveryId: 'disc-proc-p-triage', kgId: 'kg-proc-p-triage',
     steps: [
       step('p-triage', 0, { name: 'Intake from portal', role: 'Customer Care', application: 'ServiceNow', minutes: 3, handoffs: 0, rework: 0.03, waste: 'waiting', evidence: 1284 }),
       step('p-triage', 1, { name: 'Classify and prioritise', role: 'Triage Agent', application: 'ServiceNow', minutes: 5, handoffs: 0, rework: 0.16, waste: 'overProcessing', evidence: 1201 }),
@@ -70,7 +70,7 @@ export const PROCESSES: Process[] = [
     people: 34, annualHours: 3180, cycleMinutes: 42, reworkRate: 0.28, handoffs: 6, adherence: 0.61,
     confidence: 0.91, maturity: 2, classification: 'internal', status: 'discovered', statusReason: '',
     standard: 'SOP O2C-04 Order intake', standardVersion: 'v6.2', staleDays: 3,
-    kypId: 'kyp-proc-p-order', kgId: 'kg-proc-p-order',
+    discoveryId: 'disc-proc-p-order', kgId: 'kg-proc-p-order',
     steps: [
       step('p-order', 0, { name: 'Receive order', role: 'Order Desk', application: 'Outlook', minutes: 6, handoffs: 0, rework: 0.05, waste: 'waiting', evidence: 412 }),
       step('p-order', 1, { name: 'Check customer master', role: 'Order Desk', application: 'SAP S/4HANA', minutes: 9, handoffs: 1, rework: 0.18, waste: 'rework', evidence: 398 }),
@@ -95,7 +95,7 @@ export const PROCESSES: Process[] = [
     people: 22, annualHours: 2410, cycleMinutes: 31, reworkRate: 0.34, handoffs: 5, adherence: 0.58,
     confidence: 0.88, maturity: 2, classification: 'internal', status: 'discovered', statusReason: '',
     standard: 'SOP P2P-11 Exception coding', standardVersion: 'v3.0', staleDays: 9,
-    kypId: 'kyp-proc-p-invoice', kgId: 'kg-proc-p-invoice',
+    discoveryId: 'disc-proc-p-invoice', kgId: 'kg-proc-p-invoice',
     steps: [
       step('p-invoice', 0, { name: 'Open exception queue', role: 'AP Specialist', application: 'SAP S/4HANA', minutes: 4, handoffs: 0, rework: 0.08, waste: 'backlog', evidence: 512 }),
       step('p-invoice', 1, { name: 'Identify mismatch', role: 'AP Specialist', application: 'SAP S/4HANA', minutes: 11, handoffs: 0, rework: 0.29, waste: 'rework', evidence: 498 }),
@@ -117,7 +117,7 @@ export const PROCESSES: Process[] = [
     people: 41, annualHours: 1890, cycleMinutes: 55, reworkRate: 0.19, handoffs: 4, adherence: 0.64,
     confidence: 0.83, maturity: 3, classification: 'internal', status: 'discovered', statusReason: '',
     standard: 'SOP H2R-02 Onboarding pack', standardVersion: 'v4.1', staleDays: 21,
-    kypId: 'kyp-proc-p-onboarding', kgId: 'kg-proc-p-onboarding',
+    discoveryId: 'disc-proc-p-onboarding', kgId: 'kg-proc-p-onboarding',
     steps: [
       step('p-onboarding', 0, { name: 'Receive new-hire pack', role: 'HR Coordinator', application: 'Outlook', minutes: 5, handoffs: 0, rework: 0.09, waste: 'waiting', evidence: 268 }),
       step('p-onboarding', 1, { name: 'Check document checklist', role: 'HR Coordinator', application: 'Workday', minutes: 16, handoffs: 0, rework: 0.24, waste: 'overProcessing', evidence: 261 }),
@@ -139,7 +139,7 @@ export const PROCESSES: Process[] = [
     people: 12, annualHours: 960, cycleMinutes: 26, reworkRate: 0.31, handoffs: 2, adherence: 0.7,
     confidence: 0.76, maturity: 3, classification: 'internal', status: 'discovered', statusReason: '',
     standard: 'SOP P2P-03 Supplier master', standardVersion: 'v2.2', staleDays: 12,
-    kypId: 'kyp-proc-p-supplier', kgId: 'kg-proc-p-supplier',
+    discoveryId: 'disc-proc-p-supplier', kgId: 'kg-proc-p-supplier',
     steps: [
       step('p-supplier', 0, { name: 'Receive supplier request', role: 'Procurement Analyst', application: 'Outlook', minutes: 6, handoffs: 0, rework: 0.07, waste: 'waiting', evidence: 142 }),
       step('p-supplier', 1, { name: 'Search existing records', role: 'Procurement Analyst', application: 'Coupa', minutes: 12, handoffs: 0, rework: 0.34, waste: 'rework', evidence: 139 }),
@@ -160,7 +160,7 @@ export const PROCESSES: Process[] = [
     confidence: 0.82, maturity: 2, classification: 'internal', status: 'suppressed',
     statusReason: 'Group of 8 is below the 10-person threshold. Only the existence of the process is shown.',
     standard: 'Playbook CL-01 Clause review', standardVersion: 'v1.9', staleDays: 6,
-    kypId: 'kyp-proc-p-contract', kgId: 'kg-proc-p-contract',
+    discoveryId: 'disc-proc-p-contract', kgId: 'kg-proc-p-contract',
     steps: [], variants: [],
   },
   {
@@ -172,7 +172,7 @@ export const PROCESSES: Process[] = [
     confidence: 0.94, maturity: 4, classification: 'restricted', status: 'blocked',
     statusReason: 'Classified Restricted. The aggregate is blocked and no AI call may see it.',
     standard: 'SOP TC-02 Screening', standardVersion: 'v5.0', staleDays: 2,
-    kypId: 'kyp-proc-p-export', kgId: 'kg-proc-p-export',
+    discoveryId: 'disc-proc-p-export', kgId: 'kg-proc-p-export',
     steps: [], variants: [],
   },
 ]
@@ -393,7 +393,7 @@ export const BLOCKS: MeetingBlock[] = [
   block('meet-kaizen', 4, 'decision', 'Drop the SAP re-check above the €5k tolerance from Monday.'),
   block('meet-kaizen', 5, 'action', 'Update SOP O2C-04 to v6.3 and brief the desk.',
     { owner: 'Order Desk Lead', due: iso(-10) }),
-  block('meet-kaizen', 6, 'action', 'Quantify rework before and after against KYP.ai.',
+  block('meet-kaizen', 6, 'action', 'Quantify rework before and after against the baseline.',
     { owner: 'Ops Excellence Lead', due: iso(-42), linkedKind: 'opportunity', linkedId: 'opp-pricing' }),
 
   block('meet-a3', 0, 'heading', 'Result'),
@@ -427,23 +427,23 @@ for (const site of sites) {
   addNode({ id: `kg-site-${site.toLowerCase().replace(/\s+/g, '-')}`, kind: 'site', name: site, confidence: 0.98, review: 'confirmed', source: 'Flightdeck registry', sourceId: `registry-site-${site}`, validFrom: iso(120) })
 }
 for (const app of apps) {
-  addNode({ id: appId(app), kind: 'application', name: app, confidence: 0.93, review: 'confirmed', source: 'KYP.ai application usage', sourceId: `kyp-app-${app}`, validFrom: iso(120) })
+  addNode({ id: appId(app), kind: 'application', name: app, confidence: 0.93, review: 'confirmed', source: 'ProcessLink app usage', sourceId: `disc-app-${app}`, validFrom: iso(120) })
 }
 for (const role of roles) {
-  addNode({ id: `kg-role-${role.toLowerCase().replace(/\s+/g, '-')}`, kind: 'role', name: role, confidence: 0.9, review: 'confirmed', source: 'KYP.ai role aggregation', sourceId: `kyp-role-${role}`, validFrom: iso(120) })
+  addNode({ id: `kg-role-${role.toLowerCase().replace(/\s+/g, '-')}`, kind: 'role', name: role, confidence: 0.9, review: 'confirmed', source: 'ProcessLink role aggregation', sourceId: `disc-role-${role}`, validFrom: iso(120) })
 }
 addNode({ id: 'kg-hoshin-o2c', kind: 'hoshinObjective', name: 'Cut order-to-cash lead time by 25%', confidence: 0.95, review: 'confirmed', source: 'Hoshin deployment 2026', sourceId: 'hoshin-o2c', validFrom: iso(120) })
 addNode({ id: 'kg-hoshin-rework', kind: 'hoshinObjective', name: 'Halve administrative rework in finance', confidence: 0.95, review: 'confirmed', source: 'Hoshin deployment 2026', sourceId: 'hoshin-rework', validFrom: iso(120) })
 
 for (const process of PROCESSES) {
-  addNode({ id: process.kgId, kind: 'process', name: process.name, confidence: process.confidence, review: 'confirmed', source: 'KYP.ai task mining', sourceId: process.kypId, validFrom: iso(120), processId: process.id })
+  addNode({ id: process.kgId, kind: 'process', name: process.name, confidence: process.confidence, review: 'confirmed', source: 'ProcessLink discovery', sourceId: process.discoveryId, validFrom: iso(120), processId: process.id })
   addEdge(process.kgId, 'performedIn', `kg-site-${process.site.toLowerCase().replace(/\s+/g, '-')}`, 0.99)
   addEdge(process.kgId, 'ownedBy', `kg-role-${process.owner.toLowerCase().replace(/\s+/g, '-')}`, 0.85)
   for (const app of process.applications) {
     addEdge(process.kgId, 'uses', appId(app), 0.9)
   }
   process.steps.forEach((step, index) => {
-    addNode({ id: step.kgId, kind: 'step', name: step.name, confidence: 0.87, review: 'confirmed', source: 'KYP.ai task mining', sourceId: `kyp-${step.id}`, validFrom: iso(120) })
+    addNode({ id: step.kgId, kind: 'step', name: step.name, confidence: 0.87, review: 'confirmed', source: 'ProcessLink discovery', sourceId: `disc-${step.id}`, validFrom: iso(120) })
     const next = process.steps[index + 1]
     if (next) addEdge(step.kgId, 'handsOffTo', next.kgId, 0.88)
   })
@@ -459,9 +459,9 @@ for (const initiative of INITIATIVES) {
   addEdge(`kg-opp-${initiative.opportunityId}`, 'addressedBy', `kg-ini-${initiative.id}`, 0.9)
   addEdge(`kg-ini-${initiative.id}`, 'realizesSavings', `kg-savings-${initiative.id}`, 0.9)
 }
-addNode({ id: 'kg-app-sap-ecc', kind: 'application', name: 'SAP ECC', confidence: 0.61, review: 'suggested', source: 'KYP.ai application usage', sourceId: 'kyp-app-ecc', validFrom: iso(120), note: 'Entity resolution found a likely duplicate. A human must confirm or reject the merge.' })
+addNode({ id: 'kg-app-sap-ecc', kind: 'application', name: 'SAP ECC', confidence: 0.61, review: 'suggested', source: 'ProcessLink app usage', sourceId: 'disc-app-ecc', validFrom: iso(120), note: 'Entity resolution found a likely duplicate. A human must confirm or reject the merge.' })
 addEdge('kg-app-sap-ecc', 'variantOf', appId('SAP S/4HANA'), 0.61)
-addNode({ id: 'kg-team-sales-support', kind: 'role', name: 'Sales Support', confidence: 0.72, review: 'suggested', source: 'KYP.ai role aggregation', sourceId: 'kyp-team-sales-support', validFrom: iso(120), note: 'Entity resolution found a likely duplicate. A human must confirm or reject the merge.' })
+addNode({ id: 'kg-team-sales-support', kind: 'role', name: 'Sales Support', confidence: 0.72, review: 'suggested', source: 'ProcessLink role aggregation', sourceId: 'disc-team-sales-support', validFrom: iso(120), note: 'Entity resolution found a likely duplicate. A human must confirm or reject the merge.' })
 addEdge('kg-team-sales-support', 'variantOf', 'kg-role-order-desk', 0.72)
 
 // Meetings, decisions and actions are graph facts too.
@@ -498,15 +498,15 @@ export const GOVERNANCE: GovernanceItem[] = [
   { id: 'gov-dpia-prod', title: 'DPIA for production rollout', detail: 'The pilot DPIA is not a production DPIA.', group: 'Data protection', status: 'notStarted', owner: 'Data Protection Office' },
   { id: 'gov-wc', title: 'Works council consultation (DE)', detail: 'The Bensheim works council has the draft agreement. No capture expansion before sign-off.', group: 'People', status: 'blocked', owner: 'HR Business Partner' },
   { id: 'gov-notice', title: 'Employee transparency notice', detail: 'Published in the intranet and linked from the capture page.', group: 'People', status: 'done', owner: 'Internal Communications' },
-  { id: 'gov-scope', title: 'Capture scope confirmed', detail: 'Bensheim, Wrocław, Manila, Guadalajara. No personal devices.', group: 'People', status: 'done', owner: 'KYP.ai Administrator' },
-  { id: 'gov-owner', title: 'Named data owner', detail: 'CI Manager (role) is accountable for every use of KYP.ai data.', group: 'Accountability', status: 'done', owner: 'CI Manager' },
-  { id: 'gov-retention', title: 'Retention schedule', detail: 'Aggregates 400 days; raw capture stays in KYP.ai.', group: 'Accountability', status: 'done', owner: 'Data Owner' },
+  { id: 'gov-scope', title: 'Capture scope confirmed', detail: 'Bensheim, Wrocław, Manila, Guadalajara. No personal devices.', group: 'People', status: 'done', owner: 'Discovery administrator' },
+  { id: 'gov-owner', title: 'Named data owner', detail: 'CI Manager (role) is accountable for every use of discovery data.', group: 'Accountability', status: 'done', owner: 'CI Manager' },
+  { id: 'gov-retention', title: 'Retention schedule', detail: 'Aggregates 400 days; raw capture stays in the local capture store.', group: 'Accountability', status: 'done', owner: 'Data Owner' },
   { id: 'gov-ai', title: 'AI provider and region approval', detail: 'Local approved. Hosted provider approved for EU processing only.', group: 'AI & security', status: 'inProgress', owner: 'Security' },
 ]
 
 export const AUDIT: AuditEntry[] = [
   { id: 'a1', at: iso(12), actor: 'CI Manager (role)', action: 'governance.reviewed', subject: 'Launch checklist', detail: 'DPIA reviewed with the Data Protection Office.' },
-  { id: 'a2', at: iso(3), actor: 'CI Manager (role)', action: 'sync.completed', subject: 'KYP.ai sandbox', detail: '312 objects fetched, 4 skipped by policy.' },
+  { id: 'a2', at: iso(3), actor: 'CI Manager (role)', action: 'discovery.refreshed', subject: 'In-house discovery', detail: '7 processes and 5 captures read locally.' },
   { id: 'a3', at: iso(9), actor: 'CI Manager (role)', action: 'initiative.created', subject: 'Kaizen: cut the second pricing check', detail: 'From opportunity opp-pricing.' },
   { id: 'a4', at: iso(6), actor: 'CI Manager (role)', action: 'savings.validated', subject: 'A3: one exception-code list', detail: '540 h validated by CI Manager, Wrocław.' },
   { id: 'a5', at: iso(2), actor: 'CI Manager (role)', action: 'ai.answer', subject: 'Ask the process', detail: 'Question answered locally with 6 citations.' },

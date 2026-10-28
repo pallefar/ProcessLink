@@ -18,7 +18,7 @@ InstallDir "$PROGRAMFILES64\ProcessLink"
 InstallDirRegKey HKLM "Software\ProcessLink" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
-BrandingText "ProcessLink · KYP.ai discovery to TEOA improvement"
+BrandingText "ProcessLink · in-house discovery to TEOA improvement"
 
 VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName" "ProcessLink"

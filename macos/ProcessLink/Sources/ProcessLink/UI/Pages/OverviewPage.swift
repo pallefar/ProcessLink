@@ -61,7 +61,7 @@ struct OverviewPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
                 PageHeader("Value overview",
-                           subtitle: "KYP.ai discovery, turned into prioritized TEOA work — every number traceable, nothing presented as validated until it is.") {
+                           subtitle: "In-house discovery, turned into prioritized TEOA work — every number traceable, nothing presented as validated until it is.") {
                     Picker("Site", selection: Binding(get: { model.siteFilter }, set: { model.siteFilter = $0 })) {
                         ForEach(sites, id: \.self) { Text($0).tag($0) }
                     }
@@ -73,7 +73,7 @@ struct OverviewPage: View {
                 if processes.isEmpty {
                     ContentUnavailableView("No discoveries yet",
                                            systemImage: "binoculars",
-                                           description: Text("Connect the KYP.ai sandbox and run a sync to fill this view."))
+                                           description: Text("Import an event log or run a task capture to fill this view."))
                         .frame(maxWidth: .infinity, minHeight: 280)
                 } else {
                     metrics
@@ -322,7 +322,7 @@ struct OverviewPage: View {
                 }
                 if let last = syncs.first {
                     Divider().opacity(0.6)
-                    Text("Last sync \(Fmt.ago(last.at)) · \(last.fetched) fetched · \(last.skipped) skipped by policy")
+                    Text("Last refresh \(Fmt.ago(last.at)) · \(last.fetched) records · \(last.skipped) skipped")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)

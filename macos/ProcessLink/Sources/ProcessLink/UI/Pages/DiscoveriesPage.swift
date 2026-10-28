@@ -2,7 +2,7 @@ import ProcessLinkKit
 import SwiftData
 import SwiftUI
 
-/// What KYP.ai found, process by process: variants, steps, provenance and the
+/// What discovery found, process by process: variants, steps, provenance and the
 /// two reasons a record can be shown as suppressed or blocked.
 struct DiscoveriesPage: View {
     @Environment(AppModel.self) private var model
@@ -134,7 +134,7 @@ struct DiscoveriesPage: View {
         } else {
             ContentUnavailableView("No discoveries",
                                    systemImage: "binoculars",
-                                   description: Text("Run a sync against the KYP.ai sandbox to see mined processes."))
+                                   description: Text("Import an event log or run a task capture to see mined processes."))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -151,8 +151,8 @@ struct DiscoveriesPage: View {
             }
             HStack(spacing: Space.sm) {
                 Chip(text: process.source,
-                     symbol: process.source.contains("KYP") ? "cloud" : "sparkle.magnifyingglass",
-                     tint: process.source.contains("KYP") ? .secondary : .green)
+                     symbol: "sparkle.magnifyingglass",
+                     tint: .green)
                 Chip(text: process.site, symbol: "mappin.and.ellipse", tint: .blue)
                 Chip(text: process.businessUnit, symbol: "building.2", tint: .secondary)
                 Chip(text: process.valueStream, symbol: "arrow.right.to.line.compact", tint: .secondary)
@@ -217,7 +217,7 @@ struct DiscoveriesPage: View {
                 }
             }
 
-            Card("Steps", subtitle: "Role and application as KYP.ai classified them. No person is shown.", symbol: "list.bullet.rectangle") {
+            Card("Steps", subtitle: "Role and application as discovery classified them. No person is shown.", symbol: "list.bullet.rectangle") {
                 VStack(spacing: 0) {
                     stepHeader
                     ForEach(processSteps) { step in
@@ -230,8 +230,8 @@ struct DiscoveriesPage: View {
             HStack(alignment: .top, spacing: Space.lg) {
                 Card("Provenance", subtitle: "Every fact carries its source and window.", symbol: "link") {
                     VStack(alignment: .leading, spacing: Space.sm) {
-                        DetailRow(label: "Source", value: "KYP.ai task mining")
-                        DetailRow(label: "KYP.ai id", value: process.kypID, mono: true)
+                        DetailRow(label: "Source", value: "ProcessLink discovery")
+                        DetailRow(label: "Discovery id", value: process.discoveryID, mono: true)
                         DetailRow(label: "KG node", value: process.kgID, mono: true)
                         DetailRow(label: "Captured", value: "\(Fmt.day(process.capturedFrom)) – \(Fmt.day(process.capturedTo))")
                         DetailRow(label: "Synced", value: Fmt.stamp(process.lastSynced))
@@ -359,7 +359,7 @@ struct DiscoveriesPage: View {
                             .fixedSize(horizontal: false, vertical: true)
                         DetailRow(label: "Group size", value: "\(process.people) people")
                         DetailRow(label: "Threshold", value: "\(model.minimumGroupSize) people")
-                        DetailRow(label: "KYP.ai id", value: process.kypID, mono: true)
+                        DetailRow(label: "Discovery id", value: process.discoveryID, mono: true)
                     }
                     GuardrailNote(text: "The threshold is set by policy and reviewed with employee representatives; it is not a per-user preference.")
                 }

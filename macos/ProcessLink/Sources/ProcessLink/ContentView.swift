@@ -36,7 +36,7 @@ struct ContentView: View {
                         Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
                     }
                 }
-                .help("Fetch new discoveries from KYP.ai (Command-R)")
+                .help("Fetch new discoveries from discovery (Command-R)")
                 .disabled(model.isSyncing)
 
                 Button {

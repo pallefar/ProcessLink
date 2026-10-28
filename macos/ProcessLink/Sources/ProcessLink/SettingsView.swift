@@ -65,40 +65,29 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
 private struct ConnectionsSettings: View {
     @Environment(AppModel.self) private var model
-    @AppStorage("conn.kypURL") private var kypURL = "https://sandbox.kyp.example"
-    @AppStorage("conn.tenant") private var tenant = "YOUR_TENANT_HERE"
     @AppStorage("conn.kgURL") private var kgURL = "https://kg.flightdeck.example"
-    @AppStorage("conn.mapsWorkspace") private var mapsWorkspace = "processlink-sandbox"
+    @AppStorage("conn.mapsWorkspace") private var mapsWorkspace = "processlink-maps"
     @AppStorage("conn.deckforge") private var deckforge = "/Applications/DeckForge.app"
 
     var body: some View {
-        Section("KYP.ai") {
-            TextField("Sandbox URL", text: $kypURL)
-                .textFieldStyle(.roundedBorder)
-            TextField("Tenant", text: $tenant)
-                .textFieldStyle(.roundedBorder)
-            TextField("API key", text: .constant("YOUR_API_KEY_HERE"))
-                .textFieldStyle(.roundedBorder)
-                .disabled(true)
-            Text("Secret is held in the Flightdeck secret store, never in this app's preferences. This build reads only a sandbox and never writes to KYP.ai.")
+        Section("In-house discovery") {
+            Text("Event logs and opt-in task captures are read on this Mac. There is no external discovery tenant, API key or vendor connection.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack {
-                Label("Read-only scope", systemImage: "lock")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Button("Open Mining") { model.page = .mining }
+                Button("Open Connections") { model.page = .connections }
                 Spacer()
-                Button("Test connection") {
-                    model.showToast("Sandbox reachable", detail: "Read-only capability checked. 0 writes attempted.",
-                                    symbol: "checkmark.icloud")
-                }
+                Button("Refresh local discovery") { Task { await model.runSync() } }
+                    .disabled(model.isSyncing)
             }
+            LabeledContent("Provenance", value: "ProcessLink discovery · local event logs")
         }
 
         Section("Knowledge graph") {
             TextField("KG API", text: $kgURL)
                 .textFieldStyle(.roundedBorder)
-            LabeledContent("Ontology", value: "processlink-kg/1 · 25 node types, 15 relations")
+            LabeledContent("Ontology", value: "processlink-kg/1 · 29 node types, 17 relations")
             Text("Ontology changes are migrations: proposed here, approved in Flightdeck, applied idempotently.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -113,8 +102,8 @@ private struct ConnectionsSettings: View {
         }
 
         Section("Sync") {
-            LabeledContent("Last sync", value: "sandbox · incremental")
-            Button("Run a sync now") {
+            LabeledContent("Last refresh", value: "local · on demand")
+            Button("Refresh local discovery") {
                 Task { await model.runSync() }
             }
             .disabled(model.isSyncing)
@@ -134,7 +123,7 @@ private struct SyncSettings: View {
             Picker("Cadence", selection: $cadence) {
                 ForEach(["Every hour", "Every 6 hours", "Daily", "Manual"], id: \.self) { Text($0) }
             }
-            Toggle("Use webhooks when KYP.ai supports them", isOn: $webhooks)
+            Toggle("Use webhooks when the host supports them", isOn: $webhooks)
             Text("Webhooks shorten freshness; a scheduled incremental sync remains the fallback. Both are idempotent and checkpointed.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -193,7 +182,7 @@ private struct AISettings: View {
             LabeledContent("Classified before every call", value: "Public · Internal · Confidential")
             LabeledContent("Always refused", value: "Restricted · export-controlled · individual performance")
             LabeledContent("PII", value: "Detected and masked; a blocked call names the rule")
-            LabeledContent("Prompt injection", value: "KYP.ai text, SOPs and imports treated as untrusted data")
+            LabeledContent("Prompt injection", value: "Imported text, SOPs and event logs treated as untrusted data")
         }
 
         Section("Cost") {

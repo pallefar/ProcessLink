@@ -127,14 +127,14 @@ function OpportunityDetail({ id }: { id: string }) {
           <p className="muted">{recommendation.reason}</p>
           {opportunity.statutory && <Note glyph="✋">Statutory or human-only control: automation is excluded by the rule, not by reviewer choice.</Note>}
         </Card>
-        <Card title="Evidence" subtitle="Each figure traces to a KYP.ai object or a KG node." glyph="▤">
+        <Card title="Evidence" subtitle="Each figure traces to a discovery object or a KG node." glyph="▤">
           <KV items={[
             ['Annual effort', fmt.hoursPerYear(opportunity.hours)],
             ['Error reduction', `${Math.round(opportunity.errorReduction)}%`],
             ['Effort estimate', `${Math.round(opportunity.effortWeeks)} weeks`],
             ['Risk', `${opportunity.risk}/5`],
             ['Hoshin alignment', `${opportunity.alignment}/5`],
-            ['KYP.ai id', <span className="mono">{opportunity.processId}</span>],
+            ['Discovery id', <span className="mono">{opportunity.processId}</span>],
             ['KG node', <span className="mono">{opportunity.kgId}</span>],
             ['Owner role', opportunity.owner],
           ]} />

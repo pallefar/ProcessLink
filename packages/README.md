@@ -13,7 +13,7 @@ that is when a second TypeScript consumer appears.
 | `opportunity-engine` | `ProcessLinkKit/Scoring.swift`, `web/src/domain/rules.ts` | Implemented, tested in Swift, mirrored in TS |
 | `privacy-guard` | `ProcessLinkKit/Privacy.swift`, `web/src/domain/rules.ts` | Implemented; policy evaluator + PII scan |
 | `value-tracking` | `ProcessLinkKit/Scoring.swift` (ledger), `web/src/domain/rules.ts` | Implemented; estimate → commit → validate, conflict rule |
-| `kyp-connector` | `macos/.../SandboxSync.swift`, `web` sync action | Fixture only; real API/MCP adapter is Phase 1 |
+| `discovery-engine` | `macos/.../ProcessLinkKit/Mining.swift`, `web/src/pages/Mining.tsx` | Full event-log mining and task capture on macOS; web sample view |
 | `kg-client` | `macos/.../Models.swift` (nodes/edges), `web/src/pages/Graph.tsx` | Local typed store + proposal model; real API is Phase 2 |
 | `ai-core` | `ProcessLinkKit/Insights.swift`, `web/src/domain/ask.ts` | Local deterministic provider with citations; hosted provider is Phase 6 |
 

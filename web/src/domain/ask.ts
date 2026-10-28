@@ -9,7 +9,7 @@ function cite(process: Process, stepName?: string): Citation[] {
     const step = process.steps.find(s => s.name === stepName)
     if (step) citations.push({ kind: 'kg', ref: step.kgId, label: step.name })
   }
-  citations.push({ kind: 'kyp', ref: process.kypId, label: process.name })
+  citations.push({ kind: 'discovery', ref: process.discoveryId, label: process.name })
   return citations
 }
 
@@ -100,7 +100,7 @@ export function answer(question: string, processes: Process[], opportunities: Op
         id, question: q, intent: 'handoffs',
         headline: 'No handoff-driven rework found',
         body: 'No step both hands work off and carries rework in the current window. Confirm the capture window before reading it as good news.',
-        citations: [], toVerify: ['Confirm the KYP.ai capture window'], confidence: 0.6,
+        citations: [], toVerify: ['Confirm the discovery capture window'], confidence: 0.6,
       }
     }
     return {
@@ -140,7 +140,7 @@ export function answer(question: string, processes: Process[], opportunities: Op
       body: ranked.map(p => `${p.name}: ${p.variants.length} variants, ${fmt.percent(p.reworkRate)} rework, ${fmt.minutes(p.cycleMinutes)} median cycle.`).join('\n')
         + '\n\nVariation is the standard-work signal: pick the variant with the lowest rework, document it, and retire the rest with the owners.',
       citations: ranked.flatMap(p => cite(p)),
-      toVerify: ['Variant labels are KYP.ai generated; confirm they mean what the team calls them.'],
+      toVerify: ['Variant labels are discovery generated; confirm they mean what the team calls them.'],
       confidence: 0.8,
     }
   }
@@ -170,7 +170,7 @@ export function answer(question: string, processes: Process[], opportunities: Op
       body: `${best.title} is the largest opportunity in that scope at ${fmt.hoursPerYear(best.hours)}.\nRoute: ${best.route} — estimate only.\nConfidence in the estimate: ${fmt.percent(best.confidence)}.\n\nThis is an estimate, not a validated saving. It becomes a claim only after an owner commits it and before/after evidence validates it.`,
       citations: [
         { kind: 'kg', ref: best.kgId, label: best.title },
-        { kind: 'kyp', ref: best.processId, label: best.processName },
+        { kind: 'discovery', ref: best.processId, label: best.processName },
       ],
       toVerify: ['Estimated saving — needs an owner and before/after evidence', 'Confirm the effort estimate with the process owner'],
       confidence: best.confidence,

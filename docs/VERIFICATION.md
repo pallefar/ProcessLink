@@ -61,7 +61,6 @@ the local stack: UAT quick-login as `uat-admin`, workspace `te-ops`, project
 
 - A live Flightdeck Maps server (the folder bridge writes the same documents;
   the host routes are documented in `MAPS-INTEGRATION.md`).
-- A real KYP.ai tenant (no credentials, no tenant; Q1/Q2 unanswered).
 - A real Knowledge Guardian write (no store/ACL; Q5 unanswered).
 - DeckForge binary integration (Markdown brief only).
 - Flightdeck sub-app mount (adapter + migration sketch, not applied).

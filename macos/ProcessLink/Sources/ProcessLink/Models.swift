@@ -4,7 +4,7 @@ import SwiftData
 
 // MARK: - Discovery
 
-/// One process as KYP.ai discovered it. Aggregated only: no person, no
+/// One discovered process. Aggregated only: no person, no
 /// screenshot, no keystroke, no free text from a case.
 @Model
 final class ProcessRecord {
@@ -14,7 +14,7 @@ final class ProcessRecord {
     var businessUnit: String = ""
     var valueStream: String = ""
     var ownerRole: String = ""
-    var kypID: String = ""
+    var discoveryID: String = ""
     var kgID: String = ""
     var summary: String = ""
     var applications: [String] = []
@@ -41,24 +41,24 @@ final class ProcessRecord {
     var statusReason: String = ""
     var standardDocument: String = ""
     var standardVersion: String = ""
-    /// "KYP.ai task mining", "In-house process mining", "In-house task capture".
-    var sourceRaw: String = "KYP.ai task mining"
+    /// "ProcessLink task mining", "In-house process mining", "In-house task capture".
+    var sourceRaw: String = "ProcessLink discovery"
 
     init(id: String, name: String, site: String, businessUnit: String, valueStream: String,
-         ownerRole: String, kypID: String, kgID: String, summary: String,
+         ownerRole: String, discoveryID: String, kgID: String, summary: String,
          applications: [String], variantNames: [String], capturedFrom: Date, capturedTo: Date,
          lastSynced: Date, confidence: Double, people: Int, annualHours: Double,
          cycleMinutes: Double, reworkRate: Double, handoffs: Int, variantCount: Int,
          adherence: Double, maturity: Int, classification: DataClass,
          status: ProcessStatus, statusReason: String, standardDocument: String,
-         standardVersion: String, source: String = "KYP.ai task mining") {
+         standardVersion: String, source: String = "ProcessLink discovery") {
         self.id = id
         self.name = name
         self.site = site
         self.businessUnit = businessUnit
         self.valueStream = valueStream
         self.ownerRole = ownerRole
-        self.kypID = kypID
+        self.discoveryID = discoveryID
         self.kgID = kgID
         self.summary = summary
         self.applications = applications
@@ -87,7 +87,7 @@ final class ProcessRecord {
     var status: ProcessStatus { ProcessStatus(rawValue: statusRaw) ?? .discovered }
     var source: String { sourceRaw }
     var provenance: Provenance {
-        Provenance(source: sourceRaw, sourceID: kypID,
+        Provenance(source: sourceRaw, sourceID: discoveryID,
                    capturedFrom: capturedFrom, capturedTo: capturedTo,
                    confidence: confidence, syncedAt: lastSynced)
     }
@@ -118,7 +118,7 @@ enum ProcessStatus: String, CaseIterable {
     }
 }
 
-/// One mined step, with the role and application as KYP.ai classified them.
+/// One mined step, with the role and application as discovery classified them.
 @Model
 final class StepRecord {
     var id: String = ""

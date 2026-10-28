@@ -110,7 +110,7 @@ export default function Governance() {
           <Card title="Where data goes" subtitle="The data-flow contract in one card." glyph="⇢">
             <div className="stack" style={{ gap: 8 }}>
               {[
-                ['KYP.ai', 'System of record. Aggregated facts only; no screenshots, keystrokes or person ids.', 'var(--accent)'],
+                ['discovery', 'System of record. Aggregated facts only; no screenshots, keystrokes or person ids.', 'var(--accent)'],
                 ['ProcessLink', 'Local store. Purpose-limited, permission-filtered, audit-logged.', 'var(--purple)'],
                 ['Knowledge graph', 'Nodes and edges with provenance; writes are reviewable.', 'var(--teal)'],
                 ['Maps · TEOA · DeckForge', 'Read the same nodes; edits become change proposals.', 'var(--orange)'],

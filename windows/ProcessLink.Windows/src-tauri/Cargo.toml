@@ -1,7 +1,7 @@
 [package]
 name = "processlink"
-version = "0.1.0"
-description = "ProcessLink — KYP.ai discovery into TEOA improvement work"
+version = "0.1.1"
+description = "ProcessLink — in-house discovery into TEOA improvement work"
 authors = ["TE Operating Advantage"]
 edition = "2021"
 rust-version = "1.77.2"

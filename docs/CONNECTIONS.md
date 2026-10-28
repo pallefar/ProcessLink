@@ -129,4 +129,4 @@ UI.
   Vision benefit remains a human action in those apps.
 - **Web form** does not yet have this page; when mounted as the TEOA sub-app it
   should use the same-origin session instead of a Keychain cookie.
-- **KYP.ai** remains a separate connector; this page is OS/Vision/Atlas only.
+- Discovery is entirely in-house; this page is only the Flightdeck OS/Vision/Atlas API connection.

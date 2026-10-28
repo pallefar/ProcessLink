@@ -81,7 +81,7 @@ struct GraphPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
                 PageHeader("Knowledge graph",
-                           subtitle: "The shared semantic backbone. KYP.ai facts, meetings, decisions and actions become nodes with provenance; ProcessLink proposes, a human confirms.") {
+                           subtitle: "The shared semantic backbone. Discovery facts, meetings, decisions and actions become nodes with provenance; ProcessLink proposes, a human confirms.") {
                     HStack(spacing: Space.sm) {
                         Chip(text: "\(nodes.count) nodes", symbol: "circle.hexagongrid", tint: .blue)
                         Chip(text: "\(edges.count) edges", symbol: "arrow.triangle.branch", tint: .purple)

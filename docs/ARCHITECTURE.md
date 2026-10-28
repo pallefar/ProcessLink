@@ -1,8 +1,9 @@
 # Architecture
 
-ProcessLink is the value layer between KYP.ai and the Flightdeck system. It
-consumes discovery, and produces prioritised, owned, evidence-backed
-improvement work in TEOA, the knowledge graph, Maps and DeckForge.
+ProcessLink is the value layer between in-house discovery and the Flightdeck
+system. It mines event logs and opt-in task capture, and produces
+prioritised, owned, evidence-backed improvement work in TEOA, the knowledge
+graph, Maps and DeckForge.
 
 ## 1. One product, three forms
 
@@ -33,7 +34,7 @@ contract.
 |---|---|
 | Design language | System controls, one accent, SF Symbols, no custom chrome. The web uses the same token names as DiagramForge (`space`, `radius`, `accent`). |
 | `diagram-schema` | ProcessLink emits `signavio-map/1` compatible nodes/edges plus a `kgNodeId` extension; it does not fork the canvas model. |
-| `diagram-engine` | Generation is server-side: KYP steps → lanes → nodes → edges. The renderer stays DiagramForge's. |
+| `diagram-engine` | Generation is server-side: discovered steps → lanes → nodes → edges. The renderer stays DiagramForge's. |
 | `deck-schema` | Review briefs map to DeckForge's slide contract; the app exports Markdown today, DeckForge consumes the same sections tomorrow. |
 | `ai-core` | One `LLMProvider` contract: local (on-device) or hosted gateway. Same classification gate, cost meter, structured outputs, injection defences. |
 | `ingest` | Job queue shape reused: checkpoint, retry, dead-letter, audit. |
@@ -59,7 +60,7 @@ flowchart TB
   subgraph Service["ProcessLink service (Node/TS)"]
     API[REST + SSE]
     Q[Job queue + scheduler]
-    SYNC[kyp-connector]
+    SYNC[local-discovery]
     OPP[opportunity-engine]
     VAL[value-tracking]
     ASK[Ask / agents]
@@ -67,7 +68,7 @@ flowchart TB
   end
 
   subgraph Systems["Systems of record"]
-    KYP[KYP.ai API / MCP / export]
+    DISCOVERY[Event logs · task capture]
     KG[(Knowledge graph)]
     MAPS[Maps]
     TEOA[TEOA Advantage]
@@ -88,7 +89,7 @@ flowchart TB
   Q --> MAPS
   VAL --> TEOA
   ASK --> DECK
-  KYP --> SYNC
+  DISCOVERY --> SYNC
 ```
 
 ### 3.1 Sync pipeline
@@ -124,16 +125,15 @@ projects, and never writes back. Contract and verification:
 
 ### 3.3 In-house discovery
 
-`kyp-connector` is no longer the only source. `process-model` now has an
-in-house path: `EventLogImporter` (CSV → hashed cases, role resources, masked
+`process-model` has a single in-house path: `EventLogImporter` (CSV → hashed cases, role resources, masked
 activity text) feeds `ProcessMining` (directly-follows graph, variants,
 cycle/wait, rework, handoffs, conformance). The result is written as the same
 `ProcessRecord` / `StepRecord` / `VariantRecord`, with
 `source = "In-house process mining"`, so KG, Maps, opportunities and Ask need
 no branch. Local task capture records only frontmost app name, minutes and
 switches — no titles, keys or screenshots — and turns a session into a
-process whose waste is context switching. KYP remains an optional source for
-enterprise breadth, not a hard dependency.
+process whose waste is context switching. No external discovery tenant or
+connector is part of the architecture.
 
 ### 3.4 Maps: the document is the contract
 
@@ -187,9 +187,9 @@ granularity.
   model) and the hosted gateway (Claude by default, region-pinned,
   classification-gated).
 - **Context assembly.** Retrieve KG nodes by graph traversal + vector
-  similarity, hydrate KYP aggregates, cap by token budget, attach a citation
+  similarity, hydrate discovery aggregates, cap by token budget, attach a citation
   for every fact.
-- **Untrusted input.** Every KYP text, SOP and import is delimited and
+- **Untrusted input.** Every imported text, SOP and event log is delimited and
   labelled data; instructions inside are never executed.
 - **Grounding.** The answer contract requires `citations[]`; a figure without
   a citation fails the response validator. Unknowns become `toVerify[]`.
@@ -260,6 +260,6 @@ Structured logs carry ids and counts, never process content: `sync.run`,
 | KG explorer + review queue | ✅ | ✅ (read) | via web |
 | Ask with citations + to-verify | ✅ | ✅ | via web |
 | Audit log | ✅ | ✅ | via web |
-| KYP.ai network connector | sandbox fixture | sandbox fixture | sandbox fixture |
+| In-house event-log mining and task capture | full workbench | sample view | shared web build |
 | Live KG write | local proposal | local proposal | local proposal |
 | DeckForge deck export | Markdown brief | JSON brief | via web |

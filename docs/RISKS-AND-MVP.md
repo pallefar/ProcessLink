@@ -4,9 +4,9 @@
 
 | Area | Risk | Likelihood | Impact | Mitigation in this build | Still open |
 |---|---|---|---|---|---|
-| KYP.ai API coverage | The licensed modules may not expose steps/variants/metrics through a supported interface; MCP may be the only path | Medium | High | Connector is a thin, replaceable adapter; every fact has a source id; fixtures stand in for the API | Q1, Q2 — module list + sandbox contract |
-| KYP.ai person-level data | API returns person rows; aggregation must happen inside the tenant | Medium | High | Connector drops person ids and counts the drop; guard refuses below threshold | Q9 — confirm aggregate scope |
-| Entity-resolution quality | Application/role names differ between KYP and the registry; silent merges corrupt the graph | High | High | Confidence bands; ≥ 0.90 auto-link, 0.70–0.89 review queue, < 0.70 new node; merge is reversible with `validTo` | Precision measurement on a real sample |
+| Discovery quality | A CSV can have missing activities, mixed timestamp formats or no case key; task capture only sees app names | Medium | High | Mapping preview, skipped-row count, data-quality card, confidence and provenance on every fact | Real customer logs of different shapes |
+| Person-level data in an event log | A resource column can contain names or e-mail addresses | Medium | High | Role sanitation, PII masking, hashed case ids, group threshold | Privacy review of imported columns |
+| Entity-resolution quality | Application/role names differ between discovery and the registry; silent merges corrupt the graph | High | High | Confidence bands; ≥ 0.90 auto-link, 0.70–0.89 review queue, < 0.70 new node; merge is reversible with `validTo` | Precision measurement on a real sample |
 | Savings double counting | Two initiatives claim the same hours; leadership roll-up overstates | High | High | One claim per (process, waste) key; credits only the most advanced claim; conflicts surfaced with both numbers; validation needs a named human | Q6 — TE validation rules + Finance ownership |
 | Works council / GDPR | Capture expansion before consultation; no DPIA for production | Medium | Very high | Purpose limitation first; group thresholds; no person drill-down; launch checklist blocks production | Q3, Q4 — DPIA, consultation, country legal review |
 | Classification / export control | A Restricted record reaches an API or deck | Low | Very high | `restricted` blocked at every destination including local; refusal audited; no export path | Data-classification mapping from the real tenant |
@@ -31,7 +31,7 @@
 
 | Need | Build | Buy / reuse | Decision | Licence note |
 |---|---|---|---|---|
-| Task/process mining capture | — | **KYP.ai** | Buy; ProcessLink never captures | Commercial SaaS; data-processing agreement required |
+| Task/process mining capture | **ProcessLink** | — | Build; CSV event logs and opt-in app-level capture | Browser/desktop capture breadth is narrower than a commercial suite |
 | Iterative graph store | Local typed store for the prototype | Existing KG when Q5 is answered | Reuse the KG; do not run a second graph | Depends on real store |
 | Vector search | — | Existing `kb_vectors` pattern (brute-force cosine / `sqlite-vec`) | Reuse | `sqlite-vec` MIT/Apache-2.0 |
 | Charting (web) | Small SVG/CSS marks | No chart library in this build | Build; revisit if needed | Avoid AGPL charting libs |
@@ -68,7 +68,7 @@ community edition) is explicitly rejected until legal reviews it.
 
 ### Deliberately out (next)
 
-- Live KYP.ai connector and contract tests (needs Q1/Q2).
+- Large event-log performance (current miner is in-memory and recomputes on filter).
 - Real KG writes and migration (needs Q5).
 - Editing maps in ProcessLink (DiagramForge owns editing).
 - DeckForge binary integration and TE templates (needs deck contract).

@@ -5,7 +5,7 @@ import SwiftData
 // MARK: - Seed data
 //
 // Sample data for snapshots and for the first run. Every value is invented
-// for the demo and labelled "KYP.ai sandbox" in the UI. No person, no real
+// for the demo and labelled "In-house discovery" in the UI. No person, no real
 // tenant, no restricted content.
 
 private struct StepSeed {
@@ -243,7 +243,7 @@ enum SeedData {
         for seed in processes {
             let process = ProcessRecord(
                 id: seed.id, name: seed.name, site: seed.site, businessUnit: seed.businessUnit,
-                valueStream: seed.valueStream, ownerRole: seed.owner, kypID: "kyp-proc-\(seed.id)",
+                valueStream: seed.valueStream, ownerRole: seed.owner, discoveryID: "disc-proc-\(seed.id)",
                 kgID: "kg-proc-\(seed.id)", summary: seed.summary, applications: seed.apps,
                 variantNames: seed.variants.map(\.name),
                 capturedFrom: daysAgo(seed.captureDays), capturedTo: daysAgo(1),
@@ -538,7 +538,7 @@ enum SeedData {
                     BlockSeed(kind: .decision, text: "Drop the SAP re-check above the €5k tolerance from Monday."),
                     BlockSeed(kind: .action, text: "Update SOP O2C-04 to v6.3 and brief the desk.", owner: "Order Desk Lead", due: daysAhead(10)),
                     BlockSeed(kind: .action, text: "Run a weekly 5% sample audit for six weeks.", owner: "Ops Excellence Lead", due: daysAhead(21)),
-                    BlockSeed(kind: .action, text: "Quantify rework before and after against KYP.ai.", owner: "Ops Excellence Lead", due: daysAhead(42), linkedKind: "opportunity", linkedID: "opp-pricing"),
+                    BlockSeed(kind: .action, text: "Quantify rework before and after the change.", owner: "Ops Excellence Lead", due: daysAhead(42), linkedKind: "opportunity", linkedID: "opp-pricing"),
                 ]),
             MeetingSeed(
                 id: "meet-a3-invoice", title: "A3 review · invoice exception codes", kind: .a3Review,
@@ -628,17 +628,17 @@ enum SeedData {
 
         let applicationNames = Array(Set(processes.flatMap(\.apps))).sorted()
         for app in applicationNames {
-            nodes.append(("kg-app-\(slug(app))", .application, app, 0.93, .confirmed, "KYP.ai application usage", "kyp-app-\(slug(app))"))
+            nodes.append(("kg-app-\(slug(app))", .application, app, 0.93, .confirmed, "ProcessLink app usage", "disc-app-\(slug(app))"))
         }
 
         let roleNames = Array(Set(processes.flatMap { $0.steps.map(\.role) })).sorted()
         for role in roleNames {
-            nodes.append(("kg-role-\(slug(role))", .role, role, 0.9, .confirmed, "KYP.ai role aggregation", "kyp-role-\(slug(role))"))
+            nodes.append(("kg-role-\(slug(role))", .role, role, 0.9, .confirmed, "ProcessLink role aggregation", "disc-role-\(slug(role))"))
         }
 
         for seed in processes {
             nodes.append(("kg-proc-\(seed.id)", .process, seed.name, seed.confidence, .confirmed,
-                          "KYP.ai task mining", "kyp-proc-\(seed.id)"))
+                          "ProcessLink discovery", "disc-proc-\(seed.id)"))
             edges.append(("kg-proc-\(seed.id)", .performedIn, "kg-site-\(slug(seed.site))", 0.99))
             edges.append(("kg-proc-\(seed.id)", .ownedBy, "kg-role-\(slug(seed.owner))", 0.85))
             edges.append(("kg-proc-\(seed.id)", .alignedToObjective, "kg-vs-\(slug(seed.valueStream))", 0.8))
@@ -650,7 +650,7 @@ enum SeedData {
             }
             for (index, step) in seed.steps.enumerated() {
                 nodes.append(("kg-step-\(seed.id)-\(index)", .step, step.name, 0.87, .confirmed,
-                              "KYP.ai task mining", "kyp-step-\(seed.id)-\(index)"))
+                              "ProcessLink discovery", "disc-step-\(seed.id)-\(index)"))
             }
         }
 
@@ -699,9 +699,9 @@ enum SeedData {
 
         // Two deliberately uncertain matches for the human review queue.
         nodes.append(("kg-app-sap-ecc", .application, "SAP ECC", 0.61, .suggested,
-                      "KYP.ai application usage", "kyp-app-ecc"))
+                      "ProcessLink app usage", "disc-app-ecc"))
         nodes.append(("kg-team-sales-support", .team, "Sales Support", 0.72, .suggested,
-                      "KYP.ai team aggregation", "kyp-team-sales-support"))
+                      "ProcessLink team aggregation", "disc-team-sales-support"))
         edges.append(("kg-app-sap-ecc", .variantOf, "kg-app-\(slug("SAP S/4HANA"))", 0.61))
         edges.append(("kg-team-sales-support", .variantOf, "kg-role-order-desk", 0.72))
 
@@ -718,7 +718,7 @@ enum SeedData {
         for (index, edge) in edges.enumerated() {
             context.insert(KGEdgeRecord(id: "edge-\(index)", fromID: edge.0, predicate: edge.1,
                                         toID: edge.2, confidence: edge.3,
-                                        source: "KYP.ai + ProcessLink"))
+                                        source: "ProcessLink discovery + analysis"))
         }
 
         // MARK: Governance
@@ -727,10 +727,10 @@ enum SeedData {
             ("gov-dpia", "Data protection impact assessment", "Completed for the pilot in DE and PL; the PH and MX assessments are in review.", "Data protection", .inProgress, "Data Protection Office"),
             ("gov-legal", "Legal review per country", "DE and PL approved for process improvement only. PH and MX pending.", "Data protection", .inProgress, "Legal"),
             ("gov-works-council", "Works council consultation (DE)", "The Bensheim works council has the draft agreement. No capture expansion before sign-off.", "People", .blocked, "HR Business Partner"),
-            ("gov-notice", "Employee transparency notice", "Published in the intranet and linked from the KYP.ai capture page.", "People", .done, "Internal Communications"),
-            ("gov-retention", "Retention schedule", "Aggregated process facts 400 days; raw KYP.ai capture stays in the KYP tenant and is not copied.", "Data protection", .done, "Data Owner"),
-            ("gov-owner", "Named data owner", "CI Manager (role) is accountable for every use of KYP.ai data in ProcessLink.", "Accountability", .done, "CI Manager"),
-            ("gov-scope", "Capture scope confirmed", "Sites: Bensheim, Wrocław, Manila, Guadalajara. No personal devices, no off-network capture.", "People", .done, "KYP.ai Administrator"),
+            ("gov-notice", "Employee transparency notice", "Published in the intranet and linked from the discovery capture page.", "People", .done, "Internal Communications"),
+            ("gov-retention", "Retention schedule", "Aggregated process facts 400 days; raw capture stays in the local capture store and is not copied.", "Data protection", .done, "Data Owner"),
+            ("gov-owner", "Named data owner", "CI Manager (role) is accountable for every use of discovery data in ProcessLink.", "Accountability", .done, "CI Manager"),
+            ("gov-scope", "Capture scope confirmed", "Sites: Bensheim, Wrocław, Manila, Guadalajara. No personal devices, no off-network capture.", "People", .done, "Discovery administrator"),
             ("gov-ai", "AI provider and region approval", "Local provider approved. The hosted provider is approved for EU processing only, classification-gated.", "AI & security", .inProgress, "Security"),
             ("gov-dpia-prod", "DPIA for production rollout", "Pilot DPIA is not a production DPIA. Required before any site beyond the pilot.", "Data protection", .notStarted, "Data Protection Office"),
         ]
@@ -744,7 +744,7 @@ enum SeedData {
 
         let audits: [(String, String, String, String, Int)] = [
             ("governance.reviewed", "Launch checklist", "DPIA reviewed with the Data Protection Office.", "internal", 12),
-            ("sync.completed", "KYP.ai sandbox", "312 objects fetched, 0 new, 4 skipped by policy.", "internal", 3),
+            ("discovery.refreshed", "In-house discovery", "7 processes, 144 events and 5 captures read locally.", "internal", 3),
             ("initiative.created", "Kaizen: cut the second pricing check", "From opportunity opp-pricing-check.", "internal", 9),
             ("savings.validated", "A3: one exception-code list", "540 h validated by CI Manager, Wrocław.", "internal", 6),
             ("ai.answer", "Ask the process", "Question answered locally with 6 citations.", "internal", 2),
@@ -758,15 +758,15 @@ enum SeedData {
 
         // MARK: Sync history
 
-        context.insert(SyncRecord(at: daysAgo(3), source: "KYP.ai sandbox · incremental",
-                                  fetched: 312, inserted: 4, updated: 18, skipped: 4,
-                                  status: "success", note: "Skipped: 3 groups below threshold, 1 restricted record."))
-        context.insert(SyncRecord(at: daysAgo(10), source: "KYP.ai sandbox · incremental",
-                                  fetched: 288, inserted: 2, updated: 9, skipped: 2,
-                                  status: "success", note: "Skipped: 2 groups below threshold."))
-        context.insert(SyncRecord(at: daysAgo(31), source: "KYP.ai sandbox · backfill",
-                                  fetched: 2_140, inserted: 61, updated: 0, skipped: 11,
-                                  status: "success", note: "Backfill completed in 14 minutes; checkpoint stored."))
+        context.insert(SyncRecord(at: daysAgo(3), source: "In-house discovery · local refresh",
+                                  fetched: 7, inserted: 0, updated: 0, skipped: 0,
+                                  status: "success", note: "7 processes, 5 captures and 144 events read locally."))
+        context.insert(SyncRecord(at: daysAgo(10), source: "In-house discovery · local refresh",
+                                  fetched: 7, inserted: 0, updated: 0, skipped: 0,
+                                  status: "success", note: "7 processes, 5 captures and 144 events read locally."))
+        context.insert(SyncRecord(at: daysAgo(31), source: "In-house discovery · local refresh",
+                                  fetched: 7, inserted: 0, updated: 0, skipped: 0,
+                                  status: "success", note: "Local discovery store created."))
 
         // Local task capture: aggregates only, seeded so the tab is not empty.
         let captureSessions: [(String, String, String, String, Int, Int, Int, [(String, String, Double, Int)])] = [

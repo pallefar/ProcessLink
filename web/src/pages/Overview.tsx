@@ -21,7 +21,7 @@ export default function Overview() {
     <>
       <PageHead
         title="Value overview"
-        subtitle="KYP.ai discovery, turned into prioritized TEOA work — every number traceable, nothing presented as validated until it is."
+        subtitle="in-house discovery, turned into prioritized TEOA work — every number traceable, nothing presented as validated until it is."
       />
 
       <div className="grid metrics">
@@ -85,7 +85,7 @@ export default function Overview() {
       </div>
 
       <div className="grid three">
-        <Card title="Evidence freshness" subtitle="Maps and opportunities are only as good as their last sync." glyph="◷">
+        <Card title="Evidence freshness" subtitle="Maps and opportunities are only as good as their last local refresh." glyph="◷">
           <div className="stack" style={{ gap: 8 }}>
             {[...visible].sort((a, b) => b.staleDays - a.staleDays).slice(0, 4).map(process => (
               <div key={process.id} className="between">
@@ -95,7 +95,7 @@ export default function Overview() {
                 </span>
               </div>
             ))}
-            <div className="tiny">Last sync 3 days ago · 312 fetched · 4 skipped by policy</div>
+            <div className="tiny">Last local refresh 3 days ago · 7 processes · 5 captures</div>
           </div>
         </Card>
 

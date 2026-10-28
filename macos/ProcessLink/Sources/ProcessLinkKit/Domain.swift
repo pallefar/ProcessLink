@@ -2,8 +2,8 @@ import Foundation
 
 // MARK: - Data protection
 
-/// The classification label carried by everything KYP.ai sends us.
-/// `restricted` is the hard stop: it never leaves the KYP tenant, not even
+/// The classification label carried by every discovered fact.
+/// `restricted` is the hard stop: it never leaves the local store, not even
 /// for a local report. Matches the four labels Flightdeck already uses.
 public enum DataClass: String, CaseIterable, Sendable, Codable {
     case publicData = "public"
@@ -25,7 +25,7 @@ public enum DataClass: String, CaseIterable, Sendable, Codable {
         case .publicData: "Safe for any approved destination."
         case .internalUse: "Stays in the tenant or an approved AI gateway."
         case .confidential: "Needs named approval before it moves."
-        case .restricted: "Never leaves KYP.ai. Blocked by policy."
+        case .restricted: "Never leaves the local store. Blocked by policy."
         }
     }
 
@@ -444,7 +444,7 @@ public enum RelationKind: String, CaseIterable, Sendable, Codable {
 // MARK: - Provenance
 
 /// Every fact ProcessLink shows carries where it came from and how sure we
-/// are. `sourceID` is the KYP.ai object id, never a person.
+/// are. `sourceID` is the discovery object id, never a person.
 public struct Provenance: Sendable, Hashable, Codable {
     public var source: String
     public var sourceID: String
@@ -484,7 +484,7 @@ public enum ConfidenceBand: String, Sendable, Codable {
 /// A citation the assistant must show for every number it says out loud.
 public struct Citation: Sendable, Hashable, Identifiable, Codable {
     public enum Kind: String, Sendable, Codable {
-        case kyp
+        case discovery
         case kgNode
         case initiative
         case policy
@@ -493,7 +493,7 @@ public struct Citation: Sendable, Hashable, Identifiable, Codable {
 
         public var label: String {
             switch self {
-            case .kyp: "KYP.ai"
+            case .discovery: "Discovery"
             case .kgNode: "KG"
             case .initiative: "Initiative"
             case .policy: "Policy"

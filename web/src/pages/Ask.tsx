@@ -14,7 +14,7 @@ export default function Ask() {
 
   return (
     <div className="ask-page">
-      <PageHead title="Ask the process" subtitle="Questions over KYP.ai discovery, the knowledge graph and TEOA work. Local provider by default; the hosted provider follows the same guard." />
+      <PageHead title="Ask the process" subtitle="Questions over in-house discovery, the knowledge graph and TEOA work. Local provider by default; the hosted provider follows the same guard." />
       <div className="rowflex">
         <Chip tone="green">{policy.provider}</Chip>
         <Chip>Region {policy.region}</Chip>
@@ -34,11 +34,11 @@ export default function Ask() {
           <Card title="What this assistant may and may not do" subtitle="The same rules as every other surface." glyph="⛨">
             <div className="stack" style={{ gap: 8 }}>
               {[
-                'Reads only aggregated, permission-filtered facts from KYP.ai and the KG.',
+                'Reads only aggregated, permission-filtered facts from in-house discovery and the KG.',
                 'Refuses individual performance questions and groups below the threshold.',
                 'Masks personal-data patterns before a hosted AI call; local answers never leave this Mac.',
                 'Never invents a number: a missing fact becomes a to-verify item, and a saving is labelled an estimate.',
-                'Cites the KYP.ai object or KG node behind every figure.',
+                'Cites the discovery object or KG node behind every figure.',
               ].map(line => <div key={line} className="rowflex"><span style={{ color: 'var(--green)' }}>✓</span><span className="muted">{line}</span></div>)}
             </div>
           </Card>
@@ -62,7 +62,7 @@ export default function Ask() {
                     {answer.citations.map(citation => (
                       <button key={`${citation.kind}-${citation.ref}`} className="citation" style={{ cursor: 'pointer' }}
                         onClick={() => { if (citation.kind === 'kg') { selectNode(citation.ref); navigate('graph') } }}>
-                        {citation.kind === 'kg' ? 'KG' : citation.kind === 'kyp' ? 'KYP.ai' : citation.kind} · {citation.label}
+                        {citation.kind === 'kg' ? 'KG' : citation.kind === 'discovery' ? 'discovery' : citation.kind} · {citation.label}
                       </button>
                     ))}
                   </div>
@@ -89,7 +89,7 @@ export default function Ask() {
         />
         <button className="btn primary" onClick={send} disabled={!draft.trim()}>Ask</button>
       </div>
-      <Note>Numbers trace to KYP.ai ids or KG nodes. Personal-data patterns are masked before any call. Estimates are not validated savings.</Note>
+      <Note>Numbers trace to Discovery ids or KG nodes. Personal-data patterns are masked before any call. Estimates are not validated savings.</Note>
     </div>
   )
 }

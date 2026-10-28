@@ -35,7 +35,7 @@ struct AskPage: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.md) {
             PageHeader("Ask the process",
-                       subtitle: "Questions over KYP.ai discovery, the knowledge graph and TEOA work. Local provider by default; the hosted provider follows the same guard.")
+                       subtitle: "Questions over in-house discovery, the knowledge graph and TEOA work. Local provider by default; the hosted provider follows the same guard.")
             HStack(spacing: Space.sm) {
                 Chip(text: model.aiProvider, symbol: "cpu", tint: .blue)
                 Chip(text: "Region \(model.aiRegion)", symbol: "globe.europe.africa", tint: .secondary)
@@ -72,11 +72,11 @@ struct AskPage: View {
     private var intro: some View {
         Card("What this assistant may and may not do", subtitle: "The same rules as every other surface.", symbol: "checkmark.shield") {
             VStack(alignment: .leading, spacing: Space.sm) {
-                rule("Reads only aggregated, permission-filtered facts from KYP.ai and the KG.")
+                rule("Reads only aggregated, permission-filtered facts from discovery and the KG.")
                 rule("Refuses individual performance questions and groups below the threshold.")
                 rule("Masks personal-data patterns before a hosted AI call; local answers never leave this Mac.")
                 rule("Never invents a number: a missing fact becomes a to-verify item, and a saving is labelled an estimate.")
-                rule("Cites the KYP.ai object or KG node behind every figure, so a reviewer can open the evidence.")
+                rule("Cites the discovery object or KG node behind every figure, so a reviewer can open the evidence.")
             }
         }
     }
@@ -217,7 +217,7 @@ struct AskPage: View {
                     .strokeBorder(.separator, lineWidth: 1)
             }
             HStack {
-                Text("Numbers trace to KYP.ai ids or KG nodes. Personal-data patterns are masked before any call.")
+                Text("Numbers trace to discovery ids or KG nodes. Personal-data patterns are masked before any call.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                 Spacer()

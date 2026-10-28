@@ -2,7 +2,7 @@ import AppKit
 import SwiftData
 import SwiftUI
 
-// ProcessLink — the integration and value layer between KYP.ai discovery and
+// ProcessLink — the integration and value layer between In-house discovery and
 // TEOA, the Flightdeck knowledge graph, Maps and DeckForge.
 //
 //   ProcessLink                      the app
@@ -61,7 +61,7 @@ struct ProcessLinkApp: App {
             }
 
             CommandMenu("Process") {
-                Button("Sync from KYP.ai") {
+                Button("Sync from discovery") {
                     Task { await model.runSync() }
                 }
                 .keyboardShortcut("r", modifiers: .command)

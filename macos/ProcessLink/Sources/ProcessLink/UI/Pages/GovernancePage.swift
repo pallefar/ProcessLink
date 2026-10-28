@@ -182,7 +182,7 @@ struct GovernancePage: View {
                 limit("No per-person drill-down and no leaderboard.")
                 limit("Groups below \(model.minimumGroupSize) are suppressed at query time, not hidden in the UI.")
                 limit("Restricted content is refused at the boundary, with a visible reason.")
-                limit("Retention: aggregated facts \(model.retentionDays) days; raw capture stays in KYP.ai.")
+                limit("Retention: aggregated facts \(model.retentionDays) days; raw capture stays in the local capture store.")
                 Divider().opacity(0.6)
                 DetailRow(label: "Data owner", value: model.dataOwner)
                 DetailRow(label: "Purpose", value: "Process and system improvement")
@@ -206,7 +206,7 @@ struct GovernancePage: View {
     private var flowCard: some View {
         Card("Where data goes", subtitle: "The data-flow contract in one card.", symbol: "arrow.triangle.branch") {
             VStack(alignment: .leading, spacing: Space.sm) {
-                flow("KYP.ai", "Stays the system of record. Aggregated facts only; no screenshots, keystrokes or person ids.", .blue)
+                flow("In-house discovery", "Event logs and opt-in task capture stay local. Aggregated facts only; no screenshots, keystrokes or person ids.", .blue)
                 flow("ProcessLink", "Local store on this Mac. Purpose-limited, permission-filtered, audit-logged.", .purple)
                 flow("Knowledge graph", "Nodes and edges with provenance; writes are idempotent and reviewable.", .teal)
                 flow("Maps · TEOA · DeckForge", "Read the same nodes; edits become change proposals.", .orange)

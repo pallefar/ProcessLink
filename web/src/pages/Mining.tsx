@@ -135,7 +135,7 @@ export default function Mining() {
 
             <div className="inline-row">
               <button className="btn primary" onClick={() => notify('Discovered process created', '7 steps · 3 variants · in-house source')}>Create discovered process</button>
-              <span className="subtle">The same records KYP.ai produces: process, steps, variants, KG bindings and one opportunity.</span>
+              <span className="subtle">The same records in-house discovery produces: process, steps, variants, KG bindings and one opportunity.</span>
             </div>
           </div>
         </div>

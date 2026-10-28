@@ -3,7 +3,7 @@ import { Shell } from './Shell'
 import {
   AUDIT, BLOCKS, GOVERNANCE, INITIATIVES, KG_EDGES, KG_NODES, MEETINGS, NOW, OPPORTUNITIES, POLICY, PROCESSES,
 } from './domain/data'
-import { evaluate, fmt, recommendMethod, routeFor, scanPII } from './domain/rules'
+import { evaluate, fmt, recommendMethod, scanPII } from './domain/rules'
 import { answer as answerQuestion, SUGGESTIONS } from './domain/ask'
 import { MEETING_LABEL } from './domain/labels'
 import type {
@@ -461,29 +461,10 @@ export default function ProcessLink() {
   const clearAsk = useCallback(() => setAnswers([]), [])
 
   const sync = useCallback(() => {
-    const existing = opportunities.find(o => o.id === 'opp-sync-password')
-    if (existing) {
-      notify('Sync complete', 'No new opportunities in this window.')
-      return
-    }
-    const base = {
-      id: 'opp-sync-password', title: 'Deflect password-reset cases to self-service',
-      processId: 'p-triage', waste: 'unusedTalent' as const, hours: 310, errorReduction: 6,
-      effortWeeks: 6, risk: 3, alignment: 3, automation: 0.75, confidence: 0.81,
-      statutory: false, status: 'new' as const, owner: 'Customer Care Lead',
-      rationale: '31% of portal cases are password resets. Each takes 11 minutes of resolver time.',
-    }
-    const route = routeFor(base)
-    const created: Opportunity = {
-      ...base,
-      processName: 'Customer case triage', site: 'Manila',
-      route, method: recommendMethod(base.waste, route, false).method,
-      kgId: 'kg-opp-opp-sync-password',
-    }
-    setOpportunities(current => [created, ...current])
-    addAudit('sync.completed', 'KYP.ai sandbox', '341 objects fetched, 1 new opportunity, 2 skipped by policy.')
-    notify('Sync complete', '1 new opportunity from KYP.ai.')
-  }, [opportunities, notify, addAudit])
+    addAudit('discovery.refreshed', 'In-house discovery',
+      `${PROCESSES.length} processes, ${MEETINGS.length} meeting pages and ${BLOCKS.length} blocks read locally; no external connector.`)
+    notify('Discovery refreshed', `${PROCESSES.length} processes · ${MEETINGS.length} meetings · local`)
+  }, [addAudit, notify])
 
   const exportBrief = useCallback(() => {
     const ranked = [...opportunities].sort((a, b) => b.hours - a.hours).slice(0, 5)
@@ -501,13 +482,13 @@ export default function ProcessLink() {
         `- Process: ${o.processName} · ${o.site}`,
         `- Route: ${o.route} · method: ${o.method}`,
         `- Estimate: ${fmt.hoursPerYear(o.hours)} · confidence ${fmt.percent(o.confidence)}`,
-        `- Source: KYP.ai ${o.processId} · KG ${o.kgId}`, '',
+        `- Source: discovery ${o.processId} · KG ${o.kgId}`, '',
       ].join('\n')),
       '## Savings ledger', '',
       `- Estimated: ${fmt.hours(totals.estimated)}`,
       `- Committed: ${fmt.hours(totals.committed)}`,
       `- Validated: ${fmt.hours(totals.validated)}`, '',
-      '> Estimates are not validated savings. Every figure traces to a KYP.ai object or KG node.', '',
+      '> Estimates are not validated savings. Every figure traces to a discovery object or KG node.', '',
     ]
     const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)

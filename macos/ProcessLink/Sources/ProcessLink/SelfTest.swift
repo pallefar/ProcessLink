@@ -122,7 +122,7 @@ enum SelfTest {
                                reworkRate: process.reworkRate, handoffs: process.handoffs,
                                adherence: process.adherence, variantCount: process.variantCount,
                                confidence: process.confidence, staleDays: process.staleDays,
-                               kypID: process.kypID, kgID: process.kgID)
+                               discoveryID: process.discoveryID, kgID: process.kgID)
             }, steps: fetch(StepRecord.self).map { step in
                 StepInsight(id: step.id, processID: step.processID, processName: "",
                             site: "", name: step.name, role: step.role, application: step.application,
@@ -176,14 +176,14 @@ enum SelfTest {
                 check("a Restricted process cannot be promoted", refused == nil)
             }
 
-            // Sync.
-            let beforeSync = fetch(OpportunityRecord.self).count
+            // Local discovery refresh (no external connector).
+            let beforeSync = fetch(SyncRecord.self).count
             await model.runSync()
-            let afterSync = fetch(OpportunityRecord.self).count
-            check("a sync adds the next sandbox batch", afterSync > beforeSync,
+            let afterSync = fetch(SyncRecord.self).count
+            check("a local refresh records its scope", afterSync > beforeSync,
                   "\(beforeSync) → \(afterSync)")
             let audits = fetch(AuditRecord.self)
-            check("the sync is audited", audits.contains { $0.action == "sync.completed" })
+            check("the refresh is audited", audits.contains { $0.action == "discovery.refreshed" })
 
             // Entity resolution needs a human.
             if let ecc = fetch(KGNodeRecord.self).first(where: { $0.id == "kg-app-sap-ecc" }),

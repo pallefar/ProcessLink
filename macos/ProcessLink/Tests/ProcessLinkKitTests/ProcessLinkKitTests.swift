@@ -153,7 +153,7 @@ private let process = ProcessInsight(id: "p1", name: "Order intake", site: "Bens
                                      valueStream: "Order-to-cash", people: 34, annualHours: 3_000,
                                      cycleMinutes: 42, reworkRate: 0.28, handoffs: 6,
                                      adherence: 0.61, variantCount: 4, confidence: 0.9,
-                                     staleDays: 3, kypID: "kyp-1", kgID: "kg-p1")
+                                     staleDays: 3, discoveryID: "disc-1", kgID: "kg-p1")
 
 private let step = StepInsight(id: "s1", processID: "p1", processName: "Order intake",
                                site: "Bensheim", name: "Clear exception queue", role: "Order Desk",

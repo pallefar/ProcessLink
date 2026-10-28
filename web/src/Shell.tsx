@@ -38,7 +38,7 @@ export function Shell() {
           <div className="brand-mark" aria-hidden="true">PL</div>
           <div>
             <strong>ProcessLink</strong>
-            <span>KYP.ai → TEOA</span>
+            <span>Discovery → TEOA</span>
           </div>
         </div>
         <nav className="nav" aria-label="Sections">
@@ -69,7 +69,7 @@ export function Shell() {
       <main className="main">
         <div className="topbar">
           <h1 className="topbar-title">{active?.label ?? 'Overview'}</h1>
-          <Chip tone="orange">Sandbox</Chip>
+          <Chip tone="orange">Local</Chip>
           <div className="spacer" />
           <button className="icon-btn" onClick={sync} aria-label="Sync sources" title="Sync sources"><Icon name="sync" size={16} /></button>
           <button className="icon-btn" onClick={() => navigate('ask')} aria-label="Ask ProcessLink" title="Ask ProcessLink"><Icon name="ask" size={16} /></button>

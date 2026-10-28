@@ -14,8 +14,8 @@ export default function Discoveries() {
 
   return (
     <>
-      <PageHead title="Discoveries" subtitle="What KYP.ai found, process by process: variants, steps, provenance, and the two reasons a record is shown as suppressed or blocked." />
-      {!process ? <Empty title="No discoveries" detail="Connect the KYP.ai sandbox and run a sync." /> : (
+      <PageHead title="Discoveries" subtitle="What discovery found, process by process: variants, steps, provenance, and the two reasons a record is shown as suppressed or blocked." />
+      {!process ? <Empty title="No discoveries" detail="Connect the in-house discovery and run a sync." /> : (
         <div className="split">
           <div className="list-pane">
             <div className="pane-head"><strong>{ordered.length} processes</strong><span className="tiny" style={{ marginLeft: 'auto' }}>All sites</span></div>
@@ -51,7 +51,7 @@ export default function Discoveries() {
             </div>
             <div className="rowflex" style={{ marginTop: 8 }}>
               <Chip tone="blue">{process.site}</Chip>
-              <Chip>KYP.ai task mining</Chip>
+              <Chip>ProcessLink discovery</Chip>
               <Chip>{process.businessUnit}</Chip>
               <Chip>{process.valueStream}</Chip>
               <Chip>Maturity {process.maturity}/5</Chip>
@@ -84,7 +84,7 @@ function Guarded({ process }: { process: Process }) {
       </div>
       <KV items={[
         ['Group size', `${process.people} people`],
-        ['KYP.ai id', <span className="mono">{process.kypId}</span>],
+        ['Discovery id', <span className="mono">{process.discoveryId}</span>],
         ['Classification', process.classification],
       ]} />
       <Note>The threshold is set by policy and reviewed with employee representatives; it is not a per-user preference.</Note>
@@ -124,7 +124,7 @@ function Discovered({ process, policy, navigate }: {
         </div>
       </Card>
 
-      <Card title="Steps" subtitle="Role and application as KYP.ai classified them. No person is shown." glyph="≡">
+      <Card title="Steps" subtitle="Role and application as discovery classified them. No person is shown." glyph="≡">
         <table className="ledger">
           <thead><tr><th>Step</th><th>Role</th><th>Application</th><th className="num">Time</th><th>Waste</th></tr></thead>
           <tbody>
@@ -144,8 +144,8 @@ function Discovered({ process, policy, navigate }: {
       <div className="grid two">
         <Card title="Provenance" subtitle="Every fact carries its source and window." glyph="⌁">
           <KV items={[
-            ['Source', 'KYP.ai task mining'],
-            ['KYP.ai id', <span className="mono">{process.kypId}</span>],
+            ['Source', 'ProcessLink discovery'],
+            ['Discovery id', <span className="mono">{process.discoveryId}</span>],
             ['KG node', <span className="mono">{process.kgId}</span>],
             ['Last sync', `${process.staleDays} days ago`],
             ['Group size', `${process.people} people · aggregate only`],

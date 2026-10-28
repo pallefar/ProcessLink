@@ -32,7 +32,7 @@ export default function Graph() {
 
   return (
     <>
-      <PageHead title="Knowledge Graph" subtitle="The shared semantic backbone. KYP.ai facts become nodes with provenance; ProcessLink proposes, a human confirms." />
+      <PageHead title="Knowledge Graph" subtitle="The shared semantic backbone. discovery facts become nodes with provenance; ProcessLink proposes, a human confirms." />
 
       <div className="grid metrics">
         <Metric label="Nodes" value={String(nodes.length)} detail={`${KINDS.length} of 29 proposed types in use`} />

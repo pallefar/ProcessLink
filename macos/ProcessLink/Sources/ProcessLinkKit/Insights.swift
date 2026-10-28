@@ -20,13 +20,13 @@ public struct ProcessInsight: Sendable, Hashable, Identifiable {
     public var variantCount: Int
     public var confidence: Double
     public var staleDays: Int
-    public var kypID: String
+    public var discoveryID: String
     public var kgID: String
 
     public init(id: String, name: String, site: String, valueStream: String, people: Int,
                 annualHours: Double, cycleMinutes: Double, reworkRate: Double, handoffs: Int,
                 adherence: Double, variantCount: Int, confidence: Double, staleDays: Int,
-                kypID: String, kgID: String) {
+                discoveryID: String, kgID: String) {
         self.id = id
         self.name = name
         self.site = site
@@ -40,7 +40,7 @@ public struct ProcessInsight: Sendable, Hashable, Identifiable {
         self.variantCount = variantCount
         self.confidence = confidence
         self.staleDays = staleDays
-        self.kypID = kypID
+        self.discoveryID = discoveryID
         self.kgID = kgID
     }
 }
@@ -257,8 +257,8 @@ public enum AskEngine {
         guard let first = ranked.first else {
             return AskAnswer(question: question, intent: .handoffs,
                 headline: "No handoff-driven rework found in the current window",
-                body: "The sandbox data has no step that both hands work off and carries rework. That is a finding, not a zero: confirm the KYP.ai capture window covers the process before reading it as good news.",
-                citations: [], toVerify: ["Confirm the KYP.ai capture window"], confidence: 0.6)
+                body: "The current data has no step that both hands work off and carries rework. That is a finding, not a zero: confirm the discovery capture window covers the process before reading it as good news.",
+                citations: [], toVerify: ["Confirm the discovery capture window"], confidence: 0.6)
         }
         let top = ranked.prefix(3)
         let process = processes.first { $0.id == first.processID }
@@ -266,7 +266,7 @@ public enum AskEngine {
             "\(index + 1). \(step.name) — \(step.processName), \(step.site). \(step.handoffs) handoff\(step.handoffs == 1 ? "" : "s"), \(Fmt.percent(step.reworkShare)) of its touches rework, on \(step.application)."
         }.joined(separator: "\n")
         let citations = top.flatMap { step in
-            [Citation(kind: .kyp, ref: step.id, label: step.name),
+            [Citation(kind: .discovery, ref: step.id, label: step.name),
              Citation(kind: .kgNode, ref: step.kgID, label: step.name)]
         }
         var verify = ["Handoff counts are mined events, not a judgement about the people who do them."]
@@ -371,7 +371,7 @@ public enum AskEngine {
             headline: "\(first.name) has the widest variant spread",
             body: body + "\n\nVariation is the standard-work signal: pick the variant with the lowest rework, document it, and retire the rest with the owners.",
             citations: ranked.prefix(3).map { Citation(kind: .kgNode, ref: $0.kgID, label: $0.name) },
-            toVerify: ["Variant labels are KYP.ai generated; confirm they mean what the team calls them."],
+            toVerify: ["Variant labels are discovery generated; confirm they mean what the team calls them."],
             confidence: 0.8)
     }
 
@@ -404,7 +404,7 @@ public enum AskEngine {
             headline: "\(ranked.first?.key ?? "No site") carries the largest discovered effort",
             body: body + "\n\nThis compares discovered effort, not performance. Site totals are aggregates of groups at or above the threshold; no site is ranked by output per person.",
             citations: ranked.prefix(3).map { Citation(kind: .computed, ref: $0.key, label: $0.key) },
-            toVerify: ["Site labels come from KYP.ai org data; confirm the mapping to Flightdeck sites."],
+            toVerify: ["Site labels come from discovery org data; confirm the mapping to Flightdeck sites."],
             confidence: 0.85)
     }
 
@@ -430,7 +430,7 @@ public enum AskEngine {
             headline: "\(best.title): about \(Fmt.hoursPerYear(best.annualHours)) of effort",
             body: body + "\n\nThis is an estimate, not a validated saving. It becomes a claim only after an owner commits it and before/after evidence validates it in the savings ledger.",
             citations: [Citation(kind: .kgNode, ref: best.kgID, label: best.title),
-                        Citation(kind: .kyp, ref: best.processID, label: best.processName)],
+                        Citation(kind: .discovery, ref: best.processID, label: best.processName)],
             toVerify: ["Estimated saving — needs an owner and before/after evidence",
                        "Confirm the effort estimate with the process owner"],
             confidence: best.confidence)
@@ -453,7 +453,7 @@ public enum AskEngine {
             (best.map { " The largest opportunity is \($0.title) at \(Fmt.hoursPerYear($0.annualHours)) (estimate)." } ?? "")
         return AskAnswer(question: question, intent: .fallback,
             headline: "I can answer that from the graph, but not this phrasing",
-            body: body + "\n\nTry asking about handoffs and rework, standard-work adherence, variants, a named process, or freshness. Every answer cites the KYP.ai object or KG node it used.",
+            body: body + "\n\nTry asking about handoffs and rework, standard-work adherence, variants, a named process, or freshness. Every answer cites the discovery object or KG node it used.",
             citations: best.map { [Citation(kind: .kgNode, ref: $0.kgID, label: $0.title)] } ?? [],
             toVerify: best == nil ? [] : ["Savings are estimates until validated"],
             confidence: 0.55)

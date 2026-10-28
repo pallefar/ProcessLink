@@ -20,7 +20,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         guard UserDefaults.standard.bool(forKey: "notifications.enabled") else { return }
         let content = UNMutableNotificationContent()
         content.title = "New discoveries in ProcessLink"
-        content.body = "\(newOpportunities) new opportunit\(newOpportunities == 1 ? "y" : "ies") from KYP.ai, ranked and ready for review."
+        content.body = "\(newOpportunities) new opportunit\(newOpportunities == 1 ? "y" : "ies") from in-house discovery, ranked and ready for review."
         content.sound = .default
         let request = UNNotificationRequest(identifier: UUID().uuidString,
                                             content: content, trigger: nil)

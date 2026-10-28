@@ -126,7 +126,7 @@ export const CLASSIFICATION_DETAIL: Record<Classification, string> = {
   public: 'Safe for any approved destination.',
   internal: 'Stays in the tenant or an approved AI gateway.',
   confidential: 'Needs named approval before it moves.',
-  restricted: 'Never leaves KYP.ai. Blocked by policy.',
+  restricted: 'Never leaves discovery. Blocked by policy.',
 }
 
 export function evaluate(input: {

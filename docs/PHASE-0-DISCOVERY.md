@@ -1,3 +1,8 @@
+> **Historical note (2026-10-28).** The KYP.ai requirement was withdrawn.
+> Discovery is now built in-house; this document is retained as the original
+> repository evidence and gap analysis, not as a current dependency. See
+> [`IN-HOUSE-DISCOVERY.md`](IN-HOUSE-DISCOVERY.md).
+
 # Phase 0 — Discovery, gap analysis, and open questions
 
 **Status:** complete for the repository, incomplete for the tenant. The KYP.ai,

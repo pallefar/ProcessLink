@@ -383,7 +383,7 @@ struct ImprovementsPage: View {
                     .keyboardShortcut(.cancelAction)
             }
 
-            Text("A saving becomes a claim only with a named validator and before/after evidence from KYP.ai. The estimate is not editable here.")
+            Text("A saving becomes a claim only with a named validator and before/after evidence from a validated measurement. The estimate is not editable here.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
