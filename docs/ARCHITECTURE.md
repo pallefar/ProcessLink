@@ -107,7 +107,22 @@ flowchart TB
 8. **Commit** — idempotent upsert into the local store, then propose KG nodes.
 9. **Audit** — one immutable event per step, counts only.
 
-### 3.2 In-house discovery
+### 3.2 Connections to OS, Vision and Atlas
+
+`flightdeck-client` is a read-only HTTP client over the Flightdeck OS API. UAT
+quick-login lists opaque accounts and exchanges one id for the normal
+`flightdeck_session` cookie; the cookie is kept in the macOS Keychain and sent
+with `X-Workspace-Id` / `X-Project-Id`. The same session reads
+`/api/project-vision` and, when the account is a Vision owner,
+`/api/vision/bootstrap`. Advantage is read from
+`/api/apps/advantage/process-kpis` and `/opportunities`. Atlas is a separate
+API: a loopback Atlas uses its local development cookie, while hosted Atlas
+needs its gateway token. Sync is explicit and idempotent, writes stable KG
+nodes for workspace, project, goals, roadmap, KPIs, opportunities and Atlas
+projects, and never writes back. Contract and verification:
+[`CONNECTIONS.md`](CONNECTIONS.md).
+
+### 3.3 In-house discovery
 
 `kyp-connector` is no longer the only source. `process-model` now has an
 in-house path: `EventLogImporter` (CSV → hashed cases, role resources, masked
@@ -120,7 +135,7 @@ switches — no titles, keys or screenshots — and turns a session into a
 process whose waste is context switching. KYP remains an optional source for
 enterprise breadth, not a hard dependency.
 
-### 3.3 Maps: the document is the contract
+### 3.4 Maps: the document is the contract
 
 ProcessLink does not own a private map format. It reads and writes
 `signavio-map/1` documents through the Flightdeck Maps API, adding two
@@ -132,7 +147,7 @@ read back by ProcessLink, compared with the mined step, and recorded as drift
 plus an audited proposal; they never overwrite discovery. The full contract is
 in [`MAPS-INTEGRATION.md`](MAPS-INTEGRATION.md).
 
-### 3.4 Meetings and graph write-through
+### 3.5 Meetings and graph write-through
 
 A meeting is a **page of typed blocks**, not a free-text note:
 
@@ -155,7 +170,7 @@ This is why there is no separate "notes database": the page, the decision, the
 action and the improvement work are the same graph, read at different
 granularity.
 
-### 3.5 Write paths that need a human
+### 3.6 Write paths that need a human
 
 | Write | Gate |
 |---|---|

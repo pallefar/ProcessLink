@@ -316,3 +316,43 @@ func miningResourcePrivacy() throws {
     #expect(result.events[0].resource.hasPrefix("role-"))
     #expect(!result.events[0].resource.contains("@"))
 }
+
+@Test(.enabled(if: ProcessInfo.processInfo.environment["FLIGHTDECK_UAT_URL"] != nil))
+func liveFlightdeckUAT() async throws {
+    let environment = ProcessInfo.processInfo.environment
+    let config = try FlightdeckConfig(
+        baseURL: URL(string: environment["FLIGHTDECK_UAT_URL"]!)!,
+        atlasURL: environment["FLIGHTDECK_ATLAS_URL"].flatMap(URL.init(string:)))
+    let client = FlightdeckClient(config: config)
+    let accounts = try await client.quickLoginAccounts()
+    #expect(!accounts.isEmpty)
+    let account = environment["FLIGHTDECK_UAT_ACCOUNT"] ?? "uat-admin"
+    let principal = try await client.quickLogin(accountID: account)
+    #expect(principal.username == account)
+    let workspaces = try await client.workspaces()
+    #expect(!workspaces.isEmpty)
+    let workspace = workspaces.first(where: { $0.id == "te-ops" }) ?? workspaces[0]
+    let projects = try await client.projects(workspaceID: workspace.id)
+    #expect(!projects.isEmpty)
+    let project = projects.first(where: { $0.id == "project-contract" }) ?? projects[0]
+    let vision = try await client.vision(workspaceID: workspace.id, projectID: project.id)
+    #expect(!vision.status.isEmpty)
+    let advantage = try await client.advantage(workspaceID: workspace.id, projectID: project.id)
+    #expect(!advantage.kpis.isEmpty)
+    if let email = environment["FLIGHTDECK_ATLAS_EMAIL"] {
+        let atlas = try await client.atlas(email: email)
+        #expect(!atlas.projects.isEmpty)
+    }
+}
+
+@Test("Flightdeck accepts loopback HTTP and refuses insecure remote HTTP")
+func flightdeckURLRules() throws {
+    _ = try FlightdeckConfig(baseURL: URL(string: "http://127.0.0.1:4173")!)
+    _ = try FlightdeckConfig(baseURL: URL(string: "https://flightdeck.example.test")!)
+    #expect(throws: FlightdeckError.self) {
+        _ = try FlightdeckConfig(baseURL: URL(string: "http://flightdeck.example.test")!)
+    }
+    #expect(throws: FlightdeckError.self) {
+        _ = try FlightdeckConfig(baseURL: URL(string: "https://user:secret@flightdeck.example.test")!)
+    }
+}

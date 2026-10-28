@@ -91,9 +91,7 @@ struct GraphCanvas: View {
         let top: CGFloat = 38
         let bottom = size.height - 38
         for (kinds, x) in columns {
-            let values = displayNodes
-                .filter { kinds.contains($0.kind) }
-                .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            let values = columnValues(kinds)
             guard !values.isEmpty else { continue }
             let spacing = values.count > 1 ? (bottom - top) / CGFloat(values.count - 1) : 0
             for (index, node) in values.enumerated() {
@@ -139,11 +137,11 @@ struct GraphCanvas: View {
                 .accessibilityHidden(true)
 
                 // Column headers: the value path is the point of the layout.
-                columnHeader("Process", x: 0.10, width: proxy.size.width)
-                columnHeader("Opportunity", x: 0.32, width: proxy.size.width)
-                columnHeader("Initiative", x: 0.54, width: proxy.size.width)
-                columnHeader("Meeting / decision", x: 0.72, width: proxy.size.width)
-                columnHeader("Objective", x: 0.92, width: proxy.size.width)
+                columnHeader("Process", x: 0.10, width: proxy.size.width, count: columnCount([.process]))
+                columnHeader("Opportunity", x: 0.32, width: proxy.size.width, count: columnCount([.opportunity]))
+                columnHeader("Initiative", x: 0.54, width: proxy.size.width, count: columnCount([.initiative]))
+                columnHeader("Meeting / decision", x: 0.72, width: proxy.size.width, count: columnCount([.meeting, .decision]))
+                columnHeader("Objective", x: 0.92, width: proxy.size.width, count: columnCount([.hoshinObjective]))
 
                 ForEach(shown) { node in
                     let point = points[node.id] ?? .zero
@@ -191,8 +189,23 @@ struct GraphCanvas: View {
         }
     }
 
-    private func columnHeader(_ text: String, x: CGFloat, width: CGFloat) -> some View {
-        Text(text.uppercased())
+    /// The overview is a working set, not every row: seven per column keeps
+    /// shapes readable, and the header carries the real count. Selecting a
+    /// hidden node (from the list or search) switches to the focus view.
+    private func columnValues(_ kinds: Set<KGKind>) -> [KGNodeRecord] {
+        displayNodes
+            .filter { kinds.contains($0.kind) }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            .prefix(7)
+            .map { $0 }
+    }
+
+    private func columnCount(_ kinds: Set<KGKind>) -> Int {
+        displayNodes.filter { kinds.contains($0.kind) }.count
+    }
+
+    private func columnHeader(_ text: String, x: CGFloat, width: CGFloat, count: Int) -> some View {
+        Text(count > 7 ? "\(text.uppercased()) · \(count)" : text.uppercased())
             .font(.system(size: 9, weight: .semibold))
             .tracking(0.6)
             .foregroundStyle(.tertiary)

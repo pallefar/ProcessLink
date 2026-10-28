@@ -90,7 +90,7 @@ struct ContentView: View {
                 }
             }
             Section("Trust") {
-                ForEach([SidebarItem.graph, .governance]) { item in
+                ForEach([SidebarItem.graph, .governance, .connections]) { item in
                     row(item)
                 }
             }
@@ -132,6 +132,7 @@ struct ContentView: View {
         case .improvements: ImprovementsPage()
         case .ask: AskPage()
         case .governance: GovernancePage()
+        case .connections: ConnectionsPage()
         }
     }
 }

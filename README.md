@@ -1,9 +1,10 @@
 # ProcessLink
 
 **The integration and value layer between KYP.ai discovery and TE Operating
-Advantage.** KYP.ai stays the system of record for captured work; ProcessLink
-turns its discoveries into prioritized, owned, evidence-backed TEOA work, live
-maps, knowledge-graph facts and DeckForge reports.
+Advantage.** KYP.ai remains an enterprise capture source; in-house process
+mining and task capture are the second source. ProcessLink turns either into
+prioritized, owned, evidence-backed TEOA work, live maps, knowledge-graph
+facts and DeckForge reports.
 
 ```
 KYP.ai  →  ProcessLink  →  KG · Maps · TEOA · DeckForge
@@ -14,7 +15,7 @@ KYP.ai  →  ProcessLink  →  KG · Maps · TEOA · DeckForge
 
 | Form | Where | Status |
 |---|---|---|
-| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 17 unit tests + 26 in-app checks, light/dark snapshots |
+| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 29 unit tests + 66 in-app checks, light/dark snapshots |
 | **Web** — React 19 + Vite, strict TS | [`web`](web) | Same shell, tokens and pages as the app; the Flightdeck sub-app replacement is in [`web/src/flightdeck`](web/src/flightdeck) |
 | **Windows** — Tauri 2 + WebView2 | [`windows/ProcessLink.Windows`](windows/ProcessLink.Windows) | Scaffolded with config and Rust entry; not built on a Windows host here |
 
@@ -55,9 +56,14 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
    candidates; or run an opt-in local task capture (frontmost app, minutes,
    switches — no titles, keys or screenshots). Mined results become the same
    process/KG/map/opportunity records.
-9. **Governance** — purpose limitation, group-size suppression, classification
-   refusal, PII masking and an audit log are enforced in code and visible in
-   the UI. The launch checklist blocks production.
+9. **Connections** — a real UAT API connection to Flightdeck OS, Vision and
+   Atlas. UAT quick-login accounts are listed without passwords; the session
+   cookie lives in the Keychain. Workspaces, projects, 14 KPIs, ranked
+   opportunities, Vision goals/roadmap and Atlas projects are read into the
+   graph — read-only, no writes back.
+10. **Governance** — purpose limitation, group-size suppression, classification
+    refusal, PII masking and an audit log are enforced in code and visible in
+    the UI. The launch checklist blocks production.
 
 ## Screenshots
 
@@ -73,9 +79,9 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 |---|---|
 | ![Mining](docs/shots/mining-light.png) | ![Task capture](docs/shots/mining-capture-light.png) |
 
-| Meetings | Knowledge graph |
+| Connections | Meetings |
 |---|---|
-| ![Meetings](docs/shots/meetings-light.png) | ![Graph](docs/shots/graph-light.png) |
+| ![Connections](docs/shots/connections-light.png) | ![Meetings](docs/shots/meetings-light.png) |
 
 | Governance | Ask the process |
 |---|---|
@@ -97,7 +103,7 @@ design parity contract is in [`docs/WEB-PARITY.md`](docs/WEB-PARITY.md).
 ```bash
 cd macos/ProcessLink
 ./build.sh --open          # release build, installs ~/Applications/ProcessLink.app
-tools/selftest.sh          # 26 checks, exit 0
+tools/selftest.sh          # 66 checks, exit 0
 tools/snap.sh              # light/dark PNGs of every page + Settings
 swift test --scratch-path ~/Library/Developer/ProcessLink/test-build
 ```
@@ -185,6 +191,7 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 | [`docs/MAPS-INTEGRATION.md`](docs/MAPS-INTEGRATION.md) | The two-way `signavio-map/1` contract, schema extension, host routes, drift rules |
 | [`docs/IN-HOUSE-DISCOVERY.md`](docs/IN-HOUSE-DISCOVERY.md) | What ProcessLink now does without KYP.ai, the privacy boundary, and what is still KYP's job |
 | [`docs/WEB-PARITY.md`](docs/WEB-PARITY.md) | How the web form matches the macOS shell, tokens, pages and where it deliberately differs |
+| [`docs/CONNECTIONS.md`](docs/CONNECTIONS.md) | Live UAT connection to OS, Vision and Atlas: sign-in, endpoints, graph mapping, security and limits |
 
 ## Releases
 

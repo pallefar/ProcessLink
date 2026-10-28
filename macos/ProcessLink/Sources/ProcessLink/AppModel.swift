@@ -7,7 +7,7 @@ import SwiftUI
 /// The sidebar sections. Snapshot mode walks every case, so a new section is
 /// covered by the checks automatically.
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case overview, discoveries, opportunities, maps, meetings, mining, graph, improvements, ask, governance
+    case overview, discoveries, opportunities, maps, meetings, mining, graph, improvements, ask, governance, connections
 
     var id: String { rawValue }
 
@@ -23,6 +23,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .improvements: "Improvements"
         case .ask: "Ask"
         case .governance: "Governance"
+        case .connections: "Connections"
         }
     }
 
@@ -38,6 +39,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .improvements: "flag.pattern.checkered"
         case .ask: "bubble.left.and.text.bubble.right"
         case .governance: "checkmark.shield"
+        case .connections: "link.badge.plus"
         }
     }
 
@@ -54,6 +56,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .improvements: "6"
         case .ask: "7"
         case .governance: "8"
+        case .connections: "l"
         }
     }
 }
@@ -124,6 +127,7 @@ struct Toast: Identifiable, Equatable {
 @Observable
 final class AppModel {
     let container: ModelContainer
+    let flightdeck = FlightdeckService()
 
     var page: SidebarItem? = .overview
     var selectedProcessID: String?

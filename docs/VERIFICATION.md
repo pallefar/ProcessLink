@@ -7,8 +7,8 @@ Run on macOS 27.0.1, Swift 6.4, Xcode 27.1, Node 22.23.3, 28 October 2026.
 | Check | Command | Result |
 |---|---|---|
 | Build (release) | `./build.sh` | `Build complete!`, 0 errors, 0 warnings, installed to `~/Applications/ProcessLink.app` |
-| Unit tests | `swift test --scratch-path ~/Library/Developer/ProcessLink/test-build` | **27 tests passed** (scoring, statutory guard, privacy, PII, ledger, conflicts, ask citations, formatting, graph algorithms, CSV import/mining/conformance) |
-| In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 64 checks** |
+| Unit tests | `swift test --scratch-path ~/Library/Developer/ProcessLink/test-build` | **29 tests passed** (scoring, statutory guard, privacy, PII, ledger, conflicts, ask citations, formatting, graph algorithms, CSV import/mining/conformance, connection URL rules) |
+| In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 66 checks** |
 | Grid lint | `tools/grid-lint.sh` | **PASS** |
 | Layout probes | `swift tools/check-layout.swift /tmp/ProcessLink-shots/*-layout.json` | **22 PASS**, 0 fail |
 | Snapshots | `tools/snap.sh` | 8 pages + 5 Settings tabs, light and dark, 2520×1640 page PNGs; reviewed |
@@ -24,7 +24,8 @@ meeting pages and blocks, meeting/decision graph nodes and edges, action
 promotion, decision answers citing a meeting, the Maps document contract
 (schema, bindings, drift, persistence, map KG node/edge), and in-house
 discovery (sample import, hashed cases, 24-case mining, three variants,
-process creation, capture aggregates and capture-to-process).
+process creation, capture aggregates and capture-to-process, plus the
+three-source connection state).
 
 ## Web app
 
@@ -47,6 +48,14 @@ Scaffolded only. `tauri.conf.json`, `Cargo.toml`, `lib.rs`, `main.rs` and the
 capability file are complete, but **no Windows build was run** (this machine
 is macOS). See `windows/ProcessLink.Windows/README.md` for the honest status
 and the build commands.
+
+## Live UAT verification (2026-10-28)
+
+`tools/uat-smoke.sh` and the opt-in `liveFlightdeckUAT` test were run against
+the local stack: UAT quick-login as `uat-admin`, workspace `te-ops`, project
+`project-contract`, 14 Advantage KPIs, 30 opportunities, Vision strategy and
+4 roadmap items, Atlas local super-admin with 2 projects. The macOS app synced
+44 Advantage, 4 Vision, 2 OS and 3 Atlas graph facts. See `CONNECTIONS.md`.
 
 ## Deliberately not verified
 

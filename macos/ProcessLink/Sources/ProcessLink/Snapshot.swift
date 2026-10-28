@@ -30,6 +30,12 @@ enum Snapshot {
                                         IOPMAssertionLevel(kIOPMAssertionLevelOn), "Snapshots" as CFString, &awake)
             try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
             try? await Task.sleep(for: .seconds(1.5))
+            // A live UAT run must connect before the first page is captured,
+            // otherwise the graph page would show only fixture facts.
+            if ProcessInfo.processInfo.environment["APP_UAT_LOGIN"] != nil {
+                model.page = .connections
+                try? await Task.sleep(for: .seconds(5))
+            }
             for mode in ["light", "dark"] {
                 NSApp.appearance = NSAppearance(named: mode == "light" ? .aqua : .darkAqua)
                 for page in SidebarItem.allCases where only?.contains(page.rawValue) ?? true {
@@ -39,7 +45,7 @@ enum Snapshot {
                     if page == .ask && model.answers.isEmpty {
                         model.ask("Where do handoffs create the most rework?")
                     }
-                    try? await Task.sleep(for: .seconds(0.8))
+                    try? await Task.sleep(for: .seconds(page == .connections ? 3.0 : 0.8))
                     await capture(to: "\(dir)/\(page.rawValue)-\(mode).png")
                 }
             }
@@ -84,6 +90,7 @@ enum Snapshot {
         // Activate and then YIELD: sleeping on the main thread would block the
         // activation itself and capture an inactive (or Stage Manager
         // thumbnail) window.
+        NSRunningApplication.current.activate(options: [.activateAllWindows])
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()

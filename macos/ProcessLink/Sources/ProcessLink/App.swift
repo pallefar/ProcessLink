@@ -56,6 +56,8 @@ struct ProcessLinkApp: App {
                     .keyboardShortcut("7", modifiers: .command)
                 Button("Governance") { model.page = .governance }
                     .keyboardShortcut("8", modifiers: .command)
+                Button("Connections") { model.page = .connections }
+                    .keyboardShortcut("l", modifiers: .command)
             }
 
             CommandMenu("Process") {
