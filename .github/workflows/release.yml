@@ -42,7 +42,7 @@ jobs:
   macos:
     name: macOS universal DMG
     needs: prepare
-    runs-on: macos-26
+    runs-on: macos-latest
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       BUILD_NUMBER: ${{ github.run_number }}
