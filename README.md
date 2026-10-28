@@ -63,7 +63,7 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
    mapped CSV import with attributes and cost, filters, weekly throughput,
    variants, a directly-follows process graph, a case explorer with timelines,
    token-replay and sequence conformance, root-cause comparisons, a what-if
-   simulator, capacity/queue simulation, a sound process tree with BPMN export,
+   simulator, capacity/queue simulation with saved capacity studies and staffing recommendations, a sound process tree with BPMN export,
    optimal alignment, a watchlist, benchmarks, an object lens for alternate
    case notions, a working-day capacity model, view-vs-baseline comparison,
    bulk folder import and CSV/JSON export. Maps can be mined directly: the map
@@ -234,12 +234,12 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 Tag a version and GitHub Actions builds both desktop installers:
 
 ```bash
-git tag v0.1.10 && git push origin v0.1.10
+git tag v0.1.11 && git push origin v0.1.11
 ```
 
 The release contains a universal macOS DMG (`arm64` + `x86_64`), a Windows
 NSIS setup (and an MSI from the Windows CI job), and `SHA256SUMS.txt`.
-[Download v0.1.10](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.10).
+[Download v0.1.11](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.11).
 Local packaging, signing and the current Actions billing note are in
 [`docs/RELEASING.md`](docs/RELEASING.md).
 

@@ -18,6 +18,11 @@ public struct RoleUtilization: Sendable, Identifiable, Hashable {
     public var role: String
     public var utilization: Double
     public var averageWaitMinutes: Double
+    public var demandMinutes: Double
+    public var availableMinutes: Double
+    /// Staffing needed to keep this role at or below 85% utilisation.
+    public var recommendedCapacity: Int
+    public var capacityGap: Int
 }
 
 public struct CapacityResult: Sendable {
@@ -108,7 +113,13 @@ public enum CapacitySimulation {
             return RoleUtilization(
                 role: role.role,
                 utilization: horizon <= 0 ? 0 : min(1, (busy[role.role] ?? 0) / (horizon * Double(role.capacity))),
-                averageWaitMinutes: values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count))
+                averageWaitMinutes: values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count),
+                demandMinutes: busy[role.role] ?? 0,
+                availableMinutes: horizon * Double(role.capacity),
+                recommendedCapacity: horizon <= 0 ? role.capacity
+                    : max(1, Int(ceil((busy[role.role] ?? 0) / (horizon * 0.85)))),
+                capacityGap: horizon <= 0 ? 0
+                    : max(1, Int(ceil((busy[role.role] ?? 0) / (horizon * 0.85)))) - role.capacity)
         }
         return CapacityResult(
             cases: count,
@@ -120,6 +131,7 @@ public enum CapacitySimulation {
                 "Service time starts from the observed average wait per activity; replace it with a measured touch time before a business case.",
                 "Cases follow the observed variant shares; the seed is fixed.",
                 "Each role is a FIFO queue with the capacity shown.",
+                "The staffing recommendation keeps each role at or below 85% utilisation over the simulated horizon; it is a starting point, not a roster.",
                 "Arrivals are spread across a \(Int(workingMinutes))-minute working day; weekends, shifts and breaks are not modelled.",
             ])
     }

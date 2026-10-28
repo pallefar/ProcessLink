@@ -1,5 +1,6 @@
 import AppKit
 import ProcessLinkKit
+import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -68,6 +69,9 @@ struct MiningWorkbench: View {
     @State private var showDriftReview = false
     @State private var driftOwner = "Process Owner"
     @State private var benchmarkDimension = ""
+    @Query(sort: \CapacityStudyRecord.createdAt, order: .reverse) private var capacityStudies: [CapacityStudyRecord]
+    @State private var studyName = ""
+    @State private var selectedStudy: CapacityStudyRecord?
     @State private var caseNotion = ""
 
     private var allEvents: [EventLogRecord] { model.events(for: dataset) }
@@ -1089,6 +1093,7 @@ struct MiningWorkbench: View {
             }
 
             capacityCard
+            capacityStudiesCard
         }
     }
 
@@ -1147,12 +1152,95 @@ struct MiningWorkbench: View {
                                        symbol: "person.2", tint: role.utilization > 0.9 ? .red : .green)
                         }
                     }
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(result.utilization) { role in
+                            let current = capacityRoles.first { $0.role == role.role }?.capacity ?? 0
+                            HStack(spacing: Space.sm) {
+                                Text(role.role).font(.caption).frame(width: 160, alignment: .leading)
+                                Text("current \(current) · \(Int(role.utilization * 100))% used").font(.caption2).foregroundStyle(.secondary)
+                                Spacer()
+                                Text("recommend \(role.recommendedCapacity)").font(.caption.monospacedDigit())
+                                Text(role.capacityGap > 0 ? "+\(role.capacityGap)" : "ok")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(role.capacityGap > 0 ? .orange : .green)
+                            }
+                            RowDivider()
+                        }
+                    }
+                    HStack(spacing: Space.sm) {
+                        TextField("Study name", text: $studyName)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 260)
+                        Button("Save study") {
+                            _ = model.saveCapacityStudy(
+                                name: studyName.isEmpty ? "Capacity study · \(dataset.name)" : studyName,
+                                dataset: dataset, roles: capacityRoles, result: result,
+                                arrivalsPerDay: arrivalPerDay, days: capacityDays,
+                                workingMinutes: capacityWorkingMinutes)
+                            studyName = ""
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button("Export study") { exportCapacityStudy(result) }
+                        Spacer()
+                    }
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(result.assumptions, id: \.self) { Text("• \($0)").font(.caption2).foregroundStyle(.secondary) }
                     }
                 }
             }
         }
+    }
+
+    private var capacityStudiesCard: some View {
+        let studies = capacityStudies.filter { $0.datasetID == dataset.id }
+        return Group {
+            if !studies.isEmpty {
+                Card("Capacity studies", subtitle: "Saved scenarios for this process.", symbol: "doc.text.magnifyingglass") {
+                    VStack(spacing: 0) {
+                        ForEach(studies.prefix(6)) { study in
+                            Button {
+                                selectedStudy = study
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(study.name).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+                                        Text("\(Fmt.day(study.createdAt)) · \(Int(study.arrivalsPerDay))/day · \(study.days) days")
+                                            .font(.caption2).foregroundStyle(.tertiary)
+                                    }
+                                    Spacer()
+                                    Text("median \(Fmt.minutes(study.medianCycleMinutes))")
+                                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, 4)
+                            RowDivider()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func exportCapacityStudy(_ result: CapacityResult) {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(dataset.name.replacingOccurrences(of: " ", with: "-"))-capacity.md"
+        panel.allowedContentTypes = [.plainText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var text = "# Capacity study — \(dataset.name)\n\n"
+        text += "Arrivals/day: \(Int(arrivalPerDay)) · Days: \(capacityDays) · Working minutes/day: \(Int(capacityWorkingMinutes))\n\n"
+        text += "## Result\n\nCases: \(result.cases) · Median cycle: \(Fmt.minutes(result.medianCycleMinutes)) · P90: \(Fmt.minutes(result.p90CycleMinutes)) · Average wait: \(Fmt.minutes(result.averageWaitMinutes))\n\n"
+        text += "| Role | Capacity | Utilisation | Average wait | Recommended | Gap |\n|---|---|---|---|---|---|\n"
+        for role in result.utilization {
+            let capacity = capacityRoles.first { $0.role == role.role }?.capacity ?? 0
+            text += "| \(role.role) | \(capacity) | \(Fmt.percent(role.utilization)) | \(Fmt.minutes(role.averageWaitMinutes)) | \(role.recommendedCapacity) | \(role.capacityGap) |\n"
+        }
+        text += "\n## Assumptions\n\n"
+        for line in result.assumptions { text += "- \(line)\n" }
+        text += "\nCapacity is a scenario, not a validated saving.\n"
+        try? text.write(to: url, atomically: true, encoding: .utf8)
+        model.showToast("Capacity study exported", detail: url.lastPathComponent, symbol: "square.and.arrow.up")
     }
 
     // MARK: Export
@@ -1317,5 +1405,37 @@ private struct MapActivityMappingSheet: View {
         }
         .padding(Space.lg)
         .frame(width: 640, height: 620)
+    }
+}
+
+
+private struct CapacityStudyDetail: View {
+    @Environment(\.dismiss) private var dismiss
+    let study: CapacityStudyRecord
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.md) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(study.name).font(.title3.weight(.semibold))
+                    Text("\(Fmt.day(study.createdAt)) · \(Int(study.arrivalsPerDay)) arrivals/day · \(study.days) days")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Close") { dismiss() }
+            }
+            HStack(spacing: Space.md) {
+                MetricTile(title: "Median cycle", value: Fmt.minutes(study.medianCycleMinutes),
+                           detail: "P90 \(Fmt.minutes(study.p90CycleMinutes))", symbol: "timer", tint: .teal)
+                MetricTile(title: "Average wait", value: Fmt.minutes(study.averageWaitMinutes),
+                           detail: "\(study.workingMinutesPerDay.formatted()) min/day", symbol: "hourglass", tint: .orange)
+            }
+            Text("This is a saved scenario. Re-run it in Simulate after changing capacity or demand; do not treat it as a validated saving.")
+                .font(.caption).foregroundStyle(.secondary)
+            Text(study.assumptionsJSON)
+                .font(.caption2).foregroundStyle(.tertiary).textSelection(.enabled)
+        }
+        .padding(Space.lg)
+        .frame(width: 520)
     }
 }

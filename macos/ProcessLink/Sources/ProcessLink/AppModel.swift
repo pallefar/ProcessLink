@@ -1299,6 +1299,41 @@ final class AppModel {
         _ = await flightdeck.importContractFlow(into: self, map: map)
     }
 
+    // MARK: Capacity studies
+
+    @discardableResult
+    func saveCapacityStudy(name: String, dataset: DatasetRecord, roles: [CapacityRole],
+                           result: CapacityResult, arrivalsPerDay: Double, days: Int,
+                           workingMinutes: Double) -> CapacityStudyRecord {
+        let roleRows = roles.map { ["role": $0.role, "capacity": $0.capacity, "serviceMinutes": $0.serviceMinutes] }
+        let recommendationRows = result.utilization.map { role in
+            ["role": role.role, "utilization": role.utilization,
+             "averageWaitMinutes": role.averageWaitMinutes,
+             "recommendedCapacity": role.recommendedCapacity,
+             "capacityGap": role.capacityGap]
+        }
+        func json(_ value: Any) -> String {
+            (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        }
+        let record = CapacityStudyRecord(
+            id: "study-\(UUID().uuidString.prefix(8))",
+            name: name.isEmpty ? "Capacity study · \(dataset.name)" : name,
+            datasetID: dataset.id, processID: dataset.processID, mapID: dataset.mapID,
+            arrivalsPerDay: arrivalsPerDay, days: days, workingMinutesPerDay: workingMinutes,
+            rolesJSON: json(roleRows), recommendationsJSON: json(recommendationRows),
+            assumptionsJSON: json(result.assumptions),
+            medianCycleMinutes: result.medianCycleMinutes,
+            p90CycleMinutes: result.p90CycleMinutes,
+            averageWaitMinutes: result.averageWaitMinutes)
+        context.insert(record)
+        audit(action: "capacity.study.saved", subject: record.name,
+              detail: "\(Int(arrivalsPerDay))/day, \(days) days, \(roles.count) roles, \(result.cases) cases.")
+        try? context.save()
+        showToast("Capacity study saved", detail: record.name, symbol: "person.3.sequence")
+        return record
+    }
+
     // MARK: Map drift
 
     @discardableResult

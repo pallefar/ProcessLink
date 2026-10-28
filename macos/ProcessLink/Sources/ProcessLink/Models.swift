@@ -1128,3 +1128,44 @@ final class ConnectorRecord {
                          applicationField: applicationField, costField: costField)
     }
 }
+
+/// A saved capacity study: the inputs, the result, and the staffing
+/// recommendation, linked to the process/map it belongs to.
+@Model
+final class CapacityStudyRecord {
+    var id: String = ""
+    var name: String = ""
+    var datasetID: String = ""
+    var processID: String = ""
+    var mapID: String = ""
+    var createdAt: Date = Date.now
+    var arrivalsPerDay: Double = 0
+    var days: Int = 0
+    var workingMinutesPerDay: Double = 0
+    var rolesJSON: String = "[]"
+    var recommendationsJSON: String = "[]"
+    var assumptionsJSON: String = "[]"
+    var medianCycleMinutes: Double = 0
+    var p90CycleMinutes: Double = 0
+    var averageWaitMinutes: Double = 0
+
+    init(id: String, name: String, datasetID: String, processID: String, mapID: String,
+         arrivalsPerDay: Double, days: Int, workingMinutesPerDay: Double,
+         rolesJSON: String, recommendationsJSON: String, assumptionsJSON: String,
+         medianCycleMinutes: Double, p90CycleMinutes: Double, averageWaitMinutes: Double) {
+        self.id = id
+        self.name = name
+        self.datasetID = datasetID
+        self.processID = processID
+        self.mapID = mapID
+        self.arrivalsPerDay = arrivalsPerDay
+        self.days = days
+        self.workingMinutesPerDay = workingMinutesPerDay
+        self.rolesJSON = rolesJSON
+        self.recommendationsJSON = recommendationsJSON
+        self.assumptionsJSON = assumptionsJSON
+        self.medianCycleMinutes = medianCycleMinutes
+        self.p90CycleMinutes = p90CycleMinutes
+        self.averageWaitMinutes = averageWaitMinutes
+    }
+}
