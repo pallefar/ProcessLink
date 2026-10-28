@@ -11,6 +11,12 @@ A GitHub Release carries both desktop installers:
 
 The workflow is [`.github/workflows/release.yml`](../.github/workflows/release.yml).
 
+The first release, [v0.1.0](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.0),
+was published with the macOS DMG and a locally cross-built Windows NSIS
+installer because GitHub Actions is currently locked on the account with a
+billing error. The workflow is ready to add the MSI and a CI-built NSIS
+installer once Actions is available.
+
 ## Publish a release
 
 ```bash
@@ -77,7 +83,25 @@ npm install --prefix windows/ProcessLink.Windows
 npm run build --prefix windows/ProcessLink.Windows
 ```
 
+### Cross-build the Windows NSIS installer from macOS
+
+The released Windows NSIS installer was built this way. It needs Rust,
+`cargo-xwin`, LLVM's `llvm-rc` and `makensis`:
+
+```bash
+brew install llvm makensis
+cargo install cargo-xwin --locked
+npm --prefix web run build
+windows/ProcessLink.Windows/tools/build-installer-macos.sh 0.1.0
+```
+
+The supported Windows path is still the `windows-latest` workflow, which also
+produces the MSI. The cross-built NSIS installer is unsigned and was not run
+on a Windows host in this environment; treat it as the fallback until the
+Actions job is available.
+
 Artifacts:
 
 - macOS: `macos/ProcessLink/dist/`
-- Windows: `windows/ProcessLink.Windows/src-tauri/target/release/bundle/{msi,nsis}/`
+- Windows (CI): `windows/ProcessLink.Windows/src-tauri/target/release/bundle/{msi,nsis}/`
+- Windows (cross-build): `windows/ProcessLink.Windows/dist/`

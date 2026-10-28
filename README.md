@@ -195,8 +195,10 @@ git tag v0.1.0 && git push origin v0.1.0
 ```
 
 The release contains a universal macOS DMG (`arm64` + `x86_64`), a Windows
-MSI and NSIS setup, and `SHA256SUMS.txt`. Local packaging and signing details
-are in [`docs/RELEASING.md`](docs/RELEASING.md).
+NSIS setup (and an MSI from the Windows CI job), and `SHA256SUMS.txt`.
+[Download v0.1.0](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.0).
+Local packaging, signing and the current Actions billing note are in
+[`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## Repository
 

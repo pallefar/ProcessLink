@@ -14,6 +14,7 @@ web/.vite/
 windows/ProcessLink.Windows/node_modules/
 windows/ProcessLink.Windows/src-tauri/target/
 windows/ProcessLink.Windows/src-tauri/gen/
+windows/ProcessLink.Windows/dist/
 
 # OS
 .DS_Store

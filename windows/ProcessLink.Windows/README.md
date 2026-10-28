@@ -69,3 +69,19 @@ npm run build --prefix windows/ProcessLink.Windows
 
 For `tauri dev`, run `npm --prefix web run dev` in one terminal and
 `npm run dev --prefix windows/ProcessLink.Windows` in another.
+
+
+## Cross-building the installer from macOS
+
+`tools/build-installer-macos.sh` uses `cargo-xwin`, LLVM `llvm-rc` and NSIS to
+produce a Windows x64 setup executable without a Windows host:
+
+```bash
+brew install llvm makensis
+cargo install cargo-xwin --locked
+npm --prefix ../../../web run build
+./tools/build-installer-macos.sh 0.1.0
+```
+
+This is a fallback for release assembly. The GitHub Actions Windows job is the
+supported path and also produces the MSI.
