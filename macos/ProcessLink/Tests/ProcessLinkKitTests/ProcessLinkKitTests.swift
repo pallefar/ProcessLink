@@ -356,3 +356,81 @@ func flightdeckURLRules() throws {
         _ = try FlightdeckConfig(baseURL: URL(string: "https://user:secret@flightdeck.example.test")!)
     }
 }
+
+@Test("Attributes, cost and case records survive import")
+func miningAttributesAndCases() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    #expect(result.attributeNames.contains("case_type"))
+    let first = result.events.first { $0.attributes["case_type"] != nil }
+    #expect(first?.attributes["case_type"] == "Standard" || first?.attributes["case_type"] == "Expedite")
+    #expect(first?.cost != nil)
+    let cases = ProcessMining.buildCases(result.events)
+    #expect(cases.count == 24)
+    #expect(cases.allSatisfy { !$0.sequence.isEmpty && $0.cycleMinutes >= 0 })
+}
+
+@Test("Filters keep whole cases and can select rework")
+func miningFilters() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let expedite = MiningFilter(attributes: ["case_type": "Expedite"])
+    let filtered = ProcessMining.filter(result.events, with: expedite)
+    #expect(!filtered.isEmpty)
+    #expect(filtered.count < result.events.count)
+    let cases = ProcessMining.buildCases(filtered)
+    #expect(cases.count == 8)
+    #expect(cases.allSatisfy { $0.attributes["case_type"] == "Expedite" })
+    let rework = MiningFilter(onlyRework: true)
+    #expect(ProcessMining.buildCases(ProcessMining.filter(result.events, with: rework)).allSatisfy { $0.reworkCount > 0 })
+}
+
+@Test("Periods, handovers and root causes are derived")
+func miningAdvanced() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let mined = ProcessMining.mine(result.events, name: "Order intake")
+    #expect(!mined.periods.isEmpty)
+    #expect(mined.periods.count <= 12)
+    #expect(!mined.handovers.isEmpty)
+    #expect(mined.caseRecords.count == 24)
+    let causes = ProcessMining.rootCauses(mined.caseRecords, outcome: .slow)
+    #expect(!causes.isEmpty)
+    #expect(causes.allSatisfy { $0.cases >= 2 })
+}
+
+@Test("What-if simulation removes waits and reports assumptions")
+func miningSimulation() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let mined = ProcessMining.mine(result.events, name: "Order intake")
+    let baseline = ProcessMining.simulate(mined.caseRecords, MiningSimulation())
+    #expect(abs(baseline.baselineMedianMinutes - baseline.projectedMedianMinutes) < 0.001)
+    let simulated = ProcessMining.simulate(mined.caseRecords, MiningSimulation(
+        automate: ["Validate pricing"], remove: ["Send confirmation"], reworkReduction: 1))
+    #expect(simulated.projectedMedianMinutes <= simulated.baselineMedianMinutes)
+    #expect(!simulated.assumptions.isEmpty)
+}
+
+@Test("Token replay adds a second conformance measure")
+func miningTokenReplay() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let reference = ["Receive order", "Check customer master", "Validate pricing",
+                     "Create sales order", "Send confirmation"]
+    let report = ProcessMining.conformance(events: result.events, reference: reference)
+    #expect(report.tokenFitness >= 0 && report.tokenFitness <= 1)
+    #expect(report.consumedTokens > 0)
+    #expect(report.deviatingCases > 0)
+}
+
+@Test("A custom header mapping imports the chosen columns")
+func miningCustomMapping() throws {
+    let csv = """
+    Case,When,Task,Role,Channel
+    A-1,2026-01-01 09:00,Start,Desk,Web
+    A-1,2026-01-01 09:05,Check,Desk,Web
+    B-1,2026-01-01 10:00,Start,Desk,Phone
+    """
+    let mapping = MiningColumnMap(caseID: "Case", activity: "Task",
+                                  timestamp: "When", resource: "Role")
+    let result = try EventLogImporter.importCSV(csv, mapping: mapping)
+    #expect(result.caseCount == 2)
+    #expect(result.events.count == 3)
+    #expect(result.events.first?.attributes["Channel"] == "Web")
+}

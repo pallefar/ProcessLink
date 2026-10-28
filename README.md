@@ -15,7 +15,7 @@ KYP.ai  →  ProcessLink  →  KG · Maps · TEOA · DeckForge
 
 | Form | Where | Status |
 |---|---|---|
-| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 29 unit tests + 66 in-app checks, light/dark snapshots |
+| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 35 unit tests + 69 in-app checks, light/dark snapshots |
 | **Web** — React 19 + Vite, strict TS | [`web`](web) | Same shell, tokens and pages as the app; the Flightdeck sub-app replacement is in [`web/src/flightdeck`](web/src/flightdeck) |
 | **Windows** — Tauri 2 + WebView2 | [`windows/ProcessLink.Windows`](windows/ProcessLink.Windows) | Scaffolded with config and Rust entry; not built on a Windows host here |
 
@@ -51,11 +51,13 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
    facts; an action can be promoted to an initiative through the same gate as
    an opportunity. Templates cover daily huddles, kaizen, A3 reviews,
    leadership reviews and workshops.
-8. **Mining** — in-house discovery without KYP.ai: import a CSV event log and
-   get variants, cycle time, wait, rework, handoffs, conformance and automation
-   candidates; or run an opt-in local task capture (frontmost app, minutes,
-   switches — no titles, keys or screenshots). Mined results become the same
-   process/KG/map/opportunity records.
+8. **Mining** — a full in-house process-mining workbench without KYP.ai:
+   mapped CSV import with attributes and cost, filters, weekly throughput,
+   variants, a directly-follows process graph, a case explorer with timelines,
+   token-replay and sequence conformance, root-cause comparisons, a what-if
+   simulator and CSV/JSON export. Or run an opt-in local task capture
+   (frontmost app, minutes, switches — no titles, keys or screenshots). Mined
+   results become the same process/KG/map/opportunity records.
 9. **Connections** — a real UAT API connection to Flightdeck OS, Vision and
    Atlas. UAT quick-login accounts are listed without passwords; the session
    cookie lives in the Keychain. Workspaces, projects, 14 KPIs, ranked
@@ -75,9 +77,17 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 |---|---|
 | ![Opportunities](docs/shots/opportunities-light.png) | ![Graph](docs/shots/graph-light.png) |
 
-| Mining | Task capture |
+| Mining workbench | Process graph |
 |---|---|
-| ![Mining](docs/shots/mining-light.png) | ![Task capture](docs/shots/mining-capture-light.png) |
+| ![Mining](docs/shots/mining-light.png) | ![Process graph](docs/shots/mining-process-light.png) |
+
+| Case explorer | What-if simulation |
+|---|---|
+| ![Cases](docs/shots/mining-cases-light.png) | ![Simulate](docs/shots/mining-simulate-light.png) |
+
+| Task capture | Conformance |
+|---|---|
+| ![Task capture](docs/shots/mining-capture-light.png) | ![Conformance](docs/shots/mining-conformance-light.png) |
 
 | Connections | Meetings |
 |---|---|
@@ -103,7 +113,7 @@ design parity contract is in [`docs/WEB-PARITY.md`](docs/WEB-PARITY.md).
 ```bash
 cd macos/ProcessLink
 ./build.sh --open          # release build, installs ~/Applications/ProcessLink.app
-tools/selftest.sh          # 66 checks, exit 0
+tools/selftest.sh          # 69 checks, exit 0
 tools/snap.sh              # light/dark PNGs of every page + Settings
 swift test --scratch-path ~/Library/Developer/ProcessLink/test-build
 ```

@@ -5,20 +5,27 @@ import Foundation
 
 /// One event in a process log. `caseID` is always a hash by the time it
 /// reaches here; `resource` is a role, never a person.
-public struct EventLogRecord: Sendable, Hashable {
+public struct EventLogRecord: Sendable {
     public var caseID: String
     public var activity: String
     public var timestamp: Date
     public var resource: String
     public var application: String
+    /// Additional dimensions kept for filtering and root-cause analysis.
+    /// Values are masked/sanitised at import time, exactly like activity.
+    public var attributes: [String: String]
+    public var cost: Double?
 
     public init(caseID: String, activity: String, timestamp: Date,
-                resource: String, application: String = "") {
+                resource: String, application: String = "",
+                attributes: [String: String] = [:], cost: Double? = nil) {
         self.caseID = caseID
         self.activity = activity
         self.timestamp = timestamp
         self.resource = resource
         self.application = application
+        self.attributes = attributes
+        self.cost = cost
     }
 }
 
@@ -28,15 +35,22 @@ public struct MiningColumnMap: Sendable, Hashable {
     public var timestamp: String
     public var resource: String
     public var application: String?
+    /// Extra columns to import as case/event attributes. Empty means "all
+    /// columns not used by the core mapping", which is the useful default.
+    public var attributes: [String]
+    public var cost: String?
 
     public init(caseID: String = "case_id", activity: String = "activity",
                 timestamp: String = "timestamp", resource: String = "resource",
-                application: String? = nil) {
+                application: String? = nil, attributes: [String] = [],
+                cost: String? = nil) {
         self.caseID = caseID
         self.activity = activity
         self.timestamp = timestamp
         self.resource = resource
         self.application = application
+        self.attributes = attributes
+        self.cost = cost
     }
 }
 
@@ -64,6 +78,7 @@ public struct EventLogImport: Sendable {
     public var firstTimestamp: Date?
     public var lastTimestamp: Date?
     public var detectedDelimiter: Character
+    public var attributeNames: [String]
 }
 
 /// A small, explainable CSV importer. It does not try to understand a
@@ -89,8 +104,9 @@ public enum EventLogImporter {
         let lines = text.split(whereSeparator: \.isNewline).map(String.init).filter { !$0.isEmpty }
         guard !lines.isEmpty else { throw MiningError.empty }
         let delimiter = explicit ?? detectDelimiter(lines[0])
-        let header = parseLine(lines[0], delimiter: delimiter)
-            .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+        let originalHeader = parseLine(lines[0], delimiter: delimiter)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        let header = originalHeader.map { $0.lowercased() }
         func index(_ name: String?) throws -> Int? {
             guard let name else { return nil }
             guard let index = header.firstIndex(of: name.lowercased()) else {
@@ -102,10 +118,20 @@ public enum EventLogImporter {
         let activityIndex = try index(mapping.activity)
         let timestampIndex = try index(mapping.timestamp)
         let resourceIndex = try index(mapping.resource)
-        let applicationIndex = try index(mapping.application)
+        let applicationIndex = try index(mapping.application) ?? header.firstIndex(of: "application")
+        let costIndex = try index(mapping.cost) ?? header.firstIndex(of: "cost")
         guard let caseIndex, let activityIndex, let timestampIndex, let resourceIndex else {
             throw MiningError.empty
         }
+        let core = Set([caseIndex, activityIndex, timestampIndex, resourceIndex,
+                        applicationIndex, costIndex].compactMap { $0 })
+        let requested = Set(mapping.attributes.map { $0.lowercased() })
+        let attributeColumns: [(Int, String)] = originalHeader.enumerated().compactMap { index, name in
+            guard !core.contains(index), !name.isEmpty else { return nil }
+            if !requested.isEmpty && !requested.contains(name.lowercased()) { return nil }
+            return (index, name)
+        }.prefix(16).map { $0 }
+        let attributeNames = attributeColumns.map(\.1)
 
         var events: [EventLogRecord] = []
         var skipped = 0
@@ -131,12 +157,21 @@ public enum EventLogImporter {
             let activity = PIIScanner.scan(rawActivity).maskedText
             let resource = sanitiseResource(rawResource)
             let application = sanitiseResource(cell(applicationIndex))
+            var attributes: [String: String] = [:]
+            for (index, name) in attributeColumns {
+                let raw = cell(index)
+                guard !raw.isEmpty else { continue }
+                attributes[name] = PIIScanner.scan(raw).maskedText
+            }
+            let rawCost = cell(costIndex).replacingOccurrences(of: ",", with: ".")
             events.append(EventLogRecord(
                 caseID: anonymizeCaseIDs ? hashed(rawCase) : rawCase,
                 activity: activity,
                 timestamp: timestamp,
                 resource: resource,
-                application: application))
+                application: application,
+                attributes: attributes,
+                cost: Double(rawCost)))
         }
         guard !events.isEmpty else { throw MiningError.noRows }
         events.sort { $0.timestamp < $1.timestamp }
@@ -145,11 +180,12 @@ public enum EventLogImporter {
                               skippedRows: skipped, caseCount: cases.count,
                               firstTimestamp: events.first?.timestamp,
                               lastTimestamp: events.last?.timestamp,
-                              detectedDelimiter: delimiter)
+                              detectedDelimiter: delimiter,
+                              attributeNames: attributeNames)
     }
 
     /// Header names the demo file uses, for the import preview.
-    public static let sampleHeader = "case_id,activity,timestamp,resource,application"
+    public static let sampleHeader = "case_id,activity,timestamp,resource,application,case_type,region,cost"
 
     /// 24 synthetic orders across three variants. No real tenant data.
     public static func sampleCSV() -> String {
@@ -163,8 +199,12 @@ public enum EventLogImporter {
             let caseID = String(format: "ORD-2026-%04d", index + 1)
             var time = base.addingTimeInterval(Double(index % 12) * 86_400 + Double(index) * 1_800)
             let variant = index % 3
+            let caseType = variant == 2 ? "Expedite" : "Standard"
+            let region = index % 2 == 0 ? "DE" : "PL"
+            let caseCost = variant == 2 ? 180.0 : 120.0
             func add(_ activity: String, _ minutes: Double, _ role: String, _ app: String) {
-                lines.append("\(caseID),\(activity),\(formatter.string(from: time)),\(role),\(app)")
+                let cost = caseCost / 5
+                lines.append("\(caseID),\(activity),\(formatter.string(from: time)),\(role),\(app),\(caseType),\(region),\(String(format: "%.2f", cost))")
                 time = time.addingTimeInterval(minutes * 60)
             }
             add("Receive order", 6, "Order Desk", "Outlook")
@@ -287,12 +327,20 @@ public struct MinedProcess: Sendable {
     public var variants: [MinedVariant]
     public var medianCycleMinutes: Double
     public var p90CycleMinutes: Double
+    public var meanCycleMinutes: Double
+    public var maxCycleMinutes: Double
     public var reworkRate: Double
     public var handoffRate: Double
     public var startActivities: [String]
     public var endActivities: [String]
     public var firstTimestamp: Date?
     public var lastTimestamp: Date?
+    public var periods: [MiningPeriod]
+    public var handovers: [MiningHandover]
+    public var caseRecords: [MinedCase]
+    public var totalCost: Double
+    public var costPerCase: Double
+    public var casesWithRework: Int
 
     public var topVariant: MinedVariant? { variants.first }
     public var bottleneck: MinedActivity? {
@@ -303,15 +351,326 @@ public struct MinedProcess: Sendable {
     }
 }
 
+// MARK: - Filters, cases and advanced mining
+
+public struct MiningFilter: Sendable, Equatable {
+    public var from: Date?
+    public var to: Date?
+    public var activities: Set<String> = []
+    public var resources: Set<String> = []
+    public var variants: Set<String> = []
+    public var attributes: [String: String] = [:]
+    public var onlyRework = false
+    public var minCycleMinutes: Double?
+    public var maxCycleMinutes: Double?
+
+    public init(from: Date? = nil, to: Date? = nil, activities: Set<String> = [],
+                resources: Set<String> = [], variants: Set<String> = [],
+                attributes: [String: String] = [:], onlyRework: Bool = false,
+                minCycleMinutes: Double? = nil, maxCycleMinutes: Double? = nil) {
+        self.from = from
+        self.to = to
+        self.activities = activities
+        self.resources = resources
+        self.variants = variants
+        self.attributes = attributes
+        self.onlyRework = onlyRework
+        self.minCycleMinutes = minCycleMinutes
+        self.maxCycleMinutes = maxCycleMinutes
+    }
+
+    public var isActive: Bool {
+        from != nil || to != nil || !activities.isEmpty || !resources.isEmpty
+            || !variants.isEmpty || !attributes.isEmpty || onlyRework
+            || minCycleMinutes != nil || maxCycleMinutes != nil
+    }
+}
+
+public struct MinedCase: Sendable, Identifiable {
+    public var id: String { caseID }
+    public var caseID: String
+    public var events: [EventLogRecord]
+    public var sequence: [String]
+    public var start: Date
+    public var end: Date
+    public var cycleMinutes: Double
+    public var waitingMinutes: Double
+    public var reworkCount: Int
+    public var handoffs: Int
+    public var resources: [String]
+    public var attributes: [String: String]
+    public var cost: Double
+    public var variant: String { sequence.joined(separator: " → ") }
+}
+
+public struct MiningPeriod: Sendable, Identifiable, Hashable {
+    public var id: String { label }
+    public var label: String
+    public var start: Date
+    public var cases: Int
+    public var medianCycleMinutes: Double
+    public var reworkRate: Double
+}
+
+public struct MiningHandover: Sendable, Identifiable, Hashable {
+    public var id: String { "\(from)→\(to)" }
+    public var from: String
+    public var to: String
+    public var count: Int
+    public var averageWaitMinutes: Double
+}
+
+public enum MiningOutcome: String, Sendable, CaseIterable, Identifiable {
+    case rework
+    case slow
+
+    public var id: String { rawValue }
+    public var label: String { self == .rework ? "Rework" : "Slow cases" }
+}
+
+public struct MiningRootCause: Sendable, Identifiable, Hashable {
+    public var id: String { "\(dimension)=\(value)" }
+    public var dimension: String
+    public var value: String
+    public var cases: Int
+    public var averageCycleMinutes: Double
+    public var reworkRate: Double
+    public var impact: Double
+    public var impactLabel: String
+}
+
+public struct MiningSimulation: Sendable, Equatable {
+    public var automate: Set<String> = []
+    public var remove: Set<String> = []
+    public var reworkReduction: Double = 0
+    public var waitReduction: Double = 0
+    public init(automate: Set<String> = [], remove: Set<String> = [],
+                reworkReduction: Double = 0, waitReduction: Double = 0) {
+        self.automate = automate
+        self.remove = remove
+        self.reworkReduction = reworkReduction
+        self.waitReduction = waitReduction
+    }
+}
+
+public struct MiningSimulationResult: Sendable {
+    public var baselineMedianMinutes: Double
+    public var projectedMedianMinutes: Double
+    public var savedMedianMinutes: Double
+    public var savedHoursPer1000: Double
+    public var casesAffected: Int
+    public var assumptions: [String]
+}
+
 public struct ConformanceReport: Sendable, Hashable {
     public var fitness: Double
     public var exactCases: Int
     public var totalCases: Int
     public var missingActivities: [String]
     public var extraActivities: [String]
+    public var tokenFitness: Double = 0
+    public var missingTokens: Int = 0
+    public var remainingTokens: Int = 0
+    public var consumedTokens: Int = 0
+    public var producedTokens: Int = 0
+    public var deviatingCases: Int = 0
 }
 
 public enum ProcessMining {
+    public static func buildCases(_ events: [EventLogRecord]) -> [MinedCase] {
+        Dictionary(grouping: events, by: \.caseID).compactMap { caseID, caseEvents -> MinedCase? in
+            let ordered = caseEvents.sorted { $0.timestamp < $1.timestamp }
+            guard let first = ordered.first, let last = ordered.last else { return nil }
+            let sequence = ordered.map(\.activity)
+            var waiting = 0.0
+            var handoffs = 0
+            var previous: EventLogRecord?
+            for event in ordered {
+                if let previous { waiting += max(0, event.timestamp.timeIntervalSince(previous.timestamp) / 60) }
+                if let previous, previous.resource != event.resource { handoffs += 1 }
+                previous = event
+            }
+            var attributes: [String: String] = [:]
+            for event in ordered {
+                for (key, value) in event.attributes where attributes[key] == nil { attributes[key] = value }
+            }
+            return MinedCase(
+                caseID: caseID, events: ordered, sequence: sequence,
+                start: first.timestamp, end: last.timestamp,
+                cycleMinutes: max(0, last.timestamp.timeIntervalSince(first.timestamp) / 60),
+                waitingMinutes: waiting,
+                reworkCount: sequence.count - Set(sequence).count,
+                handoffs: handoffs,
+                resources: Array(Set(ordered.map(\.resource))).sorted(),
+                attributes: attributes,
+                cost: ordered.compactMap(\.cost).reduce(0, +))
+        }.sorted { $0.start < $1.start }
+    }
+
+    /// Event-level filters first, then case-level filters (variant, cycle,
+    /// rework). Filtering at the case level keeps a case's timeline intact.
+    public static func filter(_ events: [EventLogRecord], with filter: MiningFilter) -> [EventLogRecord] {
+        guard filter.isActive else { return events }
+        var scoped = events.filter { event in
+            if let from = filter.from, event.timestamp < from { return false }
+            if let to = filter.to, event.timestamp > to { return false }
+            if !filter.activities.isEmpty && !filter.activities.contains(event.activity) { return false }
+            if !filter.resources.isEmpty && !filter.resources.contains(event.resource) { return false }
+            for (key, value) in filter.attributes where event.attributes[key] != value { return false }
+            return true
+        }
+        let records = buildCases(scoped)
+        let allowed = records.filter { record in
+            if !filter.variants.isEmpty && !filter.variants.contains(record.variant) { return false }
+            if filter.onlyRework && record.reworkCount == 0 { return false }
+            if let min = filter.minCycleMinutes, record.cycleMinutes < min { return false }
+            if let max = filter.maxCycleMinutes, record.cycleMinutes > max { return false }
+            return true
+        }.map(\.caseID)
+        let allowedSet = Set(allowed)
+        scoped = scoped.filter { allowedSet.contains($0.caseID) }
+        return scoped.sorted { $0.timestamp < $1.timestamp }
+    }
+
+    public static func periods(_ cases: [MinedCase]) -> [MiningPeriod] {
+        let calendar = Calendar(identifier: .iso8601)
+        var grouped: [String: (Date, [MinedCase])] = [:]
+        for record in cases {
+            let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: record.start)
+            guard let year = components.yearForWeekOfYear, let week = components.weekOfYear else { continue }
+            let key = String(format: "%04d-W%02d", year, week)
+            let weekStart = calendar.date(from: components) ?? record.start
+            var entry = grouped[key] ?? (weekStart, [])
+            entry.1.append(record)
+            grouped[key] = entry
+        }
+        return grouped.map { key, value in
+            let cycles = value.1.map(\.cycleMinutes).sorted()
+            let rework = value.1.reduce(0) { $0 + $1.reworkCount }
+            let events = value.1.reduce(0) { $0 + $1.events.count }
+            return MiningPeriod(label: key, start: value.0, cases: value.1.count,
+                                medianCycleMinutes: percentile(cycles, 0.5),
+                                reworkRate: events == 0 ? 0 : Double(rework) / Double(events))
+        }.sorted { $0.start < $1.start }.suffix(12).map { $0 }
+    }
+
+    public static func handovers(_ events: [EventLogRecord]) -> [MiningHandover] {
+        var counts: [String: Int] = [:]
+        var waits: [String: [Double]] = [:]
+        for (_, caseEvents) in Dictionary(grouping: events, by: \.caseID) {
+            let ordered = caseEvents.sorted { $0.timestamp < $1.timestamp }
+            for (previous, next) in zip(ordered, ordered.dropFirst()) where previous.resource != next.resource {
+                let key = "\(previous.resource)→\(next.resource)"
+                counts[key, default: 0] += 1
+                waits[key, default: []].append(max(0, next.timestamp.timeIntervalSince(previous.timestamp) / 60))
+            }
+        }
+        return counts.map { key, count in
+            let parts = key.components(separatedBy: "→")
+            let values = waits[key] ?? []
+            return MiningHandover(from: parts.first ?? "", to: parts.last ?? "", count: count,
+                                  averageWaitMinutes: values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count))
+        }.sorted { $0.count > $1.count }
+    }
+
+    /// Compare cases that had rework / ran slow against the whole population,
+    /// one attribute value at a time. The impact is an hours estimate, not a
+    /// causal claim.
+    public static func rootCauses(_ cases: [MinedCase], outcome: MiningOutcome) -> [MiningRootCause] {
+        guard !cases.isEmpty else { return [] }
+        let overallCycle = cases.map(\.cycleMinutes).reduce(0, +) / Double(cases.count)
+        let overallRework = Double(cases.filter { $0.reworkCount > 0 }.count) / Double(cases.count)
+        var dimensions: [String: [String: [MinedCase]]] = [:]
+        for record in cases {
+            for (key, value) in record.attributes where !value.isEmpty {
+                dimensions[key, default: [:]][value, default: []].append(record)
+            }
+        }
+        var results: [MiningRootCause] = []
+        for (dimension, values) in dimensions {
+            for (value, group) in values where group.count >= max(2, cases.count / 12) {
+                let cycle = group.map(\.cycleMinutes).reduce(0, +) / Double(group.count)
+                let rework = Double(group.filter { $0.reworkCount > 0 }.count) / Double(group.count)
+                let impact: Double
+                let label: String
+                switch outcome {
+                case .slow:
+                    impact = (cycle - overallCycle) * Double(group.count) / 60
+                    let delta = cycle - overallCycle
+                    label = "\(abs(delta).formatted(.number.precision(.fractionLength(0)))) min \(delta >= 0 ? "slower" : "faster") · \(group.count) cases"
+                case .rework:
+                    impact = (rework - overallRework) * Double(group.count)
+                    label = "\(Int((rework * 100).rounded()))% rework · \(group.count) cases"
+                }
+                results.append(MiningRootCause(
+                    dimension: dimension, value: value, cases: group.count,
+                    averageCycleMinutes: cycle, reworkRate: rework, impact: impact, impactLabel: label))
+            }
+        }
+        return results.sorted { abs($0.impact) > abs($1.impact) }.prefix(12).map { $0 }
+    }
+
+    /// What-if arithmetic on the observed case timelines. It models the wait
+    /// before each event, so a removed step removes that wait, an automated
+    /// step keeps 20% of it, and rework reduction removes a share of repeat
+    /// waits. It is an estimate with stated assumptions, not a simulator.
+    public static func simulate(_ cases: [MinedCase], _ input: MiningSimulation) -> MiningSimulationResult {
+        guard !cases.isEmpty else {
+            return MiningSimulationResult(baselineMedianMinutes: 0, projectedMedianMinutes: 0,
+                                          savedMedianMinutes: 0, savedHoursPer1000: 0,
+                                          casesAffected: 0, assumptions: [])
+        }
+        var baseline: [Double] = []
+        var projected: [Double] = []
+        var affected = 0
+        for record in cases {
+            var seen: Set<String> = []
+            var saved = 0.0
+            var previous: EventLogRecord?
+            var touched = false
+            for event in record.events {
+                if let previous {
+                    let wait = max(0, event.timestamp.timeIntervalSince(previous.timestamp) / 60)
+                    if input.remove.contains(event.activity) {
+                        saved += wait
+                        touched = true
+                    } else if input.automate.contains(event.activity) {
+                        saved += wait * 0.8
+                        touched = true
+                    }
+                    if seen.contains(event.activity), input.reworkReduction > 0 {
+                        saved += wait * min(1, max(0, input.reworkReduction))
+                        touched = true
+                    }
+                }
+                seen.insert(event.activity)
+                previous = event
+            }
+            let afterRework = max(0, record.cycleMinutes - saved)
+            let remainingWait = max(0, record.waitingMinutes - saved)
+            let waitReduction = remainingWait * min(1, max(0, input.waitReduction))
+            baseline.append(record.cycleMinutes)
+            projected.append(max(0, afterRework - waitReduction))
+            if touched || input.waitReduction > 0 { affected += 1 }
+        }
+        baseline.sort()
+        projected.sort()
+        let baselineMedian = percentile(baseline, 0.5)
+        let projectedMedian = percentile(projected, 0.5)
+        let saved = max(0, baselineMedian - projectedMedian)
+        return MiningSimulationResult(
+            baselineMedianMinutes: baselineMedian,
+            projectedMedianMinutes: projectedMedian,
+            savedMedianMinutes: saved,
+            savedHoursPer1000: saved * 1000 / 60,
+            casesAffected: affected,
+            assumptions: [
+                "Each removed activity removes the wait before it.",
+                "An automated activity keeps 20% of its wait.",
+                "Rework reduction removes that share of repeat-step waits.",
+                "Median cycle across \(cases.count) observed cases; not a financial promise.",
+            ])
+    }
     public static func mine(_ events: [EventLogRecord], name: String) -> MinedProcess {
         let grouped = Dictionary(grouping: events, by: \.caseID)
         var sequences: [[String]] = []
@@ -414,17 +773,27 @@ public enum ProcessMining {
         }.sorted { $0.cases > $1.cases }
 
         cycles.sort()
+        let records = buildCases(events)
+        let totalCost = records.reduce(0) { $0 + $1.cost }
         return MinedProcess(
             name: name, events: events.count, cases: caseCount,
             activities: activities, edges: edges, variants: variants,
             medianCycleMinutes: percentile(cycles, 0.5),
             p90CycleMinutes: percentile(cycles, 0.9),
+            meanCycleMinutes: cycles.isEmpty ? 0 : cycles.reduce(0, +) / Double(cycles.count),
+            maxCycleMinutes: cycles.last ?? 0,
             reworkRate: totalEvents == 0 ? 0 : Double(repeated) / Double(totalEvents),
             handoffRate: totalEvents == 0 ? 0 : Double(handoffs) / Double(max(1, totalEvents - caseCount)),
             startActivities: starts.sorted { $0.value > $1.value }.map(\.key),
             endActivities: ends.sorted { $0.value > $1.value }.map(\.key),
             firstTimestamp: events.map(\.timestamp).min(),
-            lastTimestamp: events.map(\.timestamp).max())
+            lastTimestamp: events.map(\.timestamp).max(),
+            periods: periods(records),
+            handovers: handovers(events),
+            caseRecords: records,
+            totalCost: totalCost,
+            costPerCase: records.isEmpty ? 0 : totalCost / Double(records.count),
+            casesWithRework: records.filter { $0.reworkCount > 0 }.count)
     }
 
     /// Reference-sequence conformance: exact-match share plus average LCS
@@ -439,18 +808,47 @@ public enum ProcessMining {
         var fitnessTotal = 0.0
         var missing: Set<String> = []
         var extra: Set<String> = []
+        var missingTokens = 0
+        var remainingTokens = 0
+        var consumedTokens = 0
+        var producedTokens = 0
+        var deviatingCases = 0
         for (_, caseEvents) in grouped {
             let sequence = caseEvents.sorted { $0.timestamp < $1.timestamp }.map(\.activity)
-            if sequence == reference { exact += 1 }
+            if sequence == reference { exact += 1 } else { deviatingCases += 1 }
             let lcs = longestCommonSubsequence(sequence, reference).count
             fitnessTotal += Double(lcs) / Double(reference.count)
             missing.formUnion(reference.filter { !sequence.contains($0) })
             extra.formUnion(sequence.filter { !reference.contains($0) })
+
+            // Place-based token replay against the reference sequence. A
+            // missing step consumes nothing; leftover tokens at the end are
+            // reported separately, so the UI can explain the number.
+            var next = 0
+            for activity in sequence {
+                if next < reference.count, activity == reference[next] {
+                    consumedTokens += 1
+                    producedTokens += 1
+                    next += 1
+                } else if next < reference.count, reference[next...].contains(activity) {
+                    missingTokens += 1
+                    while next < reference.count, reference[next] != activity { next += 1 }
+                    next += 1
+                } else {
+                    consumedTokens += 1
+                }
+            }
+            remainingTokens += max(0, reference.count - next)
         }
+        let tokenDenominator = max(1, consumedTokens + producedTokens + missingTokens + remainingTokens)
+        let tokenFitness = max(0, min(1, 1 - Double(missingTokens + remainingTokens) / Double(tokenDenominator)))
         return ConformanceReport(
             fitness: min(1, fitnessTotal / Double(grouped.count)),
             exactCases: exact, totalCases: grouped.count,
-            missingActivities: missing.sorted(), extraActivities: extra.sorted())
+            missingActivities: missing.sorted(), extraActivities: extra.sorted(),
+            tokenFitness: tokenFitness, missingTokens: missingTokens,
+            remainingTokens: remainingTokens, consumedTokens: consumedTokens,
+            producedTokens: producedTokens, deviatingCases: deviatingCases)
     }
 
     private static func automationScore(events: Int, cases: Int, averageWait: Double,

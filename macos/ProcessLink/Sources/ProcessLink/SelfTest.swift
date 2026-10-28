@@ -286,6 +286,14 @@ enum SelfTest {
                 check("case ids are hashed on import",
                       !fetch(EventItemRecord.self).contains { $0.caseHash.contains("ORD-2026") })
                 let mined = model.minedProcess(for: dataset)
+                check("imported attributes survive storage",
+                      model.events(for: dataset).contains { $0.attributes["case_type"] != nil })
+                check("mining exposes case records and periods",
+                      mined.caseRecords.count == 24 && !mined.periods.isEmpty)
+                let whatIf = ProcessMining.simulate(mined.caseRecords,
+                                                    MiningSimulation(remove: ["Send confirmation"]))
+                check("the what-if projection is bounded by the baseline",
+                      whatIf.projectedMedianMinutes <= whatIf.baselineMedianMinutes)
                 check("mining finds 24 cases", mined.cases == 24, "found \(mined.cases)")
                 check("mining finds three variants", mined.variants.count == 3, "found \(mined.variants.count)")
                 let discovered = model.createProcess(from: dataset)

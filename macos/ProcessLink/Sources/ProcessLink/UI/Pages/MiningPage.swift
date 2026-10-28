@@ -25,6 +25,7 @@ struct MiningPage: View {
     @State private var selectedDatasetID: String?
     @State private var importing = false
     @State private var importError: String?
+    @State private var pendingCSV: PendingCSV?
     @State private var referenceProcessID: String?
     @State private var capture = ActivityCapture.shared
     @State private var captureRole = "Order Desk"
@@ -71,6 +72,9 @@ struct MiningPage: View {
                 mode = .capture
             }
             if selectedDatasetID == nil { selectedDatasetID = datasets.first?.id }
+        }
+        .sheet(item: $pendingCSV) { file in
+            MiningImportSheet(file: file)
         }
         .alert("Import failed", isPresented: Binding(
             get: { importError != nil },
@@ -206,31 +210,8 @@ struct MiningPage: View {
 
     @ViewBuilder
     private var datasetDetail: some View {
-        if let dataset = selectedDataset, let mined {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Space.xl) {
-                    datasetHeader(dataset, mined: mined)
-                    metrics(mined)
-                    HStack(alignment: .top, spacing: Space.lg) {
-                        variantsCard(mined)
-                        bottlenecksCard(mined)
-                    }
-                    conformanceCard(dataset)
-                    HStack(spacing: Space.md) {
-                        Button {
-                            model.createProcess(from: dataset)
-                        } label: {
-                            Label("Create discovered process", systemImage: "arrow.triangle.branch")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        Text("The same records KYP.ai produces: process, steps, variants, KG bindings and one opportunity.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .padding(Space.margin)
-                .frame(maxWidth: 900, alignment: .leading)
-            }
+        if let dataset = selectedDataset {
+            MiningWorkbench(dataset: dataset, processes: processes, steps: steps)
         } else {
             ContentUnavailableView("Select a dataset", systemImage: "tablecells")
         }
@@ -572,15 +553,139 @@ struct MiningPage: View {
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             do {
                 let text = try String(contentsOf: url, encoding: .utf8)
-                _ = try model.importCSV(text: text,
-                                        name: url.deletingPathExtension().lastPathComponent,
-                                        filename: url.lastPathComponent,
-                                        site: "")
+                pendingCSV = PendingCSV(
+                    name: url.deletingPathExtension().lastPathComponent,
+                    filename: url.lastPathComponent,
+                    text: text)
             } catch {
                 importError = error.localizedDescription
                 model.showToast("Import failed", detail: error.localizedDescription,
                                 symbol: "exclamationmark.triangle", warning: true)
             }
         }
+    }
+}
+
+
+struct PendingCSV: Identifiable {
+    let id = UUID()
+    var name: String
+    var filename: String
+    var text: String
+}
+
+private struct MiningImportSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    var file: PendingCSV
+
+    @State private var name: String
+    @State private var site = ""
+    @State private var caseColumn: String
+    @State private var activityColumn: String
+    @State private var timestampColumn: String
+    @State private var resourceColumn: String
+    @State private var applicationColumn: String
+    @State private var error: String?
+
+    private let headers: [String]
+    private let preview: [String]
+
+    init(file: PendingCSV) {
+        self.file = file
+        let headers = EventLogImporter.headers(in: file.text)
+        self.headers = headers
+        self.preview = file.text.split(whereSeparator: \.isNewline).prefix(4).map(String.init)
+        func find(_ names: [String], fallback: String) -> String {
+            for name in names {
+                if let match = headers.first(where: { $0.lowercased() == name }) { return match }
+            }
+            return headers.first(where: { $0.lowercased().contains(names[0]) }) ?? fallback
+        }
+        _name = State(initialValue: file.name)
+        _caseColumn = State(initialValue: find(["case_id", "case", "caseid"], fallback: headers.first ?? ""))
+        _activityColumn = State(initialValue: find(["activity", "task", "step"], fallback: headers.dropFirst().first ?? ""))
+        _timestampColumn = State(initialValue: find(["timestamp", "time", "datetime"], fallback: headers.dropFirst(2).first ?? ""))
+        _resourceColumn = State(initialValue: find(["resource", "role", "user"], fallback: headers.dropFirst(3).first ?? ""))
+        _applicationColumn = State(initialValue: find(["application", "app", "system"], fallback: ""))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.lg) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Map the event log").font(.title3.weight(.semibold))
+                    Text("\(headers.count) columns · \(file.filename)").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Cancel") { dismiss() }
+            }
+
+            Grid(alignment: .leading, horizontalSpacing: Space.md, verticalSpacing: Space.sm) {
+                row("Name", TextField("Dataset name", text: $name).textFieldStyle(.roundedBorder))
+                row("Site", TextField("Optional site", text: $site).textFieldStyle(.roundedBorder))
+                row("Case id", picker($caseColumn))
+                row("Activity", picker($activityColumn))
+                row("Timestamp", picker($timestampColumn))
+                row("Resource", picker($resourceColumn))
+                row("Application", picker($applicationColumn, optional: true))
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Preview").font(.caption).foregroundStyle(.secondary)
+                ScrollView(.horizontal) {
+                    Text(preview.joined(separator: "\n"))
+                        .font(.system(size: 10, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(Space.sm)
+                }
+                .frame(height: 72)
+                .background(Color(nsColor: .textBackgroundColor),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
+            GuardrailNote(text: "Case ids are hashed, role values are sanitised, activity and attribute text is PII-masked. Extra columns become filterable dimensions; a cost column is parsed as a number.")
+
+            if let error {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
+
+            HStack {
+                Spacer()
+                Button("Import \(file.name)") {
+                    let mapping = MiningColumnMap(
+                        caseID: caseColumn, activity: activityColumn,
+                        timestamp: timestampColumn, resource: resourceColumn,
+                        application: applicationColumn.isEmpty ? nil : applicationColumn)
+                    do {
+                        _ = try model.importCSV(text: file.text, name: name, filename: file.filename,
+                                                site: site, mapping: mapping)
+                        dismiss()
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(name.isEmpty || caseColumn.isEmpty || activityColumn.isEmpty
+                          || timestampColumn.isEmpty || resourceColumn.isEmpty)
+            }
+        }
+        .padding(Space.lg)
+        .frame(width: 680, height: 560)
+    }
+
+    private func row<Content: View>(_ label: String, _ content: Content) -> some View {
+        GridRow {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            content
+        }
+    }
+
+    private func picker(_ selection: Binding<String>, optional: Bool = false) -> some View {
+        Picker("", selection: selection) {
+            if optional { Text("None").tag("") }
+            ForEach(headers, id: \.self) { header in Text(header).tag(header) }
+        }
+        .labelsHidden()
     }
 }

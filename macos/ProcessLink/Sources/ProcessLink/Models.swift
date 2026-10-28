@@ -781,9 +781,13 @@ final class EventItemRecord {
     var timestamp: Date = Date.now
     var resource: String = ""
     var application: String = ""
+    /// JSON object of imported attribute columns.
+    var attributesJSON: String = "{}"
+    var cost: Double?
 
     init(id: String, datasetID: String, caseHash: String, activity: String,
-         timestamp: Date, resource: String, application: String) {
+         timestamp: Date, resource: String, application: String,
+         attributesJSON: String = "{}", cost: Double? = nil) {
         self.id = id
         self.datasetID = datasetID
         self.caseHash = caseHash
@@ -791,6 +795,8 @@ final class EventItemRecord {
         self.timestamp = timestamp
         self.resource = resource
         self.application = application
+        self.attributesJSON = attributesJSON
+        self.cost = cost
     }
 }
 

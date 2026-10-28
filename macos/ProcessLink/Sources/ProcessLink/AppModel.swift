@@ -789,10 +789,13 @@ final class AppModel {
         let rows = ((try? context.fetch(FetchDescriptor<EventItemRecord>())) ?? [])
             .filter { $0.datasetID == dataset.id }
             .sorted { $0.timestamp < $1.timestamp }
-        return rows.map {
-            EventLogRecord(caseID: $0.caseHash, activity: $0.activity,
-                           timestamp: $0.timestamp, resource: $0.resource,
-                           application: $0.application)
+        return rows.map { row in
+            let attributes = (try? JSONSerialization.jsonObject(with: Data(row.attributesJSON.utf8)))
+                as? [String: String] ?? [:]
+            return EventLogRecord(caseID: row.caseHash, activity: row.activity,
+                                  timestamp: row.timestamp, resource: row.resource,
+                                  application: row.application,
+                                  attributes: attributes, cost: row.cost)
         }
     }
 
@@ -825,8 +828,9 @@ final class AppModel {
         selectedDatasetID = nil
     }
 
-    func importCSV(text: String, name: String, filename: String, site: String) throws -> DatasetRecord {
-        let result = try EventLogImporter.importCSV(text)
+    func importCSV(text: String, name: String, filename: String, site: String,
+                   mapping: MiningColumnMap = MiningColumnMap()) throws -> DatasetRecord {
+        let result = try EventLogImporter.importCSV(text, mapping: mapping)
         guard let dataset = storeDataset(name: name, result: result, source: "csv",
                                          filename: filename, site: site,
                                          notes: "Imported event log. Case ids hashed, resources sanitised.") else {
@@ -845,11 +849,14 @@ final class AppModel {
             site: site, classification: .internalUse, filename: filename, notes: notes)
         context.insert(dataset)
         for (index, event) in result.events.enumerated() {
+            let attributes = (try? JSONSerialization.data(withJSONObject: event.attributes))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
             context.insert(EventItemRecord(
                 id: "\(dataset.id)-ev-\(index)", datasetID: dataset.id,
                 caseHash: event.caseID, activity: event.activity,
                 timestamp: event.timestamp, resource: event.resource,
-                application: event.application))
+                application: event.application,
+                attributesJSON: attributes, cost: event.cost))
         }
         audit(action: "dataset.imported", subject: name,
               detail: "\(result.caseCount) cases, \(result.events.count) events, \(result.skippedRows) skipped.")
