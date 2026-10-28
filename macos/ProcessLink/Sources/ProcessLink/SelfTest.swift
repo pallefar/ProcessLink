@@ -38,6 +38,23 @@ enum SelfTest {
             check("seed has the seven processes", processes.count == 7, "found \(processes.count)")
             check("seed has the opportunity pipeline", opportunities.count >= 12, "found \(opportunities.count)")
 
+            // Meetings and their graph facts.
+            let meetings = fetch(MeetingRecord.self)
+            let meetingBlocks = fetch(MeetingBlockRecord.self)
+            check("seed has meeting pages", meetings.count == 5, "found \(meetings.count)")
+            check("meeting pages have decisions", meetingBlocks.filter { $0.kind == .decision }.count >= 3)
+            check("meeting pages have open actions", meetingBlocks.contains { $0.kind == .action && !$0.checked })
+            if let huddle = meetings.first(where: { $0.id == "meet-huddle-triage" }) {
+                check("a meeting is a graph node",
+                      fetch(KGNodeRecord.self).contains { $0.id == huddle.kgID && $0.kind == .meeting })
+                check("a meeting links to its process",
+                      fetch(KGEdgeRecord.self).contains {
+                          $0.fromID == "kg-proc-p-triage" && $0.predicate == .discussedIn && $0.toID == huddle.kgID
+                      })
+                check("a decision is documented in its meeting",
+                      fetch(KGNodeRecord.self).contains { $0.kind == .decision && $0.processID == "p-triage" })
+            }
+
             // Privacy guard.
             let restricted = PrivacyGuard.evaluate(groupSize: 14, classification: .restricted,
                                                    destination: .localView, purpose: .processImprovement)
@@ -127,6 +144,17 @@ enum SelfTest {
             check("promotion creates an initiative", initiative != nil)
             check("promotion moves the opportunity out of the queue",
                   pricing.status == .promoted)
+            if let initiative {
+                check("promotion writes an initiative node",
+                      fetch(KGNodeRecord.self).contains { $0.id == "kg-ini-\(initiative.id)" && $0.kind == .initiative })
+                check("promotion writes the addressed_by edge",
+                      fetch(KGEdgeRecord.self).contains {
+                          $0.fromID == "kg-opp-opp-pricing-check" && $0.predicate == .addressedBy
+                              && $0.toID == "kg-ini-\(initiative.id)"
+                      })
+                check("promotion writes a savings record",
+                      fetch(KGNodeRecord.self).contains { $0.id == "kg-savings-\(initiative.id)" })
+            }
 
             if let initiative {
                 check("a new saving starts as an estimate", initiative.savingsStage == .estimated)
@@ -163,6 +191,9 @@ enum SelfTest {
                 model.confirmKGNode(ecc, mergeInto: target.id)
                 check("a merge records the human decision",
                       ecc.review == .rejected && ecc.note.contains("Merged into"))
+                check("a merge closes the losing node", ecc.validTo != nil)
+                check("a merge moves or drops every edge",
+                      !fetch(KGEdgeRecord.self).contains { $0.fromID == "kg-app-sap-ecc" || $0.toID == "kg-app-sap-ecc" })
             }
 
             // Access control: no blocked process may enter the ask context.
@@ -173,6 +204,49 @@ enum SelfTest {
             }
             check("the restricted process never enters the ask context",
                   !visibleForAsk.contains { $0.id == "p-export" })
+
+            // Creating a meeting writes blocks and graph facts.
+            let created = model.createMeeting(kind: .a3Review, processID: "p-invoice")
+            check("a new meeting gets template blocks", model.blocks(for: created).count >= 6)
+            check("a new meeting is a graph node",
+                  fetch(KGNodeRecord.self).contains { $0.id == created.kgID })
+            let decisionBlock = model.addBlock(to: created, kind: .decision)
+            model.refreshBlockNode(decisionBlock, meeting: created)
+            check("a decision block becomes a graph node",
+                  fetch(KGNodeRecord.self).contains {
+                      $0.id == "kg-decision-\(decisionBlock.id)" && $0.kind == .decision
+                  })
+            if let action = model.blocks(for: created).first(where: { $0.kind == .action }) {
+                let beforeAction = fetch(InitiativeRecord.self).count
+                let promoted = model.promoteAction(action, meeting: created)
+                check("promoting a meeting action creates an initiative",
+                      promoted != nil && fetch(InitiativeRecord.self).count == beforeAction + 1)
+                check("the action is marked done", action.checked)
+            }
+
+            // Ask uses the meeting notes, not a separate store.
+            let meetingInsights = meetings.map { meeting -> MeetingInsight in
+                let meetingBlocks = fetch(MeetingBlockRecord.self).filter { $0.meetingID == meeting.id }
+                let processName = processes.first { $0.id == meeting.processID }?.name ?? ""
+                return MeetingInsight(
+                    id: meeting.id, title: meeting.title, date: meeting.date,
+                    kind: meeting.kind.label, site: meeting.site, processName: processName,
+                    decisions: meetingBlocks.filter { $0.kind == .decision }.map {
+                        MeetingItemInsight(id: $0.id, text: $0.text, owner: $0.owner, done: $0.checked)
+                    },
+                    actions: meetingBlocks.filter { $0.kind == .action }.map {
+                        MeetingItemInsight(id: $0.id, text: $0.text, owner: $0.owner,
+                                           done: $0.checked, due: $0.due)
+                    },
+                    kgID: meeting.kgID)
+            }
+            let decisionAnswer = AskEngine.answer("What did we decide about pricing?",
+                                                  processes: [], steps: [], opportunities: [],
+                                                  meetings: meetingInsights)
+            check("a decision question is answered from meeting notes",
+                  decisionAnswer.intent == .decisions)
+            check("a decision answer cites a meeting",
+                  decisionAnswer.citations.contains { $0.kind == .meeting })
 
             print(failures == 0 ? "SELFTEST PASS \(count) checks" : "SELFTEST FAIL \(failures) of \(count) checks")
             finish(code: failures == 0 ? 0 : 1)

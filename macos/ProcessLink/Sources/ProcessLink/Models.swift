@@ -551,3 +551,182 @@ final class SyncRecord {
         self.note = note
     }
 }
+
+// MARK: - Meetings
+
+/// A meeting note is a page: typed blocks, decisions and actions, linked to
+/// the process and initiative it is about.
+@Model
+final class MeetingRecord {
+    var id: String = ""
+    var title: String = ""
+    var kindRaw: String = MeetingKind.dailyHuddle.rawValue
+    var date: Date = Date.now
+    var durationMinutes: Int = 30
+    var site: String = ""
+    var owner: String = ""
+    /// Roles, never people. "Order Desk Lead", not a name.
+    var attendees: [String] = []
+    var processID: String = ""
+    var initiativeID: String = ""
+    /// planned, notes, done
+    var statusRaw: String = MeetingStatus.planned.rawValue
+    var summary: String = ""
+    var isRecurring: Bool = false
+    var cadence: String = ""
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
+    var kgID: String = ""
+
+    init(id: String, title: String, kind: MeetingKind, date: Date, durationMinutes: Int,
+         site: String, owner: String, attendees: [String], processID: String,
+         initiativeID: String, status: MeetingStatus, summary: String,
+         isRecurring: Bool, cadence: String, createdAt: Date = .now) {
+        self.id = id
+        self.title = title
+        self.kindRaw = kind.rawValue
+        self.date = date
+        self.durationMinutes = durationMinutes
+        self.site = site
+        self.owner = owner
+        self.attendees = attendees
+        self.processID = processID
+        self.initiativeID = initiativeID
+        self.statusRaw = status.rawValue
+        self.summary = summary
+        self.isRecurring = isRecurring
+        self.cadence = cadence
+        self.createdAt = createdAt
+        self.updatedAt = createdAt
+        self.kgID = "kg-meeting-\(id)"
+    }
+
+    var kind: MeetingKind { MeetingKind(rawValue: kindRaw) ?? .dailyHuddle }
+    var status: MeetingStatus { MeetingStatus(rawValue: statusRaw) ?? .planned }
+}
+
+enum MeetingKind: String, CaseIterable, Identifiable {
+    case dailyHuddle, kaizen, a3Review, leadership, workshop, oneToOne
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .dailyHuddle: "Daily huddle"
+        case .kaizen: "Kaizen event"
+        case .a3Review: "A3 review"
+        case .leadership: "Leadership review"
+        case .workshop: "Workshop"
+        case .oneToOne: "1:1"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .dailyHuddle: "sunrise"
+        case .kaizen: "bolt"
+        case .a3Review: "doc.text"
+        case .leadership: "person.3"
+        case .workshop: "person.2.wave.2"
+        case .oneToOne: "person.crop.circle"
+        }
+    }
+
+    var defaultDuration: Int {
+        switch self {
+        case .dailyHuddle: 15
+        case .kaizen: 480
+        case .a3Review: 45
+        case .leadership: 60
+        case .workshop: 120
+        case .oneToOne: 30
+        }
+    }
+}
+
+enum MeetingStatus: String, CaseIterable {
+    case planned, notes, done
+
+    var label: String {
+        switch self {
+        case .planned: "Planned"
+        case .notes: "Notes"
+        case .done: "Done"
+        }
+    }
+}
+
+/// One block on a meeting page. `order` is the reading order; blocks are
+/// queried by meeting id so the meeting record stays small.
+@Model
+final class MeetingBlockRecord {
+    var id: String = ""
+    var meetingID: String = ""
+    var order: Int = 0
+    var kindRaw: String = BlockKind.text.rawValue
+    var text: String = ""
+    var checked: Bool = false
+    var owner: String = ""
+    var due: Date?
+    /// process, opportunity, initiative, meeting, node
+    var linkedKindRaw: String = ""
+    var linkedID: String = ""
+    var indent: Int = 0
+    var createdAt: Date = Date.now
+
+    init(id: String, meetingID: String, order: Int, kind: BlockKind, text: String,
+         checked: Bool = false, owner: String = "", due: Date? = nil,
+         linkedKind: String = "", linkedID: String = "", indent: Int = 0) {
+        self.id = id
+        self.meetingID = meetingID
+        self.order = order
+        self.kindRaw = kind.rawValue
+        self.text = text
+        self.checked = checked
+        self.owner = owner
+        self.due = due
+        self.linkedKindRaw = linkedKind
+        self.linkedID = linkedID
+        self.indent = indent
+    }
+
+    var kind: BlockKind { BlockKind(rawValue: kindRaw) ?? .text }
+}
+
+enum BlockKind: String, CaseIterable, Identifiable {
+    case heading, text, bullet, checklist, decision, action, callout, link
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .heading: "Heading"
+        case .text: "Text"
+        case .bullet: "Bullet"
+        case .checklist: "To-do"
+        case .decision: "Decision"
+        case .action: "Action"
+        case .callout: "Callout"
+        case .link: "Link"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .heading: "textformat.size"
+        case .text: "text.alignleft"
+        case .bullet: "list.bullet"
+        case .checklist: "checklist"
+        case .decision: "checkmark.bubble"
+        case .action: "person.crop.circle.badge.checkmark"
+        case .callout: "lightbulb"
+        case .link: "link"
+        }
+    }
+
+    /// The blocks that become KG nodes when they are created.
+    var createsNode: Bool { self == .decision || self == .action }
+}
+
+extension MeetingRecord: HasStringID {}
+extension MeetingBlockRecord: HasStringID {}

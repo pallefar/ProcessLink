@@ -7,8 +7,8 @@ Run on macOS 27.0.1, Swift 6.4, Xcode 27.1, Node 22.23.3, 28 October 2026.
 | Check | Command | Result |
 |---|---|---|
 | Build (release) | `./build.sh` | `Build complete!`, 0 errors, 0 warnings, installed to `~/Applications/ProcessLink.app` |
-| Unit tests | `swift test --scratch-path ~/Library/Developer/ProcessLink/test-build` | **17 tests passed** (scoring, statutory guard, privacy, PII, ledger, conflicts, ask citations, formatting) |
-| In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 26 checks** |
+| Unit tests | `swift test --scratch-path ~/Library/Developer/ProcessLink/test-build` | **22 tests passed** (scoring, statutory guard, privacy, PII, ledger, conflicts, ask citations, formatting, graph orphans/neighbourhood/similarity/duplicates) |
+| In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 44 checks** |
 | Grid lint | `tools/grid-lint.sh` | **PASS** |
 | Layout probes | `swift tools/check-layout.swift /tmp/ProcessLink-shots/*-layout.json` | **22 PASS**, 0 fail |
 | Snapshots | `tools/snap.sh` | 8 pages + 5 Settings tabs, light and dark, 2520×1640 page PNGs; reviewed |
@@ -18,15 +18,17 @@ Self-test coverage: seed integrity, Restricted refusal, group-size
 suppression, purpose limitation, PII detection and masking, score monotonicity
 and bounds, statutory route exclusion, ledger credit-once rule, double-count
 detection, handoff citation, promotion, commit-before-validate, evidence
-requirement, blocked promotion, sync + audit, human entity-resolution merge,
-and "restricted process never enters the ask context".
+requirement, blocked promotion, sync + audit, human entity-resolution merge
+(with edge re-pointing), "restricted process never enters the ask context",
+meeting pages and blocks, meeting/decision graph nodes and edges, action
+promotion, and decision answers citing a meeting.
 
 ## Web app
 
 | Check | Command | Result |
 |---|---|---|
-| Typecheck + build | `npm run build` | `tsc --noEmit` clean; Vite build 326 kB JS / 13.4 kB CSS (≈103 kB gzip) |
-| Render review | headless Chrome, 1440×1000 | Overview, Discoveries, Opportunities, Maps, Graph, Improvements, Ask, Governance; light and dark |
+| Typecheck + build | `npm run build` | `tsc --noEmit` clean; Vite build 353 kB JS / 14.9 kB CSS (≈106 kB gzip) |
+| Render review | headless Chrome, 1440×1000 | Overview, Discoveries, Opportunities, Maps, Meetings, Graph, Improvements, Ask, Governance; light and dark |
 | Deep links | `#/overview`, `?theme=light|dark`, `?q=...` | Verified via screenshots |
 | Local preview | `npm run preview` on port 4175 | 200 OK |
 

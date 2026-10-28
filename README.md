@@ -43,7 +43,12 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 6. **Ask** — a governed assistant over the same facts. Every number cites a
    KYP.ai id or KG node; gaps become a "to verify" list; savings stay labelled
    estimates.
-7. **Governance** — purpose limitation, group-size suppression, classification
+7. **Meetings** — Notion-style pages made of typed blocks (headings, bullets,
+   to-dos, decisions, actions, callouts). Decisions and actions become graph
+   facts; an action can be promoted to an initiative through the same gate as
+   an opportunity. Templates cover daily huddles, kaizen, A3 reviews,
+   leadership reviews and workshops.
+8. **Governance** — purpose limitation, group-size suppression, classification
    refusal, PII masking and an audit log are enforced in code and visible in
    the UI. The launch checklist blocks production.
 
@@ -57,11 +62,15 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 |---|---|
 | ![Opportunities](docs/shots/opportunities-light.png) | ![Graph](docs/shots/graph-light.png) |
 
+| Meetings | Knowledge graph |
+|---|---|
+| ![Meetings](docs/shots/meetings-light.png) | ![Graph](docs/shots/graph-light.png) |
+
 | Governance | Ask the process |
 |---|---|
 | ![Governance](docs/shots/governance-light.png) | ![Ask](docs/shots/ask-light.png) |
 
-More in [`docs/shots`](docs/shots), including dark mode and Settings.
+More in [`docs/shots`](docs/shots), including dark mode, Settings and the web form.
 
 ## Run the macOS app
 
@@ -115,16 +124,18 @@ It wraps `web/dist`; build on Windows 11 with Rust + WebView2.
 4. **Improvements** — move the stage, commit the saving, then **Validate**
    with a validator and evidence. Try validating without evidence first.
 5. **Maps** — switch overlay to **Rework**; click a shape; open its KG node.
-6. **Ask** — ask *"Where do handoffs create the most rework?"*; open a
-   citation; read the to-verify line.
-7. **Governance** — press *Send Restricted to the AI gateway* and *Export a
+6. **Meetings** — open *Kaizen · pricing check in order intake*; read the
+   decisions, promote an action, then open the meeting node in the graph.
+7. **Ask** — ask *"Where do handoffs create the most rework?"* and *"What did
+   we decide about pricing?"*; open a citation; read the to-verify line.
+8. **Governance** — press *Send Restricted to the AI gateway* and *Export a
    4-person group*; read the refusal and its rule.
 
 ## What is real, what is sandbox
 
 - **Real**: the domain rules, the privacy guard, the scoring arithmetic, the
-  savings ledger and its conflict rule, the citations, the audit trail, the
-  app itself.
+  savings ledger and its conflict rule, the graph algorithms, the citations,
+  the audit trail, the meeting pages and the app itself.
 - **Sandbox**: every process, person-count, hour, site and saving. The KYP.ai
   connector is an offline fixture (`SandboxSync`); no tenant was contacted.
   The KG is a local typed store, not a write to Knowledge Guardian. DeckForge

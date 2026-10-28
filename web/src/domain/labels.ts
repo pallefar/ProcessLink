@@ -88,6 +88,9 @@ export const KG_LABEL: Record<KGKind, string> = {
   savingsRecord: 'Savings record',
   hoshinObjective: 'Hoshin objective',
   document: 'Document / SOP',
+  meeting: 'Meeting',
+  decision: 'Decision',
+  action: 'Action',
 }
 
 export const PREDICATE_LABEL: Record<Predicate, string> = {
@@ -102,4 +105,43 @@ export const PREDICATE_LABEL: Record<Predicate, string> = {
   alignedToObjective: 'aligned to objective',
   documentedIn: 'documented in',
   hasOpportunity: 'has opportunity',
+  discussedIn: 'discussed in',
+  assignedTo: 'assigned to',
+}
+
+export const MEETING_LABEL: Record<import('./types').MeetingKind, string> = {
+  dailyHuddle: 'Daily huddle',
+  kaizen: 'Kaizen event',
+  a3Review: 'A3 review',
+  leadership: 'Leadership review',
+  workshop: 'Workshop',
+  oneToOne: '1:1',
+}
+
+export const BLOCK_LABEL: Record<import('./types').BlockKind, string> = {
+  heading: 'Heading',
+  text: 'Text',
+  bullet: 'Bullet',
+  checklist: 'To-do',
+  decision: 'Decision',
+  action: 'Action',
+  callout: 'Callout',
+  link: 'Link',
+}
+
+export const KG_TONE: Record<import('./types').KGKind, string> = {
+  process: 'blue',
+  step: 'teal',
+  application: 'blue',
+  role: 'grey',
+  site: 'grey',
+  valueStream: 'teal',
+  opportunity: 'orange',
+  initiative: 'purple',
+  savingsRecord: 'green',
+  hoshinObjective: 'red',
+  document: 'grey',
+  meeting: 'purple',
+  decision: 'green',
+  action: 'orange',
 }

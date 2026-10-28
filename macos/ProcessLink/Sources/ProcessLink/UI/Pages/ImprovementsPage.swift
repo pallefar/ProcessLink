@@ -8,6 +8,7 @@ struct ImprovementsPage: View {
     @Environment(AppModel.self) private var model
     @Query(sort: \InitiativeRecord.createdAt, order: .reverse) private var initiatives: [InitiativeRecord]
     @Query private var processes: [ProcessRecord]
+    @Query(sort: \MeetingRecord.date, order: .reverse) private var meetingNotes: [MeetingRecord]
 
     @State private var validating: InitiativeRecord?
     @State private var validator = ""
@@ -226,6 +227,10 @@ struct ImprovementsPage: View {
                             .disabled(initiative.stage == .act)
 
                             Button("Open A3") { model.showA3ForInitiativeID = initiative.id }
+                            Button("KG node") {
+                                model.selectedKGID = "kg-ini-\(initiative.id)"
+                                model.page = .graph
+                            }
                             Button("Open process") {
                                 model.selectedProcessID = initiative.processID
                                 model.page = .discoveries
@@ -238,6 +243,7 @@ struct ImprovementsPage: View {
 
                 savingsCard(initiative)
                 if isAutomationPackage(initiative) { changePackage(initiative) }
+                meetingCard(initiative)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
@@ -291,6 +297,41 @@ struct ImprovementsPage: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private func meetingCard(_ initiative: InitiativeRecord) -> some View {
+        let related = meetingNotes.filter {
+            $0.initiativeID == initiative.id || (!initiative.processID.isEmpty && $0.processID == initiative.processID)
+        }.prefix(3)
+        return Group {
+            if !related.isEmpty {
+                Card("Meeting notes", subtitle: "The record behind the stage change.", symbol: "person.3.sequence") {
+                    VStack(spacing: 0) {
+                        ForEach(Array(related)) { meeting in
+                            Button {
+                                model.selectedMeetingID = meeting.id
+                                model.page = .meetings
+                            } label: {
+                                HStack(spacing: Space.sm) {
+                                    Image(systemName: meeting.kind.symbol).foregroundStyle(.secondary)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(meeting.title).font(.subheadline).foregroundStyle(.primary)
+                                        Text("\(Fmt.day(meeting.date)) · \(meeting.owner)")
+                                            .font(.caption).foregroundStyle(.tertiary)
+                                    }
+                                    Spacer()
+                                    Text(meeting.status.label).font(.caption2).foregroundStyle(.tertiary)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, Space.sm)
+                            if meeting.id != related.last?.id { RowDivider() }
+                        }
+                    }
                 }
             }
         }

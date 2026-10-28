@@ -30,6 +30,9 @@ export type Destination = 'localView' | 'aiGateway' | 'knowledgeGraph' | 'export
 
 export type Purpose = 'processImprovement' | 'reporting' | 'qualityReview' | 'individualPerformance'
 
+export type MeetingKind = 'dailyHuddle' | 'kaizen' | 'a3Review' | 'leadership' | 'workshop' | 'oneToOne'
+export type BlockKind = 'heading' | 'text' | 'bullet' | 'checklist' | 'decision' | 'action' | 'callout' | 'link'
+
 export type KGKind =
   | 'process'
   | 'step'
@@ -42,6 +45,9 @@ export type KGKind =
   | 'savingsRecord'
   | 'hoshinObjective'
   | 'document'
+  | 'meeting'
+  | 'decision'
+  | 'action'
 
 export type Predicate =
   | 'performedIn'
@@ -55,6 +61,8 @@ export type Predicate =
   | 'alignedToObjective'
   | 'documentedIn'
   | 'hasOpportunity'
+  | 'discussedIn'
+  | 'assignedTo'
 
 export interface Provenance {
   source: string
@@ -181,6 +189,37 @@ export interface KGEdge {
   confidence: number
 }
 
+export interface MeetingBlock {
+  id: string
+  meetingId: string
+  order: number
+  kind: BlockKind
+  text: string
+  checked: boolean
+  owner: string
+  due?: string
+  linkedKind?: string
+  linkedId?: string
+}
+
+export interface Meeting {
+  id: string
+  title: string
+  kind: MeetingKind
+  date: string
+  durationMinutes: number
+  site: string
+  owner: string
+  attendees: string[]
+  processId: string
+  initiativeId: string
+  status: 'planned' | 'notes' | 'done'
+  summary: string
+  recurring: boolean
+  cadence: string
+  kgId: string
+}
+
 export interface GovernanceItem {
   id: string
   title: string
@@ -227,7 +266,7 @@ export interface PrivacyDecision {
 }
 
 export interface Citation {
-  kind: 'kyp' | 'kg' | 'initiative' | 'policy' | 'computed'
+  kind: 'kyp' | 'kg' | 'initiative' | 'policy' | 'computed' | 'meeting'
   ref: string
   label: string
 }

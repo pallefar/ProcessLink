@@ -470,6 +470,143 @@ enum SeedData {
                 createdAt: daysAgo(40)))
         }
 
+        // MARK: Meeting pages
+
+        struct BlockSeed {
+            var kind: BlockKind
+            var text: String
+            var owner: String = ""
+            var due: Date?
+            var checked: Bool = false
+            var linkedKind: String = ""
+            var linkedID: String = ""
+        }
+
+        struct MeetingSeed {
+            var id: String
+            var title: String
+            var kind: MeetingKind
+            var date: Date
+            var duration: Int
+            var site: String
+            var owner: String
+            var attendees: [String]
+            var process: String
+            var initiative: String
+            var status: MeetingStatus
+            var summary: String
+            var recurring: Bool
+            var cadence: String
+            var blocks: [BlockSeed]
+        }
+
+        let meetingSeeds: [MeetingSeed] = [
+            MeetingSeed(
+                id: "meet-huddle-triage", title: "Daily huddle · Customer Care", kind: .dailyHuddle,
+                date: now.addingTimeInterval(-2 * 3_600), duration: 15, site: "Manila",
+                owner: "Customer Care Lead",
+                attendees: ["Customer Care Lead", "Triage Agent", "Resolver"],
+                process: "p-triage", initiative: "", status: .notes,
+                summary: "Backlog above target; add the queue to the daily board.",
+                recurring: true, cadence: "Daily 08:30",
+                blocks: [
+                    BlockSeed(kind: .heading, text: "Yesterday"),
+                    BlockSeed(kind: .bullet, text: "Backlog peaked at 84 cases; six SLA breaches."),
+                    BlockSeed(kind: .bullet, text: "Two reopened cases came from a missing attachment."),
+                    BlockSeed(kind: .heading, text: "Today"),
+                    BlockSeed(kind: .bullet, text: "Clear the 12 oldest cases first."),
+                    BlockSeed(kind: .decision, text: "Add the triage backlog to the daily management board, reviewed at 08:30."),
+                    BlockSeed(kind: .action, text: "Create the daily board and review it for two weeks.", owner: "Customer Care Lead", due: daysAhead(14)),
+                    BlockSeed(kind: .action, text: "Ask IT for a ServiceNow queue export at 07:00.", owner: "Triage Agent", due: daysAhead(7)),
+                    BlockSeed(kind: .callout, text: "No individual volumes are discussed in the huddle; only the queue."),
+                ]),
+            MeetingSeed(
+                id: "meet-kaizen-pricing", title: "Kaizen · pricing check in order intake", kind: .kaizen,
+                date: daysAgo(3), duration: 480, site: "Bensheim", owner: "Ops Excellence Lead",
+                attendees: ["Order Desk Lead", "Pricing Analyst", "Credit Manager", "Ops Excellence Lead"],
+                process: "p-order", initiative: "ini-pricing", status: .notes,
+                summary: "Remove the second pricing check above tolerance and audit by sample.",
+                recurring: false, cadence: "",
+                blocks: [
+                    BlockSeed(kind: .heading, text: "Problem"),
+                    BlockSeed(kind: .text, text: "Two pricing checks disagree on 18% of orders and re-open them."),
+                    BlockSeed(kind: .heading, text: "Target"),
+                    BlockSeed(kind: .text, text: "Remove the SAP re-check above the €5k tolerance; keep a 5% sample audit."),
+                    BlockSeed(kind: .decision, text: "Drop the SAP re-check above the €5k tolerance from Monday."),
+                    BlockSeed(kind: .action, text: "Update SOP O2C-04 to v6.3 and brief the desk.", owner: "Order Desk Lead", due: daysAhead(10)),
+                    BlockSeed(kind: .action, text: "Run a weekly 5% sample audit for six weeks.", owner: "Ops Excellence Lead", due: daysAhead(21)),
+                    BlockSeed(kind: .action, text: "Quantify rework before and after against KYP.ai.", owner: "Ops Excellence Lead", due: daysAhead(42), linkedKind: "opportunity", linkedID: "opp-pricing"),
+                ]),
+            MeetingSeed(
+                id: "meet-a3-invoice", title: "A3 review · invoice exception codes", kind: .a3Review,
+                date: daysAgo(6), duration: 45, site: "Wrocław", owner: "AP Team Lead",
+                attendees: ["AP Team Lead", "Buyer", "CI Manager"],
+                process: "p-invoice", initiative: "ini-codes", status: .done,
+                summary: "Rework 34% to 11%; adopt the single code list and close.",
+                recurring: false, cadence: "",
+                blocks: [
+                    BlockSeed(kind: .heading, text: "Result"),
+                    BlockSeed(kind: .text, text: "Rework 34% → 11% over six weeks; 540 hours confirmed against the AP time report."),
+                    BlockSeed(kind: .decision, text: "Adopt the single code list across both AP teams."),
+                    BlockSeed(kind: .action, text: "Share the list with the Manila AP team.", owner: "AP Team Lead", due: daysAhead(7)),
+                    BlockSeed(kind: .callout, text: "Saving validated by CI Manager, Wrocław. Evidence is attached to the initiative."),
+                ]),
+            MeetingSeed(
+                id: "meet-leadership", title: "Leadership review · Q4 pipeline", kind: .leadership,
+                date: daysAgo(2), duration: 60, site: "", owner: "CI Manager",
+                attendees: ["CI Manager", "Finance Business Partner", "Site CI Leads"],
+                process: "", initiative: "", status: .done,
+                summary: "Fund the agent change package subject to security review.",
+                recurring: true, cadence: "Monthly",
+                blocks: [
+                    BlockSeed(kind: .heading, text: "Portfolio"),
+                    BlockSeed(kind: .bullet, text: "Validated 540 h; committed 840 h; estimated 1,020 h."),
+                    BlockSeed(kind: .bullet, text: "One conflict remains in order intake."),
+                    BlockSeed(kind: .decision, text: "Fund the case-summarization agent change package, subject to security review."),
+                    BlockSeed(kind: .action, text: "Request the security review for the agent change package.", owner: "Customer Care CI", due: daysAhead(5), linkedKind: "opportunity", linkedID: "opp-summary"),
+                    BlockSeed(kind: .action, text: "Resolve the order-intake double count before the roll-up.", owner: "Ops Excellence Lead", due: daysAhead(9)),
+                ]),
+            MeetingSeed(
+                id: "meet-works-council", title: "Works council prep · capture scope", kind: .workshop,
+                date: daysAhead(5), duration: 120, site: "Bensheim", owner: "HR Business Partner",
+                attendees: ["HR Business Partner", "Data Protection Office", "CI Manager"],
+                process: "", initiative: "", status: .planned,
+                summary: "Prepare the draft agreement for the Bensheim works council.",
+                recurring: false, cadence: "",
+                blocks: [
+                    BlockSeed(kind: .heading, text: "Agenda"),
+                    BlockSeed(kind: .bullet, text: "Capture scope and the minimum group size."),
+                    BlockSeed(kind: .bullet, text: "Retention, transparency notice and the escalation path."),
+                    BlockSeed(kind: .bullet, text: "Questions from employee representatives."),
+                    BlockSeed(kind: .checklist, text: "Share the DPIA summary with the works council."),
+                    BlockSeed(kind: .action, text: "Send the draft agreement and DPIA summary.", owner: "HR Business Partner", due: daysAhead(3)),
+                ]),
+        ]
+
+        for seed in meetingSeeds {
+            let meeting = MeetingRecord(
+                id: seed.id, title: seed.title, kind: seed.kind, date: seed.date,
+                durationMinutes: seed.duration, site: seed.site, owner: seed.owner,
+                attendees: seed.attendees, processID: seed.process, initiativeID: seed.initiative,
+                status: seed.status, summary: seed.summary, isRecurring: seed.recurring,
+                cadence: seed.cadence, createdAt: daysAgo(10))
+            context.insert(meeting)
+            var inserted: [MeetingBlockRecord] = []
+            for (index, blockSeed) in seed.blocks.enumerated() {
+                let block = MeetingBlockRecord(
+                    id: "blk-\(seed.id)-\(index)", meetingID: meeting.id, order: index,
+                    kind: blockSeed.kind, text: blockSeed.text, checked: blockSeed.checked,
+                    owner: blockSeed.owner, due: blockSeed.due,
+                    linkedKind: blockSeed.linkedKind, linkedID: blockSeed.linkedID)
+                context.insert(block)
+                inserted.append(block)
+            }
+            model.writeMeetingToGraph(meeting)
+            for block in inserted {
+                model.writeBlockToGraph(block, meeting: meeting)
+            }
+        }
+
         // MARK: Knowledge graph
 
         var nodes: [(String, KGKind, String, Double, ReviewState, String, String)] = []
@@ -567,11 +704,13 @@ enum SeedData {
 
         for (id, kind, name, confidence, review, source, sourceID) in nodes {
             guard !exists(context, KGNodeRecord.self, id) else { continue }
-            context.insert(KGNodeRecord(id: id, kind: kind, name: name, confidence: confidence,
-                                        review: review, source: source, sourceID: sourceID,
-                                        validFrom: daysAgo(120),
-                                        processID: name.lowercased().contains("order") ? "p-order-intake" : "",
-                                        note: review == .suggested ? "Entity resolution found a likely duplicate. A human must confirm or reject the merge." : ""))
+            let node = KGNodeRecord(id: id, kind: kind, name: name, confidence: confidence,
+                                    review: review, source: source, sourceID: sourceID,
+                                    validFrom: daysAgo(120),
+                                    processID: name.lowercased().contains("order") ? "p-order-intake" : "",
+                                    note: review == .suggested ? "Entity resolution found a likely duplicate. A human must confirm or reject the merge." : "")
+            node.updatedAt = daysAgo(120)
+            context.insert(node)
         }
         for (index, edge) in edges.enumerated() {
             context.insert(KGEdgeRecord(id: "edge-\(index)", fromID: edge.0, predicate: edge.1,

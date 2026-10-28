@@ -57,7 +57,10 @@ community edition) is explicitly rejected until legal reviews it.
 - Opportunity scoring with explainable components, route and method.
 - Initiative + A3 + savings lifecycle with evidence and double-count guard.
 - Generated swimlane map with three overlays and KG-bound shapes.
-- KG explorer with provenance, relations and a human review queue.
+- KG explorer with a layered canvas, focus/neighbourhood, search, quality
+  filters, provenance, backlinks and a human review queue.
+- Notion-style meeting pages with typed blocks, decisions, actions, templates,
+  process/initiative links, and write-through to the graph.
 - Ask with citations, to-verify list and confidence.
 - Web form with the same domain rules and the core pages.
 - Windows Tauri scaffold.
@@ -70,7 +73,7 @@ community edition) is explicitly rejected until legal reviews it.
 - Editing maps in ProcessLink (DiagramForge owns editing).
 - DeckForge binary integration and TE templates (needs deck contract).
 - Flightdeck SSO + Mini App packaging (needs Q10).
-- Multi-user collaboration, presence, comments.
+- Multi-user collaboration, presence, comments, real-time co-editing.
 - Scheduled background sync while the app is closed.
 - Model-hosted GraphRAG (the gateway exists in `ai-core`; not wired here).
 - Mobile.

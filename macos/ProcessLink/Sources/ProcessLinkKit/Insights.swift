@@ -104,6 +104,52 @@ public struct OpportunityInsight: Sendable, Hashable, Identifiable {
     }
 }
 
+// MARK: - Meetings
+
+/// One decision or action as the assistant may see it. Text is the block's
+/// own words; no attendee identity is ever included.
+public struct MeetingItemInsight: Sendable, Hashable, Identifiable {
+    public var id: String
+    public var text: String
+    public var owner: String
+    public var done: Bool
+    public var due: Date?
+
+    public init(id: String, text: String, owner: String, done: Bool, due: Date? = nil) {
+        self.id = id
+        self.text = text
+        self.owner = owner
+        self.done = done
+        self.due = due
+    }
+}
+
+public struct MeetingInsight: Sendable, Hashable, Identifiable {
+    public var id: String
+    public var title: String
+    public var date: Date
+    public var kind: String
+    public var site: String
+    public var processName: String
+    public var decisions: [MeetingItemInsight]
+    public var actions: [MeetingItemInsight]
+    public var kgID: String
+
+    public init(id: String, title: String, date: Date, kind: String, site: String,
+                processName: String, decisions: [MeetingItemInsight],
+                actions: [MeetingItemInsight], kgID: String) {
+        self.id = id
+        self.title = title
+        self.date = date
+        self.kind = kind
+        self.site = site
+        self.processName = processName
+        self.decisions = decisions
+        self.actions = actions
+        self.kgID = kgID
+    }
+}
+
 // MARK: - Answer
 
 public struct AskAnswer: Sendable, Hashable, Identifiable {
@@ -115,6 +161,8 @@ public struct AskAnswer: Sendable, Hashable, Identifiable {
         case freshness
         case sites
         case governance
+        case decisions
+        case actions
         case fallback
     }
 
@@ -149,12 +197,15 @@ public enum AskEngine {
         "Which standard work is least followed?",
         "What would automating order intake save?",
         "Which processes have the most variants?",
+        "What did we decide about pricing?",
+        "What actions are still open?",
     ]
 
     public static func answer(_ rawQuestion: String,
                               processes: [ProcessInsight],
                               steps: [StepInsight],
-                              opportunities: [OpportunityInsight]) -> AskAnswer {
+                              opportunities: [OpportunityInsight],
+                              meetings: [MeetingInsight] = []) -> AskAnswer {
         let question = rawQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = question.lowercased()
 
@@ -168,6 +219,12 @@ public enum AskEngine {
         if lower.contains("standard") || lower.contains("adherence") || lower.contains("follow")
             || lower.contains("followed") {
             return adherenceAnswer(question, processes: processes)
+        }
+        if lower.contains("decid") || lower.contains("meeting") || lower.contains("minutes") {
+            return decisionAnswer(question, meetings: meetings, processes: processes)
+        }
+        if lower.contains("action") || lower.contains("follow-up") || lower.contains("follow up") {
+            return actionAnswer(question, meetings: meetings, processes: processes)
         }
         if lower.contains("variant") {
             return variantAnswer(question, processes: processes)
@@ -244,6 +301,61 @@ public enum AskEngine {
             citations: citations,
             toVerify: ["Confirm the SOP version that the adherence is measured against"],
             confidence: 0.82)
+    }
+
+    private static func decisionAnswer(_ question: String, meetings: [MeetingInsight],
+                                        processes: [ProcessInsight]) -> AskAnswer {
+        let lower = question.lowercased()
+        let named = processes.first { lower.contains($0.name.lowercased()) }
+        let scoped = named == nil ? meetings : meetings.filter { $0.processName == named?.name }
+        let withDecisions = scoped.filter { !$0.decisions.isEmpty }
+        guard !withDecisions.isEmpty else {
+            return AskAnswer(question: question, intent: .decisions,
+                headline: "No decision is recorded for that scope",
+                body: "ProcessLink holds \(meetings.count) meeting note\(meetings.count == 1 ? "" : "s"), but none of them records a decision for this scope. That is an absence of evidence, not evidence of no decision.",
+                citations: meetings.prefix(3).map { Citation(kind: .meeting, ref: $0.kgID, label: $0.title) },
+                toVerify: ["Check the meeting minutes or ask the meeting owner"], confidence: 0.6)
+        }
+        let body = withDecisions.prefix(3).flatMap { meeting in
+            meeting.decisions.map { decision in
+                "\(meeting.title) (\(Fmt.day(meeting.date))): \(decision.text)"
+            }
+        }.joined(separator: "\n")
+        return AskAnswer(question: question, intent: .decisions,
+            headline: "Recorded decisions for \(named?.name ?? "the portfolio")",
+            body: body + "\n\nA decision note is a record of what the room agreed. It is not a validated outcome and it does not approve a change on its own.",
+            citations: withDecisions.prefix(3).map { Citation(kind: .meeting, ref: $0.kgID, label: $0.title) },
+            toVerify: ["Confirm the minutes were approved", "Confirm the owner recorded against each decision"],
+            confidence: 0.84)
+    }
+
+    private static func actionAnswer(_ question: String, meetings: [MeetingInsight],
+                                     processes: [ProcessInsight]) -> AskAnswer {
+        let lower = question.lowercased()
+        let named = processes.first { lower.contains($0.name.lowercased()) }
+        let scoped = named == nil ? meetings : meetings.filter { $0.processName == named?.name }
+        let open = scoped.flatMap { meeting in
+            meeting.actions.filter { !$0.done }.map { (meeting, $0) }
+        }
+        guard !open.isEmpty else {
+            return AskAnswer(question: question, intent: .actions,
+                headline: "No open actions in that scope",
+                body: "Every action recorded in the matching meeting notes is marked done. Check the decisions that created them before closing the loop.",
+                citations: scoped.prefix(3).map { Citation(kind: .meeting, ref: $0.kgID, label: $0.title) },
+                toVerify: ["Confirm done actions have evidence, not just a tick"], confidence: 0.7)
+        }
+        let body = open.prefix(5).map { meeting, action in
+            "• \(action.text) — \(action.owner.isEmpty ? "unassigned" : action.owner)\(action.due.map { ", due \(Fmt.day($0))" } ?? "")\(meeting.title.isEmpty ? "" : " · \(meeting.title)")"
+        }.joined(separator: "\n")
+        return AskAnswer(question: question, intent: .actions,
+            headline: "\(open.count) open action\(open.count == 1 ? "" : "s") in \(named?.name ?? "the portfolio")",
+            body: body + "\n\nAn action is a commitment, not a result. It becomes work when it is promoted to an initiative with an owner and a saving.",
+            citations: Array(Set(open.map { $0.0.kgID })).map { ref in
+                Citation(kind: .meeting, ref: ref,
+                         label: meetings.first { $0.kgID == ref }?.title ?? "Meeting")
+            },
+            toVerify: ["Promote any action that is really improvement work"],
+            confidence: 0.86)
     }
 
     private static func variantAnswer(_ question: String, processes: [ProcessInsight]) -> AskAnswer {

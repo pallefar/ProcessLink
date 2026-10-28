@@ -11,6 +11,8 @@ struct OverviewPage: View {
     @Query private var initiatives: [InitiativeRecord]
     @Query(sort: \SyncRecord.at, order: .reverse) private var syncs: [SyncRecord]
     @Query private var governance: [GovernanceRecord]
+    @Query(sort: \MeetingRecord.date, order: .reverse) private var meetings: [MeetingRecord]
+    @Query private var meetingBlocks: [MeetingBlockRecord]
 
     private var eligibleProcesses: [ProcessRecord] {
         processes.filter { process in
@@ -83,6 +85,11 @@ struct OverviewPage: View {
                         freshness
                         governanceSummary
                     }
+                    HStack(alignment: .top, spacing: Space.lg) {
+                        nextMeetings
+                        openActions
+                    }
+
                     GuardrailNote(text: "Savings are estimates until an owner commits them and before/after evidence validates them under TE's rules. ProcessLink never presents a modelled number as a claim.")
                         .gridProbe("overview-guardrail", area: "overview")
                 }
@@ -92,6 +99,87 @@ struct OverviewPage: View {
         .gridArea("overview")
         .navigationTitle("Overview")
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var nextMeetings: some View {
+        let upcoming = meetings.filter { $0.date >= model.now }.sorted { $0.date < $1.date }.prefix(3)
+        return Card("Next meetings", subtitle: "Pages, not invites. Notes become graph facts.", symbol: "person.3.sequence") {
+            if upcoming.isEmpty {
+                Text("No meeting is scheduled. Start a daily huddle from Meetings.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(upcoming)) { meeting in
+                        Button {
+                            model.selectedMeetingID = meeting.id
+                            model.page = .meetings
+                        } label: {
+                            HStack(spacing: Space.sm) {
+                                Image(systemName: meeting.kind.symbol)
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 20)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(meeting.title).font(.subheadline).foregroundStyle(.primary)
+                                    Text("\(Fmt.day(meeting.date)) · \(meeting.durationMinutes) min")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                Spacer()
+                                if !meeting.site.isEmpty {
+                                    Chip(text: meeting.site, tint: .secondary)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, Space.sm)
+                        if meeting.id != upcoming.last?.id { RowDivider() }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var openActions: some View {
+        let actions = meetingBlocks.filter { $0.kind == .action && !$0.checked }.prefix(3)
+        return Card("Open actions", subtitle: "Commitments from meeting pages, not a task silo.", symbol: "checklist") {
+            if actions.isEmpty {
+                Text("Every recorded action is done.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(actions)) { action in
+                        HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
+                            Image(systemName: "circle")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(action.text.isEmpty ? "Untitled action" : action.text)
+                                    .font(.subheadline)
+                                    .lineLimit(2)
+                                Text(action.owner.isEmpty ? "Unassigned" : action.owner)
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer(minLength: Space.sm)
+                            if let due = action.due {
+                                Text(Fmt.day(due)).font(.caption2).foregroundStyle(.tertiary)
+                            }
+                        }
+                        .padding(.vertical, Space.sm)
+                        if action.id != actions.last?.id { RowDivider() }
+                    }
+                    Button("Open Meetings") { model.page = .meetings }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                        .padding(.top, Space.xs)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var metrics: some View {

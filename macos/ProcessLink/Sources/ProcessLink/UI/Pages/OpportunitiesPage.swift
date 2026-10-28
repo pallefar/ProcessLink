@@ -8,6 +8,7 @@ struct OpportunitiesPage: View {
     @Environment(AppModel.self) private var model
     @Query(sort: \OpportunityRecord.annualHours, order: .reverse) private var opportunities: [OpportunityRecord]
     @Query private var processes: [ProcessRecord]
+    @Query(sort: \MeetingRecord.date, order: .reverse) private var meetingNotes: [MeetingRecord]
 
     private var ranked: [OpportunityRecord] {
         opportunities
@@ -134,6 +135,7 @@ struct OpportunitiesPage: View {
                             evidence(opportunity)
                         }
                         actions(opportunity)
+                        meetingLinks(opportunity)
                     }
                 }
                 .padding(Space.margin)
@@ -274,6 +276,13 @@ struct OpportunitiesPage: View {
                 .disabled(opportunity.status == .promoted)
 
                 Button {
+                    model.selectedKGID = opportunity.kgID
+                    model.page = .graph
+                } label: {
+                    Label("KG node", systemImage: "circle.hexagongrid")
+                }
+
+                Button {
                     model.setOpportunity(opportunity, to: .deferred)
                     model.showToast("Opportunity deferred", detail: opportunity.title, symbol: "pause.circle")
                 } label: {
@@ -285,6 +294,35 @@ struct OpportunitiesPage: View {
             }
             GuardrailNote(text: "A promotion creates a local initiative and proposes a KG node. It never deploys an automation, changes a production system, or sends data outside the approved region.",
                           symbol: "checkmark.shield")
+        }
+    }
+
+    private func meetingLinks(_ opportunity: OpportunityRecord) -> some View {
+        let related = meetingNotes.filter { $0.processID == opportunity.processID }.prefix(2)
+        return Group {
+            if !related.isEmpty {
+                Card("Discussed in", subtitle: "Meeting notes about this process.", symbol: "person.3.sequence") {
+                    VStack(spacing: 0) {
+                        ForEach(Array(related)) { meeting in
+                            Button {
+                                model.selectedMeetingID = meeting.id
+                                model.page = .meetings
+                            } label: {
+                                HStack(spacing: Space.sm) {
+                                    Image(systemName: meeting.kind.symbol).foregroundStyle(.secondary)
+                                    Text(meeting.title).font(.subheadline)
+                                    Spacer()
+                                    Text(Fmt.day(meeting.date)).font(.caption).foregroundStyle(.tertiary)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.vertical, Space.sm)
+                            if meeting.id != related.last?.id { RowDivider() }
+                        }
+                    }
+                }
+            }
         }
     }
 

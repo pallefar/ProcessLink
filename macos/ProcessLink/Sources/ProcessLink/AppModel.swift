@@ -7,7 +7,7 @@ import SwiftUI
 /// The sidebar sections. Snapshot mode walks every case, so a new section is
 /// covered by the checks automatically.
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case overview, discoveries, opportunities, maps, graph, improvements, ask, governance
+    case overview, discoveries, opportunities, maps, meetings, graph, improvements, ask, governance
 
     var id: String { rawValue }
 
@@ -17,6 +17,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .discoveries: "Discoveries"
         case .opportunities: "Opportunities"
         case .maps: "Maps"
+        case .meetings: "Meetings"
         case .graph: "Knowledge Graph"
         case .improvements: "Improvements"
         case .ask: "Ask"
@@ -30,6 +31,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .discoveries: "binoculars"
         case .opportunities: "lightbulb"
         case .maps: "point.topleft.down.to.point.bottomright.curvepath"
+        case .meetings: "person.3.sequence"
         case .graph: "circle.hexagongrid"
         case .improvements: "flag.pattern.checkered"
         case .ask: "bubble.left.and.text.bubble.right"
@@ -44,6 +46,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .discoveries: "2"
         case .opportunities: "3"
         case .maps: "4"
+        case .meetings: "9"
         case .graph: "5"
         case .improvements: "6"
         case .ask: "7"
@@ -76,6 +79,35 @@ enum MapOverlay: String, CaseIterable, Identifiable {
     }
 }
 
+/// The graph's data-quality filters. Each one is a question an owner asks.
+enum GraphQuality: String, CaseIterable, Identifiable {
+    case all, review, orphan, duplicate, stale, changed
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .all: "All nodes"
+        case .review: "Needs review"
+        case .orphan: "Orphans"
+        case .duplicate: "Duplicate candidates"
+        case .stale: "Closed / stale"
+        case .changed: "Changed in 7 days"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .all: "circle.grid.2x2"
+        case .review: "questionmark.circle"
+        case .orphan: "link.badge.plus"
+        case .duplicate: "doc.on.doc"
+        case .stale: "clock.badge.exclamationmark"
+        case .changed: "clock.arrow.circlepath"
+        }
+    }
+}
+
 struct Toast: Identifiable, Equatable {
     var id = UUID()
     var text: String
@@ -95,7 +127,10 @@ final class AppModel {
     var selectedOpportunityID: String?
     var selectedInitiativeID: String?
     var selectedKGID: String?
+    var selectedMeetingID: String?
     var graphFilter: KGKind?
+    var graphQuality: GraphQuality = .all
+    var graphSearch = ""
     var siteFilter = "All sites"
     var mapOverlay: MapOverlay = .cycleTime
     var selectedMapStepID: String?
@@ -252,6 +287,21 @@ final class AppModel {
         opportunity.promotedAt = now
         audit(action: "initiative.created", subject: initiative.title,
               detail: "From opportunity \(opportunity.id), \(Fmt.hoursPerYear(initiative.savingsHours)) estimated.")
+        let initiativeNode = ensureKGNode(id: "kg-ini-\(initiative.id)", kind: .initiative,
+                                          name: initiative.title, confidence: 0.93,
+                                          source: "ProcessLink TEOA layer", sourceID: initiative.id,
+                                          processID: initiative.processID)
+        ensureKGEdge(from: "kg-opp-\(opportunity.id)", .addressedBy, to: initiativeNode.id, confidence: 0.9)
+        let savingsNode = ensureKGNode(id: "kg-savings-\(initiative.id)", kind: .savingsRecord,
+                                       name: "\(Fmt.hours(initiative.savingsHours)) · Estimated",
+                                       confidence: 0.8, source: "ProcessLink value tracking",
+                                       sourceID: initiative.id, processID: initiative.processID)
+        ensureKGEdge(from: initiativeNode.id, .realizesSavings, to: savingsNode.id, confidence: 0.9)
+        if opportunity.alignment >= 4 {
+            ensureKGEdge(from: initiativeNode.id, .alignedToObjective,
+                         to: initiative.processID.hasPrefix("p-order") ? "kg-hoshin-o2c" : "kg-hoshin-rework",
+                         confidence: 0.7)
+        }
         try? context.save()
         selectedInitiativeID = initiative.id
         page = .improvements
@@ -320,25 +370,50 @@ final class AppModel {
         initiative.evidenceNote = trimmedEvidence
         audit(action: "savings.validated", subject: initiative.title,
               detail: "\(Fmt.hours(initiative.savingsHours)) validated by \(trimmedValidator). Evidence: \(trimmedEvidence)")
+        let savingsNode = ensureKGNode(id: "kg-savings-\(initiative.id)", kind: .savingsRecord,
+                                       name: "\(Fmt.hours(initiative.savingsHours)) · Validated",
+                                       confidence: 1.0, source: "ProcessLink value tracking",
+                                       sourceID: initiative.id, processID: initiative.processID)
+        savingsNode.note = "Validated by \(trimmedValidator). \(trimmedEvidence)"
+        savingsNode.updatedAt = now
         try? context.save()
         showToast("Saving validated", detail: "\(Fmt.hours(initiative.savingsHours)) · \(trimmedValidator)")
     }
 
     // MARK: Knowledge graph actions
 
+    /// A merge is non-destructive: the losing node closes with `validTo`, its
+    /// edges move to the winner in the same save, and the decision is audited.
     func confirmKGNode(_ node: KGNodeRecord, mergeInto targetID: String?) {
         if let targetID, let target = try? context.fetch(FetchDescriptor<KGNodeRecord>()).first(where: { $0.id == targetID }) {
+            let edges = (try? context.fetch(FetchDescriptor<KGEdgeRecord>())) ?? []
+            var moved = 0
+            for edge in edges {
+                var changed = false
+                if edge.fromID == node.id { edge.fromID = target.id; changed = true }
+                if edge.toID == node.id { edge.toID = target.id; changed = true }
+                guard changed else { continue }
+                if edge.fromID == edge.toID {
+                    // The variant edge that justified the merge becomes a
+                    // self-loop; history lives on the closed node, not here.
+                    context.delete(edge)
+                } else {
+                    moved += 1
+                }
+            }
             node.reviewRaw = ReviewState.rejected.rawValue
+            node.validTo = now
             node.note = "Merged into \(target.name) (\(target.id)) by a human reviewer."
             audit(action: "kg.merge.confirmed", subject: node.name,
-                  detail: "Merged into \(target.name) at \(Fmt.percent(node.confidence)) match confidence.")
+                  detail: "Merged into \(target.name) at \(Fmt.percent(node.confidence)) confidence; \(moved) edge references re-pointed.")
+            showToast("Merged", detail: "\(moved) edge references moved to \(target.name)")
         } else {
             node.reviewRaw = ReviewState.confirmed.rawValue
             audit(action: "kg.node.confirmed", subject: node.name, detail: "Entity resolution accepted.")
+            showToast("Review recorded", detail: node.name)
         }
         node.updatedAt = now
         try? context.save()
-        showToast("Review recorded", detail: node.name)
     }
 
     func rejectKGNode(_ node: KGNodeRecord) {
@@ -346,6 +421,357 @@ final class AppModel {
         node.updatedAt = now
         audit(action: "kg.node.rejected", subject: node.name, detail: "Proposed link rejected by a human reviewer.")
         try? context.save()
+    }
+
+    // MARK: Knowledge graph writes
+
+    /// Idempotent node upsert. The same id is never inserted twice; an
+    /// existing node keeps its history and takes the newer claims.
+    @discardableResult
+    func ensureKGNode(id: String, kind: KGKind, name: String, confidence: Double,
+                      source: String, sourceID: String, processID: String = "") -> KGNodeRecord {
+        let existing = (try? context.fetch(FetchDescriptor<KGNodeRecord>()))?.first { $0.id == id }
+        if let existing {
+            if existing.name != name { existing.name = name }
+            existing.confidence = max(existing.confidence, confidence)
+            existing.updatedAt = now
+            return existing
+        }
+        let node = KGNodeRecord(id: id, kind: kind, name: name, confidence: confidence,
+                                review: .confirmed, source: source, sourceID: sourceID,
+                                validFrom: now, processID: processID)
+        context.insert(node)
+        return node
+    }
+
+    /// An edge is a fact with an id, so replaying a write is a no-op.
+    func ensureKGEdge(from: String, _ predicate: RelationKind, to: String,
+                      confidence: Double, source: String = "ProcessLink") {
+        let id = "edge-\(from)-\(predicate.rawValue)-\(to)"
+        let existing = (try? context.fetch(FetchDescriptor<KGEdgeRecord>()))?.contains { $0.id == id } ?? false
+        guard !existing else { return }
+        context.insert(KGEdgeRecord(id: id, fromID: from, predicate: predicate, toID: to,
+                                    confidence: confidence, source: source))
+    }
+
+    /// Decisions and actions become graph facts the moment they are typed.
+    /// They are also linked back to the meeting that produced them.
+    func writeBlockToGraph(_ block: MeetingBlockRecord, meeting: MeetingRecord) {
+        guard block.kind.createsNode else { return }
+        let kind: KGKind = block.kind == .decision ? .decision : .action
+        let node = ensureKGNode(id: "kg-\(kind.rawValue)-\(block.id)", kind: kind,
+                                name: String(block.text.prefix(90)), confidence: 0.9,
+                                source: "ProcessLink meeting notes", sourceID: block.id,
+                                processID: meeting.processID)
+        node.updatedAt = now
+        ensureKGEdge(from: node.id, .documentedIn, to: meeting.kgID, confidence: 0.95)
+        if !block.owner.isEmpty {
+            let roleID = "kg-role-\(slug(block.owner))"
+            ensureKGNode(id: roleID, kind: .role, name: block.owner, confidence: 0.88,
+                         source: "Meeting action owner", sourceID: block.id)
+            ensureKGEdge(from: node.id, .assignedTo, to: roleID, confidence: 0.9)
+        }
+        if !block.linkedID.isEmpty, block.linkedKindRaw == "opportunity" {
+            ensureKGEdge(from: block.linkedID, .hasOpportunity, to: node.id, confidence: 0.7)
+        }
+    }
+
+    /// A meeting is a node too: the notes are not a silo beside the graph.
+    func writeMeetingToGraph(_ meeting: MeetingRecord) {
+        let node = ensureKGNode(id: meeting.kgID, kind: .meeting, name: meeting.title,
+                                confidence: 0.9, source: "ProcessLink meeting notes",
+                                sourceID: meeting.id, processID: meeting.processID)
+        node.updatedAt = now
+        if !meeting.processID.isEmpty {
+            ensureKGEdge(from: "kg-proc-\(meeting.processID)", .discussedIn, to: meeting.kgID, confidence: 0.85)
+        }
+        if !meeting.initiativeID.isEmpty {
+            ensureKGEdge(from: "kg-ini-\(meeting.initiativeID)", .discussedIn, to: meeting.kgID, confidence: 0.85)
+        }
+    }
+
+    // MARK: Meetings
+
+    @discardableResult
+    func createMeeting(kind: MeetingKind, processID: String = "") -> MeetingRecord {
+        let meeting = MeetingRecord(
+            id: "meet-\(UUID().uuidString.prefix(8))",
+            title: "\(kind.label) · \(Fmt.day(now))",
+            kind: kind, date: now, durationMinutes: kind.defaultDuration,
+            site: processID.isEmpty ? "" : (process(forID: processID)?.site ?? ""),
+            owner: "CI Manager (role)", attendees: ["Process Owner", "CI Manager"],
+            processID: processID, initiativeID: "", status: .notes,
+            summary: "", isRecurring: kind == .dailyHuddle,
+            cadence: kind == .dailyHuddle ? "Daily" : "")
+        context.insert(meeting)
+        applyTemplate(kind, to: meeting, announce: false)
+        writeMeetingToGraph(meeting)
+        audit(action: "meeting.created", subject: meeting.title, detail: "\(kind.label) note created.")
+        try? context.save()
+        selectedMeetingID = meeting.id
+        page = .meetings
+        showToast("Meeting note created", detail: kind.label, symbol: "person.3.sequence")
+        return meeting
+    }
+
+    func process(forID id: String) -> ProcessRecord? {
+        ((try? context.fetch(FetchDescriptor<ProcessRecord>())) ?? []).first { $0.id == id }
+    }
+
+    func blocks(for meeting: MeetingRecord) -> [MeetingBlockRecord] {
+        ((try? context.fetch(FetchDescriptor<MeetingBlockRecord>())) ?? [])
+            .filter { $0.meetingID == meeting.id }
+            .sorted { $0.order < $1.order }
+    }
+
+    @discardableResult
+    func addBlock(to meeting: MeetingRecord, kind: BlockKind, after order: Int? = nil) -> MeetingBlockRecord {
+        let existing = blocks(for: meeting)
+        let insertAt = order.map { $0 + 1 } ?? (existing.count)
+        for block in existing where block.order >= insertAt { block.order += 1 }
+        let block = MeetingBlockRecord(id: "blk-\(UUID().uuidString.prefix(8))",
+                                       meetingID: meeting.id, order: insertAt, kind: kind,
+                                       text: placeholder(for: kind),
+                                       owner: kind == .action ? meeting.owner : "",
+                                       due: kind == .action ? now.addingTimeInterval(7 * 86_400) : nil)
+        context.insert(block)
+        meeting.updatedAt = now
+        writeBlockToGraph(block, meeting: meeting)
+        audit(action: "meeting.block.added", subject: meeting.title, detail: kind.label)
+        try? context.save()
+        return block
+    }
+
+    func deleteBlock(_ block: MeetingBlockRecord, meeting: MeetingRecord) {
+        context.delete(block)
+        meeting.updatedAt = now
+        audit(action: "meeting.block.deleted", subject: meeting.title, detail: block.kind.label)
+        try? context.save()
+    }
+
+    func moveBlock(_ block: MeetingBlockRecord, by delta: Int, meeting: MeetingRecord) {
+        let siblings = blocks(for: meeting)
+        guard let index = siblings.firstIndex(where: { $0.id == block.id }) else { return }
+        let target = index + delta
+        guard siblings.indices.contains(target) else { return }
+        let other = siblings[target]
+        let swap = block.order
+        block.order = other.order
+        other.order = swap
+        meeting.updatedAt = now
+        try? context.save()
+    }
+
+    func toggle(_ block: MeetingBlockRecord, meeting: MeetingRecord) {
+        block.checked.toggle()
+        meeting.updatedAt = now
+        if block.kind.createsNode {
+            let nodeID = "kg-\((block.kind == .decision ? KGKind.decision : KGKind.action).rawValue)-\(block.id)"
+            if let node = (try? context.fetch(FetchDescriptor<KGNodeRecord>()))?.first(where: { $0.id == nodeID }) {
+                node.note = block.checked ? "Done" : "Open"
+                node.updatedAt = now
+            }
+        }
+        try? context.save()
+    }
+
+    func applyTemplate(_ kind: MeetingKind, to meeting: MeetingRecord, announce: Bool = true) {
+        let existing = blocks(for: meeting)
+        guard announce || existing.isEmpty else { return }
+        var order = existing.count
+        var created: [MeetingBlockRecord] = []
+        func add(_ blockKind: BlockKind, _ text: String, owner: String = "",
+                 due: Date? = nil, link: (String, String) = ("", "")) {
+            let block = MeetingBlockRecord(id: "blk-\(UUID().uuidString.prefix(8))",
+                                           meetingID: meeting.id, order: order,
+                                           kind: blockKind, text: text,
+                                           owner: owner, due: due,
+                                           linkedKind: link.0, linkedID: link.1)
+            context.insert(block)
+            created.append(block)
+            order += 1
+        }
+        switch kind {
+        case .dailyHuddle:
+            add(.heading, "Yesterday")
+            add(.bullet, "")
+            add(.heading, "Today")
+            add(.bullet, "")
+            add(.heading, "Blockers")
+            add(.bullet, "")
+            add(.decision, "")
+            add(.action, "", owner: meeting.owner, due: now.addingTimeInterval(7 * 86_400))
+        case .kaizen:
+            add(.heading, "Problem")
+            add(.text, "")
+            add(.heading, "Target")
+            add(.text, "")
+            add(.heading, "Observed waste")
+            add(.bullet, "")
+            add(.heading, "Countermeasures")
+            add(.checklist, "")
+            add(.decision, "")
+            add(.action, "", owner: meeting.owner, due: now.addingTimeInterval(14 * 86_400))
+        case .a3Review:
+            add(.heading, "Background")
+            add(.text, "")
+            add(.heading, "Target vs actual")
+            add(.text, "")
+            add(.heading, "Root cause")
+            add(.text, "")
+            add(.decision, "")
+            add(.action, "", owner: meeting.owner, due: now.addingTimeInterval(14 * 86_400))
+        case .leadership:
+            add(.heading, "Portfolio")
+            add(.bullet, "Validated: \(Fmt.hours(validatedHours()))")
+            add(.bullet, "Committed: \(Fmt.hours(committedHours()))")
+            add(.heading, "Decisions needed")
+            add(.decision, "")
+            add(.action, "", owner: meeting.owner, due: now.addingTimeInterval(7 * 86_400))
+        case .workshop, .oneToOne:
+            add(.heading, "Context")
+            add(.text, "")
+            add(.heading, "Notes")
+            add(.bullet, "")
+            add(.decision, "")
+            add(.action, "", owner: meeting.owner, due: now.addingTimeInterval(7 * 86_400))
+        }
+        meeting.updatedAt = now
+        if announce {
+            audit(action: "meeting.template", subject: meeting.title, detail: kind.label)
+            showToast("Template inserted", detail: kind.label, symbol: "doc.badge.plus")
+        }
+        // New action/decision blocks become graph facts too.
+        for block in created where block.kind.createsNode {
+            writeBlockToGraph(block, meeting: meeting)
+        }
+        try? context.save()
+    }
+
+    func validatedHours() -> Double {
+        let initiatives = (try? context.fetch(FetchDescriptor<InitiativeRecord>())) ?? []
+        return SavingsLedger.totals(initiatives.map(\.savingLine)).validated
+    }
+
+    func committedHours() -> Double {
+        let initiatives = (try? context.fetch(FetchDescriptor<InitiativeRecord>())) ?? []
+        return SavingsLedger.totals(initiatives.map(\.savingLine)).committed
+    }
+
+    func linkMeeting(_ meeting: MeetingRecord, processID: String? = nil, initiativeID: String? = nil) {
+        if let processID { meeting.processID = processID; meeting.site = process(forID: processID)?.site ?? meeting.site }
+        if let initiativeID { meeting.initiativeID = initiativeID }
+        meeting.updatedAt = now
+        writeMeetingToGraph(meeting)
+        audit(action: "meeting.linked", subject: meeting.title, detail: "Linked to process or initiative.")
+        try? context.save()
+        showToast("Meeting linked", detail: meeting.title, symbol: "link")
+    }
+
+    /// An action becomes work only through the same initiative gate as an
+    /// opportunity. It never deploys anything.
+    @discardableResult
+    func promoteAction(_ block: MeetingBlockRecord, meeting: MeetingRecord) -> InitiativeRecord? {
+        let owner = block.owner.isEmpty ? meeting.owner : block.owner
+        guard !owner.isEmpty else {
+            showToast("An action needs an owner", detail: "Assign the action before promoting it.", symbol: "person.crop.circle.badge.exclamationmark", warning: true)
+            return nil
+        }
+        let opportunity = block.linkedID.isEmpty ? nil :
+            ((try? context.fetch(FetchDescriptor<OpportunityRecord>())) ?? []).first { $0.id == block.linkedID || $0.kgID == block.linkedID }
+        let processID = meeting.processID.isEmpty ? (opportunity?.processID ?? "") : meeting.processID
+        let process = processFor(processID)
+        let initiative = InitiativeRecord(
+            id: "ini-\(UUID().uuidString.prefix(8))",
+            title: block.text.isEmpty ? "Action from \(meeting.title)" : block.text,
+            opportunityID: opportunity?.id ?? "", processID: processID,
+            processName: process?.name ?? meeting.title, site: process?.site ?? meeting.site,
+            method: meeting.kind == .kaizen ? .kaizen : meeting.kind == .a3Review ? .a3 : .standardWork,
+            owner: owner, stage: .plan, status: .active,
+            due: block.due ?? now.addingTimeInterval(30 * 86_400),
+            savingsHours: opportunity?.annualHours ?? 0,
+            savingsStage: .estimated, validatedBy: "", evidenceNote: "",
+            claimsWaste: opportunity?.waste ?? .waiting,
+            background: "From \(meeting.title) (\(Fmt.day(meeting.date))).",
+            target: block.text, rootCause: "", countermeasure: "",
+            result: "", followUp: "Confirm the action produced the intended change.",
+            createdAt: now)
+        context.insert(initiative)
+        block.checked = true
+        if let opportunity { opportunity.statusRaw = OpportunityStatus.promoted.rawValue }
+        writeMeetingToGraph(meeting)
+        audit(action: "action.promoted", subject: initiative.title, detail: "From meeting \(meeting.id).")
+        try? context.save()
+        selectedInitiativeID = initiative.id
+        page = .improvements
+        showToast("Action promoted", detail: "\(owner) · initiative created", symbol: "flag.pattern.checkered")
+        return initiative
+    }
+
+    func processFor(_ id: String) -> ProcessRecord? {
+        guard !id.isEmpty else { return nil }
+        return ((try? context.fetch(FetchDescriptor<ProcessRecord>())) ?? []).first { $0.id == id }
+    }
+
+    private func placeholder(for kind: BlockKind) -> String {
+        switch kind {
+        case .heading: "New section"
+        case .text: ""
+        case .bullet: ""
+        case .checklist: "To do"
+        case .decision: "What did we decide?"
+        case .action: "What happens next?"
+        case .callout: "Note for the room"
+        case .link: "Linked record"
+        }
+    }
+
+    private func slug(_ text: String) -> String {
+        text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
+    }
+
+    /// Edits to a decision or action text refresh the graph node it created.
+    func refreshBlockNode(_ block: MeetingBlockRecord, meeting: MeetingRecord) {
+        guard block.kind.createsNode else { return }
+        let kind: KGKind = block.kind == .decision ? .decision : .action
+        let node = ensureKGNode(id: "kg-\(kind.rawValue)-\(block.id)", kind: kind,
+                                name: String(block.text.prefix(90)), confidence: 0.9,
+                                source: "ProcessLink meeting notes", sourceID: block.id,
+                                processID: meeting.processID)
+        node.updatedAt = now
+        if !block.owner.isEmpty {
+            let roleID = "kg-role-\(slug(block.owner))"
+            ensureKGNode(id: roleID, kind: .role, name: block.owner, confidence: 0.88,
+                         source: "Meeting action owner", sourceID: block.id)
+            ensureKGEdge(from: node.id, .assignedTo, to: roleID, confidence: 0.9)
+        }
+        try? context.save()
+    }
+
+    func markMeetingDone(_ meeting: MeetingRecord) {
+        meeting.statusRaw = MeetingStatus.done.rawValue
+        meeting.updatedAt = now
+        audit(action: "meeting.done", subject: meeting.title, detail: "Meeting note closed.")
+        try? context.save()
+        showToast("Meeting closed", detail: meeting.title)
+    }
+
+    func deleteMeeting(_ meeting: MeetingRecord) {
+        for block in blocks(for: meeting) {
+            context.delete(block)
+        }
+        if let node = (try? context.fetch(FetchDescriptor<KGNodeRecord>()))?.first(where: { $0.id == meeting.kgID }) {
+            node.validTo = now
+            node.updatedAt = now
+        }
+        context.delete(meeting)
+        audit(action: "meeting.deleted", subject: meeting.title, detail: "Meeting notes removed; graph facts closed.")
+        try? context.save()
+        selectedMeetingID = nil
+        showToast("Meeting deleted", detail: meeting.title, symbol: "trash")
     }
 
     // MARK: Sync
@@ -411,6 +837,8 @@ final class AppModel {
         let processes = (try? context.fetch(FetchDescriptor<ProcessRecord>())) ?? []
         let steps = (try? context.fetch(FetchDescriptor<StepRecord>())) ?? []
         let opportunities = (try? context.fetch(FetchDescriptor<OpportunityRecord>())) ?? []
+        let meetings = (try? context.fetch(FetchDescriptor<MeetingRecord>())) ?? []
+        let meetingBlocks = (try? context.fetch(FetchDescriptor<MeetingBlockRecord>())) ?? []
 
         // The guard runs before the provider, local or hosted.
         let scan = PIIScanner.scan(trimmed)
@@ -445,8 +873,24 @@ final class AppModel {
                                    confidence: opportunity.confidence,
                                    route: opportunity.route, kgID: opportunity.kgID)
             }
+        let meetingInsights = meetings.map { meeting in
+            let blocks = meetingBlocks.filter { $0.meetingID == meeting.id }
+            let processName = visible.first { $0.id == meeting.processID }?.name ?? ""
+            return MeetingInsight(
+                id: meeting.id, title: meeting.title, date: meeting.date,
+                kind: meeting.kind.label, site: meeting.site, processName: processName,
+                decisions: blocks.filter { $0.kind == .decision }.map {
+                    MeetingItemInsight(id: $0.id, text: $0.text, owner: $0.owner, done: $0.checked)
+                },
+                actions: blocks.filter { $0.kind == .action }.map {
+                    MeetingItemInsight(id: $0.id, text: $0.text, owner: $0.owner,
+                                       done: $0.checked, due: $0.due)
+                },
+                kgID: meeting.kgID)
+        }
         var answer = AskEngine.answer(trimmed, processes: processInsights,
-                                      steps: stepInsights, opportunities: opportunityInsights)
+                                      steps: stepInsights, opportunities: opportunityInsights,
+                                      meetings: meetingInsights)
         if scan.total > 0 {
             answer.body += "\n\nPersonal-data patterns were found in the question and masked before analysis: \(scan.summary)."
             answer.toVerify.append("The question contained personal data; only the masked text was used.")

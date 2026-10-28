@@ -1,16 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Shell } from './Shell'
 import {
-  AUDIT, GOVERNANCE, INITIATIVES, KG_EDGES, KG_NODES, NOW, OPPORTUNITIES, POLICY, PROCESSES,
+  AUDIT, BLOCKS, GOVERNANCE, INITIATIVES, KG_EDGES, KG_NODES, MEETINGS, NOW, OPPORTUNITIES, POLICY, PROCESSES,
 } from './domain/data'
 import { evaluate, fmt, recommendMethod, routeFor, scanPII } from './domain/rules'
 import { answer as answerQuestion, SUGGESTIONS } from './domain/ask'
+import { MEETING_LABEL } from './domain/labels'
 import type {
-  Answer, AuditEntry, GovernanceItem, Initiative, KGNode, Opportunity, PrivacyPolicy,
+  Answer, AuditEntry, BlockKind, GovernanceItem, Initiative, KGEdge, KGNode, Meeting,
+  MeetingBlock, MeetingKind, Opportunity, PrivacyPolicy,
 } from './domain/types'
 
 export type Page =
-  | 'overview' | 'discoveries' | 'opportunities' | 'maps'
+  | 'overview' | 'discoveries' | 'opportunities' | 'maps' | 'meetings'
   | 'graph' | 'improvements' | 'ask' | 'governance'
 
 export const NAV: Array<{ id: Page; label: string; group: string; icon: string }> = [
@@ -18,6 +20,7 @@ export const NAV: Array<{ id: Page; label: string; group: string; icon: string }
   { id: 'discoveries', label: 'Discoveries', group: 'Work', icon: '◉' },
   { id: 'opportunities', label: 'Opportunities', group: 'Work', icon: '◈' },
   { id: 'maps', label: 'Maps', group: 'Work', icon: '⌁' },
+  { id: 'meetings', label: 'Meetings', group: 'Work', icon: '◫' },
   { id: 'improvements', label: 'Improvements', group: 'Improve', icon: '⚑' },
   { id: 'ask', label: 'Ask', group: 'Improve', icon: '◍' },
   { id: 'graph', label: 'Knowledge Graph', group: 'Trust', icon: '⬡' },
@@ -33,7 +36,19 @@ interface AppValue {
   opportunities: Opportunity[]
   initiatives: Initiative[]
   nodes: KGNode[]
-  edges: typeof KG_EDGES
+  edges: KGEdge[]
+  meetings: Meeting[]
+  blocks: MeetingBlock[]
+  selectedMeeting: string
+  selectMeeting: (id: string) => void
+  createMeeting: (kind: MeetingKind) => void
+  updateMeeting: (id: string, patch: Partial<Meeting>) => void
+  addMeetingBlock: (meetingId: string, kind: BlockKind, after?: number) => void
+  updateBlock: (id: string, patch: Partial<MeetingBlock>) => void
+  deleteBlock: (id: string) => void
+  toggleBlock: (id: string) => void
+  linkMeeting: (id: string, patch: { processId?: string; initiativeId?: string }) => void
+  promoteAction: (blockId: string) => void
   governance: GovernanceItem[]
   audit: AuditEntry[]
   answers: Answer[]
@@ -82,11 +97,14 @@ export default function ProcessLink() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>(OPPORTUNITIES)
   const [initiatives, setInitiatives] = useState<Initiative[]>(INITIATIVES)
   const [nodes, setNodes] = useState<KGNode[]>(KG_NODES)
+  const [edges, setEdges] = useState<KGEdge[]>(KG_EDGES)
+  const [meetings, setMeetings] = useState<Meeting[]>(MEETINGS)
+  const [blocks, setBlocks] = useState<MeetingBlock[]>(BLOCKS)
   const [governance, setGovernance] = useState<GovernanceItem[]>(GOVERNANCE)
   const [audit, setAudit] = useState<AuditEntry[]>(AUDIT)
   const [answers, setAnswers] = useState<Answer[]>(() => {
     const question = new URLSearchParams(window.location.search).get('q')
-    return question ? [answerQuestion(question, PROCESSES, OPPORTUNITIES)] : []
+    return question ? [answerQuestion(question, PROCESSES, OPPORTUNITIES, MEETINGS, BLOCKS)] : []
   })
   const [policy, setPolicy] = useState<PrivacyPolicy>(POLICY)
   const [toast, setToast] = useState<Toast | null>(null)
@@ -98,6 +116,7 @@ export default function ProcessLink() {
   const [selectedOpportunity, selectOpportunity] = useState(OPPORTUNITIES[0]?.id ?? '')
   const [selectedInitiative, selectInitiative] = useState(INITIATIVES[0]?.id ?? '')
   const [selectedNode, selectNode] = useState('kg-app-sap-ecc')
+  const [selectedMeeting, selectMeeting] = useState(MEETINGS[0]?.id ?? '')
 
   useEffect(() => {
     const onHash = () => setPage(pageFromHash())
@@ -138,6 +157,173 @@ export default function ProcessLink() {
     window.scrollTo({ top: 0 })
   }, [])
 
+  const upsertNode = useCallback((node: KGNode) => {
+    setNodes(current => current.some(n => n.id === node.id)
+      ? current.map(n => n.id === node.id ? { ...n, ...node } : n)
+      : [...current, node])
+  }, [])
+
+  const upsertEdge = useCallback((edge: KGEdge) => {
+    setEdges(current => current.some(e => e.from === edge.from && e.predicate === edge.predicate && e.to === edge.to)
+      ? current
+      : [...current, edge])
+  }, [])
+
+  const writeInitiative = useCallback((initiative: Initiative, opportunityId?: string) => {
+    upsertNode({
+      id: `kg-ini-${initiative.id}`, kind: 'initiative', name: initiative.title,
+      confidence: 0.93, review: 'confirmed', source: 'ProcessLink TEOA layer',
+      sourceId: initiative.id, validFrom: new Date().toISOString(), processId: initiative.processId,
+    })
+    upsertNode({
+      id: `kg-savings-${initiative.id}`, kind: 'savingsRecord',
+      name: `${Math.round(initiative.savingsHours)} h · Estimated`, confidence: 0.8,
+      review: 'confirmed', source: 'ProcessLink value tracking', sourceId: initiative.id,
+      validFrom: new Date().toISOString(), processId: initiative.processId,
+    })
+    if (opportunityId) {
+      upsertEdge({ from: `kg-opp-${opportunityId}`, predicate: 'addressedBy', to: `kg-ini-${initiative.id}`, confidence: 0.9 })
+    }
+    upsertEdge({ from: `kg-ini-${initiative.id}`, predicate: 'realizesSavings', to: `kg-savings-${initiative.id}`, confidence: 0.9 })
+  }, [upsertNode, upsertEdge])
+
+  const createMeeting = useCallback((kind: MeetingKind) => {
+    const id = `meet-${crypto.randomUUID().slice(0, 8)}`
+    const meeting: Meeting = {
+      id, title: `${MEETING_LABEL[kind]} · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`,
+      kind, date: new Date().toISOString(), durationMinutes: kind === 'kaizen' ? 480 : 30,
+      site: '', owner: 'CI Manager (role)', attendees: ['Process Owner', 'CI Manager'],
+      processId: '', initiativeId: '', status: 'notes', summary: '', recurring: kind === 'dailyHuddle',
+      cadence: kind === 'dailyHuddle' ? 'Daily' : '', kgId: `kg-meeting-${id}`,
+    }
+    setMeetings(current => [meeting, ...current])
+    const created = templateBlocks(kind, id, 'CI Manager (role)')
+    setBlocks(current => [...current, ...created])
+    for (const item of created) {
+      if (item.kind === 'decision' || item.kind === 'action') writeBlockNode(item, meeting)
+    }
+    upsertNode({ id: meeting.kgId, kind: 'meeting', name: meeting.title, confidence: 0.9,
+      review: 'confirmed', source: 'ProcessLink meeting notes', sourceId: id,
+      validFrom: meeting.date })
+    selectMeeting(id)
+    addAudit('meeting.created', meeting.title, `${MEETING_LABEL[kind]} note created.`)
+    notify('Meeting note created', MEETING_LABEL[kind])
+    navigate('meetings')
+  }, [upsertNode, addAudit, notify, navigate])
+
+  const updateMeeting = useCallback((id: string, patch: Partial<Meeting>) => {
+    setMeetings(current => current.map(meeting => meeting.id === id ? { ...meeting, ...patch } : meeting))
+  }, [])
+
+  const writeBlockNode = useCallback((item: MeetingBlock, meeting: Meeting) => {
+    upsertNode({
+      id: `kg-${item.kind}-${item.id}`, kind: item.kind as 'decision' | 'action',
+      name: item.text.slice(0, 90) || 'Untitled', confidence: 0.9, review: 'confirmed',
+      source: 'ProcessLink meeting notes', sourceId: item.id, validFrom: meeting.date,
+      processId: meeting.processId || undefined,
+    })
+    upsertEdge({ from: `kg-${item.kind}-${item.id}`, predicate: 'documentedIn', to: meeting.kgId, confidence: 0.95 })
+    if (item.owner) {
+      const roleId = `kg-role-${item.owner.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+      upsertNode({ id: roleId, kind: 'role', name: item.owner, confidence: 0.88, review: 'confirmed',
+        source: 'Meeting action owner', sourceId: item.id, validFrom: meeting.date })
+      upsertEdge({ from: `kg-${item.kind}-${item.id}`, predicate: 'assignedTo', to: roleId, confidence: 0.9 })
+    }
+  }, [upsertNode, upsertEdge])
+
+  const addMeetingBlock = useCallback((meetingId: string, kind: BlockKind, after?: number) => {
+    const meeting = meetings.find(m => m.id === meetingId)
+    if (!meeting) return
+    const existing = blocks.filter(b => b.meetingId === meetingId)
+    const order = after === undefined ? existing.length : after + 1
+    const id = `blk-${crypto.randomUUID().slice(0, 8)}`
+    const text = kind === 'heading' ? 'New section' : kind === 'decision' ? 'What did we decide?' : kind === 'action' ? 'What happens next?' : ''
+    const item: MeetingBlock = {
+      id, meetingId, order, kind, text, checked: false,
+      owner: kind === 'action' ? meeting.owner : '',
+      due: kind === 'action' ? new Date(Date.now() + 7 * 86_400_000).toISOString() : undefined,
+    }
+    setBlocks(current => [...current, item])
+    if (kind === 'decision' || kind === 'action') writeBlockNode(item, meeting)
+    setMeetings(current => current.map(m => m.id === meetingId ? { ...m, summary: m.summary } : m))
+    addAudit('meeting.block.added', meeting.title, kind)
+  }, [meetings, blocks, writeBlockNode, addAudit])
+
+  const updateBlock = useCallback((id: string, patch: Partial<MeetingBlock>) => {
+    setBlocks(current => current.map(item => item.id === id ? { ...item, ...patch } : item))
+    const item = blocks.find(b => b.id === id)
+    if (!item) return
+    if (item.kind === 'decision' || item.kind === 'action') {
+      const meeting = meetings.find(m => m.id === item.meetingId)
+      if (meeting) {
+        upsertNode({
+          id: `kg-${item.kind}-${item.id}`, kind: item.kind,
+          name: (patch.text ?? item.text).slice(0, 90) || 'Untitled',
+          confidence: 0.9, review: 'confirmed', source: 'ProcessLink meeting notes',
+          sourceId: item.id, validFrom: meeting.date, processId: meeting.processId || undefined,
+        })
+        const owner = patch.owner ?? item.owner
+        if (owner) {
+          const roleId = `kg-role-${owner.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+          upsertNode({ id: roleId, kind: 'role', name: owner, confidence: 0.88, review: 'confirmed',
+            source: 'Meeting action owner', sourceId: item.id, validFrom: meeting.date })
+          upsertEdge({ from: `kg-${item.kind}-${item.id}`, predicate: 'assignedTo', to: roleId, confidence: 0.9 })
+        }
+      }
+    }
+  }, [blocks, meetings, upsertNode, upsertEdge])
+
+  const deleteBlock = useCallback((id: string) => {
+    setBlocks(current => current.filter(item => item.id !== id))
+  }, [])
+
+  const toggleBlock = useCallback((id: string) => {
+    setBlocks(current => current.map(item => item.id === id ? { ...item, checked: !item.checked } : item))
+  }, [])
+
+  const linkMeeting = useCallback((id: string, patch: { processId?: string; initiativeId?: string }) => {
+    setMeetings(current => current.map(meeting => {
+      if (meeting.id !== id) return meeting
+      const next = { ...meeting, ...patch }
+      if (patch.processId) upsertEdge({ from: `kg-proc-${patch.processId}`, predicate: 'discussedIn', to: meeting.kgId, confidence: 0.85 })
+      if (patch.initiativeId) upsertEdge({ from: `kg-ini-${patch.initiativeId}`, predicate: 'discussedIn', to: meeting.kgId, confidence: 0.85 })
+      return next
+    }))
+    notify('Meeting linked', 'The page is connected in the graph.')
+  }, [upsertEdge, notify])
+
+  const promoteAction = useCallback((blockId: string) => {
+    const item = blocks.find(b => b.id === blockId)
+    if (!item) return
+    const meeting = meetings.find(m => m.id === item.meetingId)
+    if (!meeting) return
+    const opportunity = item.linkedId ? opportunities.find(o => o.id === item.linkedId || o.kgId === item.linkedId) : undefined
+    const process = PROCESSES.find(p => p.id === (meeting.processId || opportunity?.processId))
+    const owner = item.owner || meeting.owner
+    const initiative: Initiative = {
+      id: `ini-${crypto.randomUUID().slice(0, 8)}`, title: item.text || `Action from ${meeting.title}`,
+      opportunityId: opportunity?.id ?? '', processId: process?.id ?? '',
+      processName: process?.name ?? meeting.title, site: process?.site ?? meeting.site,
+      method: meeting.kind === 'kaizen' ? 'kaizen' : meeting.kind === 'a3Review' ? 'a3' : 'standardWork',
+      owner: owner || 'Unassigned', stage: 'plan',
+      due: item.due ?? new Date(Date.now() + 30 * 86_400_000).toISOString(),
+      savingsHours: opportunity?.hours ?? 0, savingsStage: 'estimated', validatedBy: '', evidence: '',
+      waste: opportunity?.waste ?? 'waiting',
+      background: `From ${meeting.title} (${new Date(meeting.date).toLocaleDateString('en-GB')}).`,
+      target: item.text, countermeasure: '', result: '',
+    }
+    setInitiatives(current => [initiative, ...current])
+    if (opportunity) {
+      setOpportunities(current => current.map(o => o.id === opportunity.id ? { ...o, status: 'promoted' } : o))
+    }
+    setBlocks(current => current.map(b => b.id === blockId ? { ...b, checked: true } : b))
+    writeInitiative(initiative, opportunity?.id)
+    addAudit('action.promoted', initiative.title, `From meeting ${meeting.id}.`)
+    selectInitiative(initiative.id)
+    notify('Action promoted', `${initiative.owner} · initiative created`)
+    navigate('improvements')
+  }, [blocks, meetings, opportunities, writeInitiative, addAudit, notify, navigate])
+
   const promote = useCallback((opportunity: Opportunity) => {
     const process = PROCESSES.find(p => p.id === opportunity.processId)
     if (process) {
@@ -166,11 +352,12 @@ export default function ProcessLink() {
     }
     setInitiatives(current => [initiative, ...current])
     setOpportunities(current => current.map(o => o.id === opportunity.id ? { ...o, status: 'promoted' } : o))
+    writeInitiative(initiative, opportunity.id)
     selectInitiative(initiative.id)
     addAudit('initiative.created', initiative.title, `From ${opportunity.id}, ${fmt.hoursPerYear(initiative.savingsHours)} estimated.`)
     notify('Initiative started', `${initiative.owner} · ${fmt.hours(initiative.savingsHours)}`)
     navigate('improvements')
-  }, [policy, notify, addAudit, navigate])
+  }, [policy, notify, addAudit, navigate, writeInitiative])
 
   const commitSaving = useCallback((initiativeId: string) => {
     setInitiatives(current => current.map(initiative => {
@@ -221,10 +408,14 @@ export default function ProcessLink() {
     setInitiatives(current => current.map(i => i.id === initiativeId
       ? { ...i, savingsStage: 'validated', validatedBy: validator.trim(), evidence: evidence.trim() }
       : i))
+    upsertNode({ id: `kg-savings-${initiative.id}`, kind: 'savingsRecord',
+      name: `${Math.round(initiative.savingsHours)} h · Validated`, confidence: 1,
+      review: 'confirmed', source: 'ProcessLink value tracking', sourceId: initiative.id,
+      validFrom: new Date().toISOString(), note: `Validated by ${validator.trim()}.` })
     addAudit('savings.validated', initiative.title, `${fmt.hours(initiative.savingsHours)} validated by ${validator.trim()}.`)
     notify('Saving validated', `${fmt.hours(initiative.savingsHours)} · ${validator.trim()}`)
     return true
-  }, [initiatives, notify, addAudit])
+  }, [initiatives, notify, addAudit, upsertNode])
 
   const reviewNode = useCallback((nodeId: string, mergeInto?: string) => {
     setNodes(current => current.map(node => {
@@ -234,10 +425,20 @@ export default function ProcessLink() {
         return {
           ...node, review: 'rejected',
           note: `Merged into ${target?.name ?? mergeInto} by a human reviewer.`,
+          validTo: new Date().toISOString(),
         }
       }
       return { ...node, review: 'confirmed' }
     }))
+    if (mergeInto) {
+      setEdges(current => current
+        .map(edge => ({
+          ...edge,
+          from: edge.from === nodeId ? mergeInto : edge.from,
+          to: edge.to === nodeId ? mergeInto : edge.to,
+        }))
+        .filter(edge => edge.from !== edge.to))
+    }
     const node = nodes.find(n => n.id === nodeId)
     addAudit(mergeInto ? 'kg.merge.confirmed' : 'kg.node.confirmed', node?.name ?? nodeId, mergeInto ? 'Human confirmed the merge.' : 'Human confirmed the node.')
     notify('Review recorded', node?.name ?? nodeId)
@@ -247,14 +448,14 @@ export default function ProcessLink() {
     const trimmed = question.trim()
     if (!trimmed) return
     const scan = scanPII(trimmed)
-    const result = answerQuestion(trimmed, PROCESSES, opportunities)
+    const result = answerQuestion(trimmed, PROCESSES, opportunities, meetings, blocks)
     if (scan.total > 0) {
       result.body += `\n\nPersonal-data patterns were found in the question and masked before analysis: ${scan.masked}.`
       result.toVerify.push('The question contained personal data; only the masked text was used.')
     }
     setAnswers(current => [...current, result])
     addAudit('ai.answer', 'Ask the process', `${result.citations.length} citations, provider ${policy.provider}.`)
-  }, [opportunities, policy.provider, addAudit])
+  }, [opportunities, meetings, blocks, policy.provider, addAudit])
 
   const clearAsk = useCallback(() => setAnswers([]), [])
 
@@ -319,14 +520,18 @@ export default function ProcessLink() {
   }, [opportunities, initiatives, policy.dataOwner, addAudit, notify])
 
   const value = useMemo<AppValue>(() => ({
-    page, navigate, processes: PROCESSES, opportunities, initiatives, nodes, edges: KG_EDGES,
+    page, navigate, processes: PROCESSES, opportunities, initiatives, nodes, edges, meetings, blocks,
+    selectedMeeting, selectMeeting, createMeeting, updateMeeting, addMeetingBlock, updateBlock,
+    deleteBlock, toggleBlock, linkMeeting, promoteAction,
     governance, audit, answers, policy, setPolicy, toast, notify,
     selectedProcess, selectProcess, selectedOpportunity, selectOpportunity,
     selectedInitiative, selectInitiative, selectedNode, selectNode,
     promote, commitSaving, advanceInitiative, setGovernanceStatus, validateSaving, reviewNode, ask, clearAsk, sync, exportBrief,
     theme, setTheme, suggestions: SUGGESTIONS,
-  }), [page, navigate, opportunities, initiatives, nodes, governance, audit, answers, policy,
-    toast, notify, selectedProcess, selectedOpportunity, selectedInitiative, selectedNode,
+  }), [page, navigate, opportunities, initiatives, nodes, edges, meetings, blocks, governance, audit, answers, policy,
+    toast, notify, selectedProcess, selectedOpportunity, selectedInitiative, selectedNode, selectedMeeting,
+    selectMeeting, createMeeting, updateMeeting, addMeetingBlock, updateBlock, deleteBlock, toggleBlock,
+    linkMeeting, promoteAction,
     promote, commitSaving, advanceInitiative, setGovernanceStatus, validateSaving, reviewNode, ask, clearAsk, sync, exportBrief, theme])
 
   return (
@@ -336,3 +541,25 @@ export default function ProcessLink() {
   )
 }
 
+function templateBlocks(kind: MeetingKind, meetingId: string, owner: string): MeetingBlock[] {
+  const due = new Date(Date.now() + 7 * 86_400_000).toISOString()
+  const rows: Array<[BlockKind, string, string?]> = (() => {
+    switch (kind) {
+      case 'dailyHuddle':
+        return [['heading', 'Yesterday'], ['bullet', ''], ['heading', 'Today'], ['bullet', ''], ['heading', 'Blockers'], ['bullet', ''], ['decision', ''], ['action', '', owner]]
+      case 'kaizen':
+        return [['heading', 'Problem'], ['text', ''], ['heading', 'Target'], ['text', ''], ['heading', 'Countermeasures'], ['checklist', ''], ['decision', ''], ['action', '', owner]]
+      case 'a3Review':
+        return [['heading', 'Background'], ['text', ''], ['heading', 'Target vs actual'], ['text', ''], ['heading', 'Root cause'], ['text', ''], ['decision', ''], ['action', '', owner]]
+      case 'leadership':
+        return [['heading', 'Portfolio'], ['bullet', ''], ['heading', 'Decisions needed'], ['decision', ''], ['action', '', owner]]
+      default:
+        return [['heading', 'Context'], ['text', ''], ['heading', 'Notes'], ['bullet', ''], ['decision', ''], ['action', '', owner]]
+    }
+  })()
+  return rows.map(([blockKind, text, blockOwner], index) => ({
+    id: `${meetingId}-blk-${index}`, meetingId, order: index, kind: blockKind, text,
+    checked: false, owner: blockOwner ?? '',
+    due: blockKind === 'action' ? due : undefined,
+  }))
+}

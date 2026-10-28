@@ -3,7 +3,7 @@ import { Card, Chip, Metric, Note, PageHead, Meter, routeTone } from '../compone
 import { canDisplay, fmt, initiativeLine, savingsConflicts, savingsTotal, scoreOpportunity } from '../domain/rules'
 
 export default function Overview() {
-  const { processes, opportunities, initiatives, governance, navigate, selectOpportunity, policy, selectInitiative } = useApp()
+  const { processes, opportunities, initiatives, governance, navigate, selectOpportunity, policy, selectInitiative, meetings, blocks, selectMeeting } = useApp()
   const visible = processes.filter(p => p.status === 'discovered' && canDisplay(p, policy))
   const ranked = opportunities
     .filter(o => visible.some(p => p.id === o.processId) && o.status !== 'deferred')
@@ -130,6 +130,33 @@ export default function Overview() {
           </div>
         </Card>
       </div>
+
+      <Card title="Meetings & actions" subtitle="Notes become decisions; decisions become work." glyph="◫">
+        <div className="grid two" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' }}>
+          <div>
+            <div className="tiny" style={{ marginBottom: 6 }}>Recent pages</div>
+            {[...meetings].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 2).map(meeting => (
+              <button key={meeting.id} className="row" style={{ padding: 4 }}
+                onClick={() => { selectMeeting(meeting.id); navigate('meetings') }}>
+                <span style={{ minWidth: 0 }}>
+                  <div className="title" style={{ fontSize: 12 }}>{meeting.title}</div>
+                  <div className="tiny">{new Date(meeting.date).toLocaleDateString('en-GB')} · {meeting.owner}</div>
+                </span>
+              </button>
+            ))}
+          </div>
+          <div>
+            <div className="tiny" style={{ marginBottom: 6 }}>Open actions</div>
+            {blocks.filter(b => b.kind === 'action' && !b.checked).slice(0, 2).map(item => (
+              <div key={item.id} className="between" style={{ padding: '4px 0' }}>
+                <span className="tiny" style={{ maxWidth: 240 }}>{item.text || 'Untitled action'}</span>
+                <span className="tiny">{item.owner}</span>
+              </div>
+            ))}
+            <button className="btn small" onClick={() => navigate('meetings')} style={{ marginTop: 6 }}>Open Meetings</button>
+          </div>
+        </div>
+      </Card>
     </>
   )
 }

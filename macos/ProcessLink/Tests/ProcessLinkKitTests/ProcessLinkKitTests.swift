@@ -207,3 +207,60 @@ func costModel() {
     #expect(Fmt.hours(1_000) == "1,000 h")
     #expect(Fmt.percent(0.284) == "28%")
 }
+
+// MARK: - Graph
+
+private let graphNodes = [
+    GraphNode(id: "a", kind: .process, name: "Order intake", confidence: 0.9),
+    GraphNode(id: "b", kind: .step, name: "Check customer master", confidence: 0.8),
+    GraphNode(id: "c", kind: .application, name: "SAP S/4HANA", confidence: 0.9),
+    GraphNode(id: "d", kind: .role, name: "Order Desk", confidence: 0.9),
+]
+
+private let graphEdges = [
+    GraphEdge(from: "a", to: "b", predicate: .measuredBy, confidence: 0.8),
+    GraphEdge(from: "b", to: "c", predicate: .uses, confidence: 0.9),
+]
+
+@Test("Orphans are exactly the nodes with no edge")
+func orphans() {
+    let orphan = KGGraph.orphanIDs(nodes: graphNodes, edges: graphEdges)
+    #expect(orphan == ["d"])
+}
+
+@Test("Neighbourhood walks two hops and stops")
+func neighbourhood() {
+    let one = KGGraph.neighbours(of: "a", in: graphEdges)
+    #expect(one == ["b"])
+    let two = KGGraph.neighbourhood(of: "a", in: graphEdges, depth: 2)
+    #expect(two == ["a", "b", "c"])
+}
+
+@Test("Name similarity is explainable and symmetric")
+func similarity() {
+    #expect(KGGraph.similarity("SAP S/4HANA", "SAP S4HANA") > 0.9)
+    #expect(KGGraph.similarity("Order Desk", "Invoice Desk") > 0.3)
+    #expect(KGGraph.similarity("Order Desk", "Invoice Desk") == KGGraph.similarity("Invoice Desk", "Order Desk"))
+    #expect(KGGraph.similarity("Order Desk", "Completely different") < 0.35)
+}
+
+@Test("Duplicate candidates only compare the same kind")
+func duplicates() {
+    let nodes = [
+        GraphNode(id: "1", kind: .application, name: "SAP S/4HANA", confidence: 0.9),
+        GraphNode(id: "2", kind: .application, name: "SAP S4HANA", confidence: 0.8),
+        GraphNode(id: "3", kind: .role, name: "SAP S/4HANA", confidence: 0.8),
+    ]
+    let pairs = KGGraph.duplicatePairs(nodes: nodes, threshold: 0.7)
+    #expect(pairs.count == 1)
+    #expect(pairs.first?.left == "1")
+}
+
+@Test("Closed nodes are not duplicate candidates")
+func closedNodes() {
+    let nodes = [
+        GraphNode(id: "1", kind: .application, name: "SAP ECC", confidence: 0.9),
+        GraphNode(id: "2", kind: .application, name: "SAP ECC", confidence: 0.9, validTo: .now),
+    ]
+    #expect(KGGraph.duplicatePairs(nodes: nodes).isEmpty)
+}

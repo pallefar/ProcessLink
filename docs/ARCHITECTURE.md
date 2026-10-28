@@ -107,7 +107,30 @@ flowchart TB
 8. **Commit** — idempotent upsert into the local store, then propose KG nodes.
 9. **Audit** — one immutable event per step, counts only.
 
-### 3.2 Write paths that need a human
+### 3.2 Meetings and graph write-through
+
+A meeting is a **page of typed blocks**, not a free-text note:
+
+| Block | What it creates |
+|---|---|
+| Heading, text, bullet, to-do, callout | Reading structure only |
+| Decision | A `Decision` KG node, `documented_in` the meeting |
+| Action | An `Action` KG node, `documented_in` the meeting, `assigned_to` the owner role |
+| Link | A reference to a process, opportunity or initiative |
+
+The meeting itself is a `Meeting` node. Linking a process adds
+`process —discussed_in→ meeting`; linking an initiative adds
+`initiative —discussed_in→ meeting`. Promoting an action runs the same
+initiative gate as an opportunity: named owner, stage, saving, audit; it never
+deploys anything. Edits to a decision/action refresh its node; a merge closes
+the losing node, re-points its edges in one transaction and never leaves a
+self-loop.
+
+This is why there is no separate "notes database": the page, the decision, the
+action and the improvement work are the same graph, read at different
+granularity.
+
+### 3.3 Write paths that need a human
 
 | Write | Gate |
 |---|---|
@@ -190,6 +213,8 @@ Structured logs carry ids and counts, never process content: `sync.run`,
 | Savings ledger (estimate → commit → validate, conflicts) | ✅ | ✅ | via web |
 | Discovery → opportunity → initiative → A3 | ✅ | ✅ | via web |
 | Map generation with KG-bound shapes + overlays | ✅ | ✅ | via web |
+| Meetings, block pages, decisions and actions | ✅ | ✅ | via web |
+| Graph canvas, search, quality filters, backlinks | ✅ | list + backlinks | via web |
 | KG explorer + review queue | ✅ | ✅ (read) | via web |
 | Ask with citations + to-verify | ✅ | ✅ | via web |
 | Audit log | ✅ | ✅ | via web |

@@ -4,16 +4,29 @@ import { Card, Chip, Empty, KV, Note, PageHead } from '../components/ui'
 import { KG_LABEL, PREDICATE_LABEL } from '../domain/labels'
 import type { KGKind } from '../domain/types'
 
-const KINDS: KGKind[] = ['process', 'step', 'application', 'role', 'site', 'valueStream', 'opportunity', 'initiative', 'savingsRecord', 'hoshinObjective', 'document']
+const KINDS: KGKind[] = ['process', 'step', 'application', 'role', 'site', 'valueStream', 'opportunity', 'initiative', 'savingsRecord', 'hoshinObjective', 'document', 'meeting', 'decision', 'action']
 
 export default function Graph() {
-  const { nodes, edges, selectedNode, selectNode, reviewNode } = useApp()
+  const { nodes, edges, selectedNode, selectNode, reviewNode, meetings, selectMeeting, navigate } = useApp()
   const [filter, setFilter] = useState<KGKind | 'all'>('all')
+  const [search, setSearch] = useState('')
   const suggested = nodes.filter(node => node.review === 'suggested')
   const ordered = [...nodes].sort((a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind) || a.name.localeCompare(b.name))
-  const visible = filter === 'all' ? ordered : ordered.filter(node => node.kind === filter)
+  const visible = ordered.filter(node =>
+    (filter === 'all' || node.kind === filter)
+    && (!search.trim() || node.name.toLowerCase().includes(search.toLowerCase())
+      || node.id.toLowerCase().includes(search.toLowerCase())))
   const node = allFind(nodes, selectedNode) ?? suggested[0] ?? visible[0]
   const edgeCount = (id: string) => edges.filter(edge => edge.from === id || edge.to === id).length
+
+  const meetingFor = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId)
+    if (!node) return undefined
+    if (node.kind === 'meeting') return meetings.find(m => m.kgId === nodeId)
+    if (node.kind !== 'decision' && node.kind !== 'action') return undefined
+    const edge = edges.find(e => e.from === nodeId && e.predicate === 'documentedIn')
+    return meetings.find(m => m.kgId === edge?.to)
+  }
   const orphans = nodes.filter(item => edgeCount(item.id) === 0).length
 
   return (
@@ -53,13 +66,17 @@ export default function Graph() {
 
       <div className="grid two" style={{ gridTemplateColumns: '400px minmax(0, 1fr)' }}>
         <Card title="Nodes" subtitle="Filter by type." glyph="≡">
+          <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search nodes, ids"
+            aria-label="Search nodes"
+            style={{ width: '100%', border: '1px solid var(--border)', background: 'var(--panel-2)', borderRadius: 6, padding: '4px 8px', fontSize: 11, marginBottom: 8 }} />
           <div className="rowflex" style={{ marginBottom: 10 }}>
-            <button className={filter === 'all' ? 'btn small primary' : 'btn small'} onClick={() => setFilter('all')}>All</button>
-            {KINDS.map(kind => (
-              <button key={kind} className={filter === kind ? 'btn small primary' : 'btn small'} onClick={() => setFilter(kind)}>
-                {KG_LABEL[kind]}
-              </button>
-            ))}
+            <select aria-label="Filter by node type" value={filter}
+              onChange={event => setFilter(event.target.value as KGKind | 'all')}
+              style={{ border: '1px solid var(--border)', background: 'var(--panel-2)', borderRadius: 6, padding: '3px 6px', fontSize: 11 }}>
+              <option value="all">All types</option>
+              {KINDS.map(kind => <option key={kind} value={kind}>{KG_LABEL[kind]}</option>)}
+            </select>
+            <span className="tiny">{visible.length} shown</span>
           </div>
           <div className="scroll-list" style={{ maxHeight: 420 }}>
             {visible.map(item => (
@@ -79,6 +96,9 @@ export default function Graph() {
             <div className="rowflex" style={{ marginBottom: 10 }}>
               <Chip tone={node.review === 'suggested' ? 'orange' : 'green'}>{node.review === 'suggested' ? 'Needs review' : node.review}</Chip>
               <Chip tone={node.confidence >= 0.85 ? 'green' : 'orange'}>{Math.round(node.confidence * 100)}% confidence</Chip>
+              {meetingFor(node.id) && (
+                <button className="btn small" onClick={() => { selectMeeting(meetingFor(node.id)!.id); navigate('meetings') }}>Open meeting</button>
+              )}
             </div>
             <KV items={[
               ['Node id', <span className="mono">{node.id}</span>],

@@ -9,6 +9,7 @@ struct DiscoveriesPage: View {
     @Query(sort: \ProcessRecord.name) private var processes: [ProcessRecord]
     @Query(sort: \StepRecord.order) private var steps: [StepRecord]
     @Query(sort: \VariantRecord.share, order: .reverse) private var variants: [VariantRecord]
+    @Query(sort: \MeetingRecord.date, order: .reverse) private var meetingNotes: [MeetingRecord]
 
     private var visible: [ProcessRecord] {
         processes
@@ -246,6 +247,10 @@ struct DiscoveriesPage: View {
                 }
             }
 
+            if !meetingNotes.filter({ $0.processID == process.id }).isEmpty {
+                meetingCard(process)
+            }
+
             HStack(spacing: Space.md) {
                 Button {
                     if let opportunity = bestOpportunity(for: process) {
@@ -264,6 +269,13 @@ struct DiscoveriesPage: View {
                     model.page = .maps
                 } label: {
                     Label("Open map", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                }
+
+                Button {
+                    model.selectedKGID = process.kgID
+                    model.page = .graph
+                } label: {
+                    Label("KG node", systemImage: "circle.hexagongrid")
                 }
 
                 Spacer()
@@ -353,6 +365,41 @@ struct DiscoveriesPage: View {
             HStack(spacing: Space.md) {
                 Button("Open governance") { model.page = .governance }
                 Spacer()
+            }
+        }
+    }
+
+    private func meetingCard(_ process: ProcessRecord) -> some View {
+        Card("Meeting notes", subtitle: "Decisions and actions recorded about this process.", symbol: "person.3.sequence") {
+            VStack(spacing: 0) {
+                ForEach(meetingNotes.filter { $0.processID == process.id }.prefix(3)) { meeting in
+                    Button {
+                        model.selectedMeetingID = meeting.id
+                        model.page = .meetings
+                    } label: {
+                        HStack(spacing: Space.sm) {
+                            Image(systemName: meeting.kind.symbol)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(meeting.title).font(.subheadline).foregroundStyle(.primary)
+                                Text("\(Fmt.day(meeting.date)) · \(meeting.owner)")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, Space.sm)
+                    if meeting.id != meetingNotes.filter({ $0.processID == process.id }).prefix(3).last?.id {
+                        RowDivider()
+                    }
+                }
             }
         }
     }

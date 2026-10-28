@@ -44,6 +44,8 @@ struct ProcessLinkApp: App {
                     .keyboardShortcut("3", modifiers: .command)
                 Button("Maps") { model.page = .maps }
                     .keyboardShortcut("4", modifiers: .command)
+                Button("Meetings") { model.page = .meetings }
+                    .keyboardShortcut("9", modifiers: .command)
                 Button("Knowledge Graph") { model.page = .graph }
                     .keyboardShortcut("5", modifiers: .command)
                 Button("Improvements") { model.page = .improvements }
@@ -174,6 +176,7 @@ enum Store {
             return try ModelContainer(for: ProcessRecord.self, StepRecord.self, VariantRecord.self,
                                       OpportunityRecord.self, InitiativeRecord.self,
                                       KGNodeRecord.self, KGEdgeRecord.self,
+                                      MeetingRecord.self, MeetingBlockRecord.self,
                                       GovernanceRecord.self, AuditRecord.self, SyncRecord.self,
                                       configurations: ModelConfiguration(url: url))
         } catch {

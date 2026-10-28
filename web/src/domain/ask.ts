@@ -1,4 +1,4 @@
-import type { Answer, Citation, Opportunity, Process } from './types'
+import type { Answer, Citation, Meeting, MeetingBlock, Opportunity, Process } from './types'
 import { fmt } from './rules'
 
 const stepList = (processes: Process[]) => processes.flatMap(process => process.steps.map(step => ({ process, step })))
@@ -18,10 +18,12 @@ export const SUGGESTIONS = [
   'Which standard work is least followed?',
   'What would automating order intake save?',
   'Which processes have the most variants?',
+  'What did we decide about pricing?',
+  'What actions are still open?',
 ]
 
 /** Deterministic, citation-first answer engine — the local provider. */
-export function answer(question: string, processes: Process[], opportunities: Opportunity[]): Answer {
+export function answer(question: string, processes: Process[], opportunities: Opportunity[], meetings: Meeting[] = [], blocks: MeetingBlock[] = []): Answer {
   const q = question.trim()
   const lower = q.toLowerCase()
   const id = crypto.randomUUID()
@@ -38,6 +40,52 @@ export function answer(question: string, processes: Process[], opportunities: Op
       ],
       toVerify: ['DPIA status by country', 'Works-council agreement scope'],
       confidence: 0.95,
+    }
+  }
+
+  if (lower.includes('decid') || lower.includes('meeting') || lower.includes('minutes')) {
+    const decisions = blocks.filter(b => b.kind === 'decision' && b.text.trim())
+    const named = meetings.find(m => lower.includes(m.title.toLowerCase()))
+    const scoped = named ? decisions.filter(b => b.meetingId === named.id) : decisions
+    if (scoped.length === 0) {
+      return {
+        id, question: q, intent: 'decisions',
+        headline: 'No decision is recorded for that scope',
+        body: `ProcessLink holds ${meetings.length} meeting page${meetings.length === 1 ? '' : 's'}, but none records a decision for this scope. That is an absence of evidence, not evidence of no decision.`,
+        citations: meetings.slice(0, 3).map(m => ({ kind: 'meeting', ref: m.kgId, label: m.title })),
+        toVerify: ['Check the minutes or ask the meeting owner'], confidence: 0.6,
+      }
+    }
+    return {
+      id, question: q, intent: 'decisions',
+      headline: 'Recorded decisions',
+      body: scoped.slice(0, 4).map(item => {
+        const meeting = meetings.find(m => m.id === item.meetingId)
+        return `${meeting?.title ?? 'Meeting'} (${new Date(meeting?.date ?? Date.now()).toLocaleDateString('en-GB')}): ${item.text}`
+      }).join('\n') + '\n\nA decision note records what the room agreed. It is not a validated outcome.',
+      citations: [...new Set(scoped.map(b => b.meetingId))].map(id => {
+        const meeting = meetings.find(m => m.id === id)
+        return { kind: 'meeting' as const, ref: meeting?.kgId ?? id, label: meeting?.title ?? 'Meeting' }
+      }),
+      toVerify: ['Confirm the minutes were approved'], confidence: 0.84,
+    }
+  }
+
+  if (lower.includes('action') || lower.includes('follow-up') || lower.includes('follow up')) {
+    const open = blocks.filter(b => b.kind === 'action' && !b.checked)
+    const scoped = open.slice(0, 5)
+    return {
+      id, question: q, intent: 'actions',
+      headline: `${open.length} open action${open.length === 1 ? '' : 's'}`,
+      body: scoped.map(item => {
+        const meeting = meetings.find(m => m.id === item.meetingId)
+        return `• ${item.text || 'Untitled action'} — ${item.owner || 'unassigned'}${item.due ? `, due ${new Date(item.due).toLocaleDateString('en-GB')}` : ''}${meeting ? ` · ${meeting.title}` : ''}`
+      }).join('\n') + '\n\nAn action is a commitment, not a result. Promote it to an initiative when it is real improvement work.',
+      citations: [...new Set(scoped.map(b => b.meetingId))].map(id => {
+        const meeting = meetings.find(m => m.id === id)
+        return { kind: 'meeting' as const, ref: meeting?.kgId ?? id, label: meeting?.title ?? 'Meeting' }
+      }),
+      toVerify: ['Promote any action that is really improvement work'], confidence: 0.86,
     }
   }
 

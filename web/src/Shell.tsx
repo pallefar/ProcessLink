@@ -4,6 +4,7 @@ import Overview from './pages/Overview'
 import Discoveries from './pages/Discoveries'
 import Opportunities from './pages/Opportunities'
 import Maps from './pages/Maps'
+import Meetings from './pages/Meetings'
 import Graph from './pages/Graph'
 import Improvements from './pages/Improvements'
 import Ask from './pages/Ask'
@@ -14,6 +15,7 @@ const PAGES = {
   discoveries: Discoveries,
   opportunities: Opportunities,
   maps: Maps,
+  meetings: Meetings,
   graph: Graph,
   improvements: Improvements,
   ask: Ask,

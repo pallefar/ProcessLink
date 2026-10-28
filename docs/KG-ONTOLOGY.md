@@ -40,6 +40,9 @@ additive layer; nothing in the existing schema is renamed or dropped.
 | `TEOAMethod` | method key | definition version | `teoa:method/{key}` |
 | `MaturityAssessment` | focus + version | level | `adv:focus/{id}` |
 | `HoshinObjective` | objective id | year | `adv:objective/{id}` |
+| `Meeting` | meeting id | date, owner role | `pl:meeting/{id}` |
+| `Decision` | block id | text, meeting | `pl:decision/{id}` |
+| `Action` | block id | text, owner role, due | `pl:action/{id}` |
 
 ### 2.1 Required properties on every node
 
@@ -81,9 +84,12 @@ graph is `validTo == null`.
 | `aligned_to_objective` | Initiative/Opportunity → HoshinObjective | strength 1–3 |
 | `documented_in` | Process/Step → Document | SOP version |
 | `has_opportunity` | Process → Opportunity | ProcessLink extension |
+| `discussed_in` | Process/Initiative → Meeting | Meeting page about the work |
+| `assigned_to` | Action → Role | Owner is a role, never a person |
 
 Every edge carries `confidence`, `source`, `validFrom`, `validTo`, and the id
-of the extractor run.
+of the extractor run. Decisions and actions are written when the block is
+created and refreshed when it changes; the meeting page is the evidence.
 
 ## 4. Entity resolution
 
@@ -152,6 +158,7 @@ The macOS Graph page shows nodes, edges, orphans and the review queue today.
 | M3 | Propose process/step nodes from a KYP sandbox; human review queue only | Yes |
 | M4 | Add `kgNodeId` to `signavio-map/1` node data and bind generated maps | Additive; default nil |
 | M5 | Add `kgNodeId` to Advantage opportunities | Additive; nullable |
+| M5b | Add `processlink_meeting` / `_block` tables and their node ids | Additive; new prefix |
 | M6 | Enable GraphRAG retrieval behind `PROCESSLINK_GRAPHRAG` (off) | Yes |
 
 Each step ships with a count check, a checksum over the migrated set, and a

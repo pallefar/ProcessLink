@@ -322,6 +322,9 @@ public enum KGKind: String, CaseIterable, Sendable, Codable, Identifiable {
     case teoaMethod
     case maturityAssessment
     case hoshinObjective
+    case meeting
+    case decision
+    case action
 
     public var id: String { rawValue }
 
@@ -352,6 +355,9 @@ public enum KGKind: String, CaseIterable, Sendable, Codable, Identifiable {
         case .teoaMethod: "TEOA method"
         case .maturityAssessment: "Maturity assessment"
         case .hoshinObjective: "Hoshin objective"
+        case .meeting: "Meeting"
+        case .decision: "Decision"
+        case .action: "Action"
         }
     }
 
@@ -382,6 +388,9 @@ public enum KGKind: String, CaseIterable, Sendable, Codable, Identifiable {
         case .teoaMethod: "book.closed"
         case .maturityAssessment: "chart.line.uptrend.xyaxis"
         case .hoshinObjective: "scope"
+        case .meeting: "person.3.sequence"
+        case .decision: "checkmark.bubble"
+        case .action: "checklist"
         }
     }
 }
@@ -403,6 +412,8 @@ public enum RelationKind: String, CaseIterable, Sendable, Codable {
     case alignedToObjective
     case documentedIn
     case hasOpportunity
+    case discussedIn
+    case assignedTo
 
     public var label: String {
         switch self {
@@ -421,6 +432,8 @@ public enum RelationKind: String, CaseIterable, Sendable, Codable {
         case .alignedToObjective: "aligned to objective"
         case .documentedIn: "documented in"
         case .hasOpportunity: "has opportunity"
+        case .discussedIn: "discussed in"
+        case .assignedTo: "assigned to"
         }
     }
 }
@@ -473,6 +486,7 @@ public struct Citation: Sendable, Hashable, Identifiable, Codable {
         case initiative
         case policy
         case computed
+        case meeting
 
         public var label: String {
             switch self {
@@ -481,6 +495,7 @@ public struct Citation: Sendable, Hashable, Identifiable, Codable {
             case .initiative: "Initiative"
             case .policy: "Policy"
             case .computed: "Computed"
+            case .meeting: "Meeting"
             }
         }
     }

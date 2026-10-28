@@ -1,5 +1,6 @@
 import type {
-  AuditEntry, GovernanceItem, Initiative, KGEdge, KGNode, Opportunity, PrivacyPolicy, Process, Step,
+  AuditEntry, BlockKind, GovernanceItem, Initiative, KGEdge, KGNode, Meeting, MeetingBlock,
+  Opportunity, PrivacyPolicy, Process, Step,
 } from './types'
 import { initiativeLine, recommendMethod, routeFor } from './rules'
 
@@ -330,6 +331,86 @@ export const INITIATIVES: Initiative[] = [
 
 export const LINES = INITIATIVES.map(initiativeLine)
 
+// MARK: - Meetings
+
+export const MEETINGS: Meeting[] = [
+  {
+    id: 'meet-huddle', title: 'Daily huddle · Customer Care', kind: 'dailyHuddle',
+    date: iso(0), durationMinutes: 15, site: 'Manila', owner: 'Customer Care Lead',
+    attendees: ['Customer Care Lead', 'Triage Agent', 'Resolver'],
+    processId: 'p-triage', initiativeId: '', status: 'notes',
+    summary: 'Backlog above target; add the queue to the daily board.',
+    recurring: true, cadence: 'Daily 08:30', kgId: 'kg-meeting-meet-huddle',
+  },
+  {
+    id: 'meet-kaizen', title: 'Kaizen · pricing check in order intake', kind: 'kaizen',
+    date: iso(3), durationMinutes: 480, site: 'Bensheim', owner: 'Ops Excellence Lead',
+    attendees: ['Order Desk Lead', 'Pricing Analyst', 'Credit Manager', 'Ops Excellence Lead'],
+    processId: 'p-order', initiativeId: 'ini-pricing', status: 'notes',
+    summary: 'Remove the second pricing check above tolerance and audit by sample.',
+    recurring: false, cadence: '', kgId: 'kg-meeting-meet-kaizen',
+  },
+  {
+    id: 'meet-a3', title: 'A3 review · invoice exception codes', kind: 'a3Review',
+    date: iso(6), durationMinutes: 45, site: 'Wrocław', owner: 'AP Team Lead',
+    attendees: ['AP Team Lead', 'Buyer', 'CI Manager'],
+    processId: 'p-invoice', initiativeId: 'ini-codes', status: 'done',
+    summary: 'Rework 34% to 11%; adopt the single code list and close.',
+    recurring: false, cadence: '', kgId: 'kg-meeting-meet-a3',
+  },
+  {
+    id: 'meet-leadership', title: 'Leadership review · Q4 pipeline', kind: 'leadership',
+    date: iso(2), durationMinutes: 60, site: '', owner: 'CI Manager',
+    attendees: ['CI Manager', 'Finance Business Partner', 'Site CI Leads'],
+    processId: '', initiativeId: '', status: 'done',
+    summary: 'Fund the agent change package subject to security review.',
+    recurring: true, cadence: 'Monthly', kgId: 'kg-meeting-meet-leadership',
+  },
+]
+
+const block = (meetingId: string, order: number, kind: BlockKind, text: string,
+               extra: Partial<MeetingBlock> = {}): MeetingBlock => ({
+  id: `blk-${meetingId}-${order}`, meetingId, order, kind, text,
+  checked: false, owner: '', ...extra,
+})
+
+export const BLOCKS: MeetingBlock[] = [
+  block('meet-huddle', 0, 'heading', 'Yesterday'),
+  block('meet-huddle', 1, 'bullet', 'Backlog peaked at 84 cases; six SLA breaches.'),
+  block('meet-huddle', 2, 'heading', 'Today'),
+  block('meet-huddle', 3, 'bullet', 'Clear the 12 oldest cases first.'),
+  block('meet-huddle', 4, 'decision', 'Add the triage backlog to the daily management board, reviewed at 08:30.'),
+  block('meet-huddle', 5, 'action', 'Create the daily board and review it for two weeks.',
+    { owner: 'Customer Care Lead', due: iso(-14) }),
+  block('meet-huddle', 6, 'action', 'Ask IT for a ServiceNow queue export at 07:00.',
+    { owner: 'Triage Agent', due: iso(-7) }),
+  block('meet-huddle', 7, 'callout', 'No individual volumes are discussed in the huddle; only the queue.'),
+
+  block('meet-kaizen', 0, 'heading', 'Problem'),
+  block('meet-kaizen', 1, 'text', 'Two pricing checks disagree on 18% of orders and re-open them.'),
+  block('meet-kaizen', 2, 'heading', 'Target'),
+  block('meet-kaizen', 3, 'text', 'Remove the SAP re-check above the €5k tolerance; keep a 5% sample audit.'),
+  block('meet-kaizen', 4, 'decision', 'Drop the SAP re-check above the €5k tolerance from Monday.'),
+  block('meet-kaizen', 5, 'action', 'Update SOP O2C-04 to v6.3 and brief the desk.',
+    { owner: 'Order Desk Lead', due: iso(-10) }),
+  block('meet-kaizen', 6, 'action', 'Quantify rework before and after against KYP.ai.',
+    { owner: 'Ops Excellence Lead', due: iso(-42), linkedKind: 'opportunity', linkedId: 'opp-pricing' }),
+
+  block('meet-a3', 0, 'heading', 'Result'),
+  block('meet-a3', 1, 'text', 'Rework 34% → 11% over six weeks; 540 hours confirmed.'),
+  block('meet-a3', 2, 'decision', 'Adopt the single code list across both AP teams.'),
+  block('meet-a3', 3, 'action', 'Share the list with the Manila AP team.',
+    { owner: 'AP Team Lead', due: iso(-7) }),
+
+  block('meet-leadership', 0, 'heading', 'Portfolio'),
+  block('meet-leadership', 1, 'bullet', 'Validated 540 h; committed 840 h; estimated 1,020 h.'),
+  block('meet-leadership', 2, 'decision', 'Fund the case-summarization agent change package, subject to security review.'),
+  block('meet-leadership', 3, 'action', 'Request the security review for the agent change package.',
+    { owner: 'Customer Care CI', due: iso(-5), linkedKind: 'opportunity', linkedId: 'opp-summary' }),
+  block('meet-leadership', 4, 'action', 'Resolve the order-intake double count before the roll-up.',
+    { owner: 'Ops Excellence Lead', due: iso(-9) }),
+]
+
 // Knowledge graph, generated from the same facts.
 const nodes: KGNode[] = []
 const edges: KGEdge[] = []
@@ -382,6 +463,31 @@ addNode({ id: 'kg-app-sap-ecc', kind: 'application', name: 'SAP ECC', confidence
 addEdge('kg-app-sap-ecc', 'variantOf', appId('SAP S/4HANA'), 0.61)
 addNode({ id: 'kg-team-sales-support', kind: 'role', name: 'Sales Support', confidence: 0.72, review: 'suggested', source: 'KYP.ai role aggregation', sourceId: 'kyp-team-sales-support', validFrom: iso(120), note: 'Entity resolution found a likely duplicate. A human must confirm or reject the merge.' })
 addEdge('kg-team-sales-support', 'variantOf', 'kg-role-order-desk', 0.72)
+
+// Meetings, decisions and actions are graph facts too.
+for (const meeting of MEETINGS) {
+  addNode({ id: meeting.kgId, kind: 'meeting', name: meeting.title, confidence: 0.9,
+    review: 'confirmed', source: 'ProcessLink meeting notes', sourceId: meeting.id,
+    validFrom: meeting.date, processId: meeting.processId || undefined })
+  if (meeting.processId) addEdge(`kg-proc-${meeting.processId}`, 'discussedIn', meeting.kgId, 0.85)
+  if (meeting.initiativeId) addEdge(`kg-ini-${meeting.initiativeId}`, 'discussedIn', meeting.kgId, 0.85)
+}
+for (const item of BLOCKS) {
+  if (item.kind !== 'decision' && item.kind !== 'action') continue
+  const kind = item.kind
+  addNode({ id: `kg-${kind}-${item.id}`, kind, name: item.text.slice(0, 90),
+    confidence: 0.9, review: 'confirmed', source: 'ProcessLink meeting notes',
+    sourceId: item.id, validFrom: MEETINGS.find(m => m.id === item.meetingId)?.date ?? iso(30) })
+  addEdge(`kg-${kind}-${item.id}`, 'documentedIn', `kg-meeting-${item.meetingId}`, 0.95)
+  if (item.owner) {
+    const roleId = `kg-role-${item.owner.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+    if (!nodes.some(n => n.id === roleId)) {
+      addNode({ id: roleId, kind: 'role', name: item.owner, confidence: 0.88,
+        review: 'confirmed', source: 'Meeting action owner', sourceId: item.id, validFrom: iso(30) })
+    }
+    addEdge(`kg-${kind}-${item.id}`, 'assignedTo', roleId, 0.9)
+  }
+}
 
 export const KG_NODES = nodes
 export const KG_EDGES = edges
