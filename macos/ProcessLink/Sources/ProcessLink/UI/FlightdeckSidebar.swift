@@ -10,45 +10,59 @@ struct FlightdeckSidebar: View {
     @AppStorage("sidebar.flightdeck.expanded") private var expanded = true
 
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            VStack(spacing: Space.xs) {
-                if flightdeck.isSignedIn {
-                    workspaceMenu
-                    projectMenu
-                    links
-                    if let health = flightdeck.health["os"] {
-                        Text(health.detail)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .help(health.detail)
-                    }
-                } else {
-                    Button {
-                        model.page = .connections
-                    } label: {
-                        Label("Connect Flightdeck", systemImage: "link.badge.plus")
-                            .font(.body)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                    }
-                    .buttonStyle(.plain)
+        VStack(spacing: Space.xs) {
+            Button {
+                expanded.toggle()
+            } label: {
+                HStack(spacing: Space.sm) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                    Label("Flightdeck", systemImage: "cloud")
+                        .font(.body.weight(.medium))
+                    Spacer()
+                    Circle()
+                        .fill(statusTint)
+                        .frame(width: 8, height: 8)
+                        .help(statusLabel)
                 }
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, Space.xs)
-            .padding(.top, 2)
-        } label: {
-            HStack(spacing: Space.sm) {
-                Label("Flightdeck", systemImage: "cloud")
-                    .font(.body.weight(.medium))
-                Spacer()
-                Circle()
-                    .fill(statusTint)
-                    .frame(width: 8, height: 8)
-                    .help(statusLabel)
+            .buttonStyle(.plain)
+
+            if expanded {
+                VStack(spacing: Space.xs) {
+                    if flightdeck.isSignedIn {
+                        workspaceMenu
+                        projectMenu
+                        links
+                        if let health = flightdeck.health["os"] {
+                            Text(health.detail)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .help(health.detail)
+                        }
+                    } else {
+                        Button {
+                            model.page = .connections
+                        } label: {
+                            Label("Connect Flightdeck", systemImage: "link.badge.plus")
+                                .font(.body)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .frame(minWidth: 180, maxWidth: .infinity, alignment: .center)
+                .padding(.leading, Space.md)
             }
         }
+        .frame(minWidth: 180, maxWidth: .infinity, alignment: .center)
+        .padding(.horizontal, Space.sm)
         .task {
             // A self-test must never block on a Keychain prompt from an
             // unsigned/ad-hoc build. It tests the data functions, not the
@@ -129,7 +143,8 @@ struct FlightdeckSidebar: View {
     // MARK: Links
 
     private var links: some View {
-        HStack(spacing: Space.xs) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Space.xs), count: 3),
+                  spacing: Space.xs) {
             link("OS", title: "Flightdeck OS", symbol: "macwindow", url: flightdeck.baseURLString)
             link("Atlas", title: "Atlas", symbol: "square.stack.3d.up", url: flightdeck.atlasURLString)
             link("Vision", title: "Vision", symbol: "scope", url: visionURL)
@@ -162,6 +177,7 @@ struct FlightdeckSidebar: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
         .help("Open \(title)")
         .accessibilityLabel("Open \(title)")
     }
