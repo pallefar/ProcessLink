@@ -186,6 +186,18 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 | [`docs/IN-HOUSE-DISCOVERY.md`](docs/IN-HOUSE-DISCOVERY.md) | What ProcessLink now does without KYP.ai, the privacy boundary, and what is still KYP's job |
 | [`docs/WEB-PARITY.md`](docs/WEB-PARITY.md) | How the web form matches the macOS shell, tokens, pages and where it deliberately differs |
 
+## Releases
+
+Tag a version and GitHub Actions builds both desktop installers:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The release contains a universal macOS DMG (`arm64` + `x86_64`), a Windows
+MSI and NSIS setup, and `SHA256SUMS.txt`. Local packaging and signing details
+are in [`docs/RELEASING.md`](docs/RELEASING.md).
+
 ## Repository
 
 ```

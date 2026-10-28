@@ -47,9 +47,25 @@ must build (it does; 326 kB JS, 13 kB CSS gzipped to ~103 kB).
 ## Packaging notes
 
 - The identifier is `com.te.processlink`, matching the macOS bundle id.
-- The icon is generated from the macOS icon source; replace it with a proper
-  Windows icon set (16–256 px, `.ico`) before signing.
+- The icon set is generated from the macOS icon source (16–1024 px PNG plus
+  a multi-size `.ico`).
 - Code signing: an EV certificate is required for SmartScreen reputation.
   Unsigned MSI builds warn on first run; that is expected.
 - Licence/IP: Tauri (MIT/Apache-2.0), WebView2 (Microsoft), React (MIT),
   Vite (MIT). No GPL/AGPL dependency is used.
+
+
+## Windows build
+
+The Windows form is a Tauri 2 shell over the same `web/dist` build. Build the
+web bundle first, then the installer:
+
+```powershell
+npm ci --prefix web
+npm run build --prefix web
+npm install --prefix windows/ProcessLink.Windows
+npm run build --prefix windows/ProcessLink.Windows
+```
+
+For `tauri dev`, run `npm --prefix web run dev` in one terminal and
+`npm run dev --prefix windows/ProcessLink.Windows` in another.
