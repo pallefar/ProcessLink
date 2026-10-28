@@ -129,6 +129,26 @@ enum MapsBridge {
                         approved: meta["approved"] as? Bool ?? false)
     }
 
+    /// Imports a map document returned by Flightdeck Maps without touching a
+    /// local edit that already exists. The file is written only when absent;
+    /// the returned Document is still registered in the graph.
+    static func importRemote(_ data: Data, existing: Bool) throws -> Document {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              object["schema"] as? String == "signavio-map/1",
+              let id = object["id"] as? String, !id.isEmpty else {
+            throw NSError(domain: "ProcessLink.Maps", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Not a signavio-map/1 document"])
+        }
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let url = folderURL.appendingPathComponent(id).appendingPathExtension("json")
+        if !existing {
+            let pretty = try JSONSerialization.data(withJSONObject: object,
+                                                    options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            try pretty.write(to: url, options: .atomic)
+        }
+        return document(from: object, at: url)
+    }
+
     static func save(_ document: Document) throws {
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         let data = try JSONSerialization.data(withJSONObject: document.json,
@@ -262,8 +282,10 @@ enum MapsBridge {
     /// mined role, to show drift in both directions.
     static func seedIfNeeded(processes: [ProcessRecord], steps: [StepRecord]) {
         try? FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        guard loadAll().isEmpty else { return }
+        let existingIDs = Set(loadAll().map(\.id))
         for process in processes where ["p-order-intake", "p-triage"].contains(process.id) {
+            let expectedID = "map-\(process.id)-as-is"
+            guard !existingIDs.contains(expectedID) else { continue }
             let processSteps = steps.filter { $0.processID == process.id }.sorted { $0.order < $1.order }
             guard !processSteps.isEmpty else { continue }
             var document = makeMap(process: process, steps: processSteps)

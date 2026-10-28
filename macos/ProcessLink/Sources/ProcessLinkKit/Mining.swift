@@ -462,6 +462,30 @@ public struct MiningSimulationResult: Sendable {
     public var assumptions: [String]
 }
 
+public enum MiningAlertSeverity: String, Sendable, Comparable {
+    case info, warning, critical
+
+    private var rank: Int {
+        switch self {
+        case .info: 0
+        case .warning: 1
+        case .critical: 2
+        }
+    }
+
+    public static func < (lhs: MiningAlertSeverity, rhs: MiningAlertSeverity) -> Bool {
+        lhs.rank < rhs.rank
+    }
+}
+
+public struct MiningAlert: Sendable, Identifiable, Hashable {
+    public var id: String
+    public var severity: MiningAlertSeverity
+    public var title: String
+    public var detail: String
+    public var symbol: String
+}
+
 public struct ConformanceReport: Sendable, Hashable {
     public var fitness: Double
     public var exactCases: Int
@@ -794,6 +818,50 @@ public enum ProcessMining {
             totalCost: totalCost,
             costPerCase: records.isEmpty ? 0 : totalCost / Double(records.count),
             casesWithRework: records.filter { $0.reworkCount > 0 }.count)
+    }
+
+    /// The watchlist KYP-style process mining puts beside the model: a small,
+    /// explainable set of things a process owner should look at before
+    /// trusting a dashboard. No alert is an automatic decision.
+    public static func alerts(_ mined: MinedProcess) -> [MiningAlert] {
+        guard mined.cases > 0 else { return [] }
+        var result: [MiningAlert] = []
+        if mined.reworkRate > 0.05 {
+            result.append(MiningAlert(
+                id: "rework", severity: mined.reworkRate > 0.2 ? .critical : .warning,
+                title: "Rework is \(mined.reworkRate.formatted(.percent.precision(.fractionLength(0))))",
+                detail: "\(mined.casesWithRework) of \(mined.cases) cases repeat a step.",
+                symbol: "arrow.triangle.2.circlepath"))
+        }
+        if let bottleneck = mined.bottleneck, bottleneck.averageWaitMinutes > 8 {
+            result.append(MiningAlert(
+                id: "wait", severity: bottleneck.averageWaitMinutes > 20 ? .critical : .warning,
+                title: "\(bottleneck.name) waits \(Fmt.minutes(bottleneck.averageWaitMinutes))",
+                detail: "The largest average wait in the current view.",
+                symbol: "hourglass"))
+        }
+        if let top = mined.topVariant, top.share < 0.5, mined.cases >= 5 {
+            result.append(MiningAlert(
+                id: "variants", severity: .warning,
+                title: "Long tail: \(mined.variants.count) variants",
+                detail: "The top path is only \(top.share.formatted(.percent.precision(.fractionLength(0)))) of cases; standard work is not dominant.",
+                symbol: "arrow.triangle.swap"))
+        }
+        if mined.handoffRate > 0.3 {
+            result.append(MiningAlert(
+                id: "handoffs", severity: .info,
+                title: "High handoff rate: \(mined.handoffRate.formatted(.percent.precision(.fractionLength(0))))",
+                detail: "\(mined.handovers.count) role pairs exchange work.",
+                symbol: "arrow.left.arrow.right"))
+        }
+        if !mined.automationCandidates.isEmpty {
+            result.append(MiningAlert(
+                id: "automation", severity: .info,
+                title: "\(mined.automationCandidates.count) automation candidates",
+                detail: "Heuristic fit ≥ 0.55; a human must test the work.",
+                symbol: "gearshape.2"))
+        }
+        return result.sorted { $0.severity > $1.severity }
     }
 
     /// Reference-sequence conformance: exact-match share plus average LCS

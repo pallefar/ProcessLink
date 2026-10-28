@@ -135,6 +135,13 @@ public struct AdvantageSnapshot: Sendable {
     public var opportunities: [AdvantageOpportunity]
 }
 
+public struct FlightdeckMapSummary: Sendable, Identifiable, Hashable {
+    public var id: String
+    public var label: String
+    public var steps: Int
+    public var approved: Bool
+}
+
 public struct AtlasProject: Sendable, Identifiable, Hashable {
     public var id: String
     public var title: String
@@ -317,6 +324,34 @@ public actor FlightdeckClient {
         }
         return AdvantageSnapshot(asOf: kpiRoot["asOf"] as? String ?? "",
                                  kpis: kpis, opportunities: opportunities)
+    }
+
+    // MARK: Flightdeck Maps
+
+    public func maps(workspaceID: String, projectID: String) async throws -> [FlightdeckMapSummary] {
+        let data = try await get("/api/apps/maps/maps", workspace: workspaceID, project: projectID)
+        let object = try JSONSerialization.jsonObject(with: data)
+        let rows: [[String: Any]]
+        if let array = object as? [[String: Any]] {
+            rows = array
+        } else if let root = object as? [String: Any], let array = root["maps"] as? [[String: Any]] {
+            rows = array
+        } else {
+            throw FlightdeckError.decoding("Expected a map list.")
+        }
+        return rows.compactMap { row in
+            guard let id = row["id"] as? String else { return nil }
+            return FlightdeckMapSummary(
+                id: id,
+                label: row["label"] as? String ?? id,
+                steps: row["steps"] as? Int ?? (row["steps"] as? NSNumber)?.intValue ?? 0,
+                approved: row["approved"] as? Bool ?? false)
+        }
+    }
+
+    public func mapDocument(id: String, workspaceID: String, projectID: String) async throws -> Data {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        return try await get("/api/apps/maps/maps/\(encoded)", workspace: workspaceID, project: projectID)
     }
 
     // MARK: Atlas

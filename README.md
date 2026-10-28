@@ -15,7 +15,7 @@ Event logs · task capture  →  ProcessLink  →  KG · Maps · TEOA · DeckFor
 
 | Form | Where | Status |
 |---|---|---|
-| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 35 unit tests + 69 in-app checks, light/dark snapshots |
+| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 36 unit tests + 69 in-app checks, light/dark snapshots |
 | **Web** — React 19 + Vite, strict TS | [`web`](web) | Same shell, tokens and pages as the app; the Flightdeck sub-app replacement is in [`web/src/flightdeck`](web/src/flightdeck) |
 | **Windows** — Tauri 2 + WebView2 | [`windows/ProcessLink.Windows`](windows/ProcessLink.Windows) | Scaffolded with config and Rust entry; not built on a Windows host here |
 
@@ -37,11 +37,11 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 3. **Improvement** — a promoted opportunity becomes an A3/kaizen initiative
    with an owner, a stage and a saving that moves estimated → committed →
    validated. Validation needs a named human and before/after evidence.
-4. **Maps** — ProcessLink reads and writes real Flightdeck `signavio-map/1`
-   documents. Shapes carry a `processLink` binding, so the map inspector shows
-   the mined step, opportunity and saving; map edits come back as drift and
-   audited proposals. Overlays cover cycle time, handoffs, rework and
-   automation potential.
+4. **Maps** — ProcessLink imports every map from the connected Flightdeck
+   Maps projects and reads/writes real `signavio-map/1` documents. Shapes carry
+   a `processLink` binding, so the map inspector shows the mined step,
+   opportunity and saving; map edits come back as drift and audited proposals.
+   Overlays cover cycle time, handoffs, rework and automation potential.
 5. **Graph** — typed nodes and edges with confidence, validity and source; a
    human review queue for uncertain matches; no silent merges.
 6. **Ask** — a governed assistant over the same facts. Every number cites a
@@ -56,7 +56,8 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
    mapped CSV import with attributes and cost, filters, weekly throughput,
    variants, a directly-follows process graph, a case explorer with timelines,
    token-replay and sequence conformance, root-cause comparisons, a what-if
-   simulator and CSV/JSON export. Or run an opt-in local task capture
+   simulator, a watchlist, view-vs-baseline comparison, bulk folder import and
+   CSV/JSON export. Or run an opt-in local task capture
    (frontmost app, minutes, switches — no titles, keys or screenshots). Mined
    results become the same process/KG/map/opportunity records.
 9. **Connections** — a real UAT API connection to Flightdeck OS, Vision and
@@ -210,12 +211,12 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 Tag a version and GitHub Actions builds both desktop installers:
 
 ```bash
-git tag v0.1.3 && git push origin v0.1.3
+git tag v0.1.4 && git push origin v0.1.4
 ```
 
 The release contains a universal macOS DMG (`arm64` + `x86_64`), a Windows
 NSIS setup (and an MSI from the Windows CI job), and `SHA256SUMS.txt`.
-[Download v0.1.3](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.3).
+[Download v0.1.4](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.4).
 Local packaging, signing and the current Actions billing note are in
 [`docs/RELEASING.md`](docs/RELEASING.md).
 

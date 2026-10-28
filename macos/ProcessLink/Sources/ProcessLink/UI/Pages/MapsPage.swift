@@ -20,6 +20,9 @@ struct MapsPage: View {
     @State private var selectedNodeID: String?
     @State private var overlay: MapOverlay = .cycleTime
     @State private var search = ""
+    @State private var didImportMaps = false
+    @State private var importingMaps = false
+    @State private var mapImportStatus: String?
 
     private var filtered: [MapsBridge.Document] {
         let query = search.trimmingCharacters(in: .whitespaces).lowercased()
@@ -90,7 +93,10 @@ struct MapsPage: View {
                 .frame(height: 312)
         }
         .navigationTitle("Maps")
-        .onAppear(perform: load)
+        .onAppear {
+            load()
+            Task { await importMapsIfNeeded() }
+        }
     }
 
     private func load() {
@@ -239,6 +245,19 @@ struct MapsPage: View {
                 .accessibilityLabel("New map from process")
 
                 Button {
+                    Task { await importMapsFromFlightdeck() }
+                } label: {
+                    if importingMaps {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label("Import Maps", systemImage: "arrow.down.doc")
+                    }
+                }
+                .disabled(importingMaps || !model.flightdeck.isSignedIn)
+                .help("Import every map from the connected Flightdeck Maps projects")
+                .accessibilityLabel("Import maps from Flightdeck")
+
+                Button {
                     load()
                     model.showToast("Maps reloaded", detail: "Pulled the latest signavio-map/1 documents.",
                                     symbol: "arrow.down.doc")
@@ -346,6 +365,41 @@ struct MapsPage: View {
                                onRegenerate: { regenerate(document) })
         } else {
             ContentUnavailableView("Select a map", systemImage: "map")
+        }
+    }
+
+    private func importMapsIfNeeded() async {
+        guard !didImportMaps else { return }
+        didImportMaps = true
+        guard model.flightdeck.isSignedIn || KeychainStore.get(account: "session-cookie") != nil else { return }
+        if !model.flightdeck.isSignedIn { await model.flightdeck.restoreSession() }
+        guard model.flightdeck.isSignedIn else { return }
+        await importMapsFromFlightdeck()
+    }
+
+    private func importMapsFromFlightdeck() async {
+        guard !importingMaps else { return }
+        importingMaps = true
+        defer { importingMaps = false }
+        if !model.flightdeck.isSignedIn { await model.flightdeck.restoreSession() }
+        guard model.flightdeck.isSignedIn else {
+            mapImportStatus = "Connect Flightdeck first"
+            return
+        }
+        let result = await model.flightdeck.importFlightdeckMaps(into: model)
+        load()
+        if result.imported > 0 {
+            mapImportStatus = "\(result.imported) from Flightdeck Maps"
+            model.showToast("Maps imported",
+                            detail: "\(result.imported) from Flightdeck Maps\(result.failed > 0 ? " · \(result.failed) unavailable" : "")",
+                            symbol: "arrow.down.doc")
+        } else if result.failed > 0 {
+            mapImportStatus = "Maps unavailable"
+            model.showToast("Maps not available",
+                            detail: "Flightdeck Maps did not return a readable map.",
+                            symbol: "exclamationmark.triangle", warning: true)
+        } else {
+            mapImportStatus = "Maps up to date"
         }
     }
 

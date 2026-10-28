@@ -279,6 +279,8 @@ struct MiningWorkbench: View {
                 }
                 .frame(maxWidth: .infinity)
 
+                distributionCard
+
                 Card("Data quality", subtitle: "What the import kept and skipped.", symbol: "checklist") {
                     VStack(alignment: .leading, spacing: Space.xs) {
                         DetailRow(label: "Rows", value: "\(dataset.eventCount) events")
@@ -292,10 +294,99 @@ struct MiningWorkbench: View {
                 .frame(width: 300)
             }
 
+            watchlistCard
+
+            if filter.isActive { comparisonCard }
+
             HStack(alignment: .top, spacing: Space.lg) {
                 variantsCard
                 bottleneckCard
             }
+        }
+    }
+
+    private var watchlistCard: some View {
+        let alerts = ProcessMining.alerts(mined)
+        return Card("Watchlist", subtitle: "Explainable signals, not automatic decisions.", symbol: "bell") {
+            if alerts.isEmpty {
+                Text("No threshold crossed in this view. That is not proof the process is healthy; check the data window and volume.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(alerts) { alert in
+                        HStack(alignment: .top, spacing: Space.sm) {
+                            Image(systemName: alert.symbol)
+                                .foregroundStyle(alert.severity == .critical ? Color.red : alert.severity == .warning ? Color.orange : Color.secondary)
+                                .frame(width: 20)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(alert.title).font(.subheadline.weight(.medium))
+                                Text(alert.detail).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(alert.severity.rawValue.capitalized)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.vertical, 4)
+                        RowDivider()
+                    }
+                }
+            }
+        }
+    }
+
+    private var distributionCard: some View {
+        let cycles = mined.caseRecords.map(\.cycleMinutes).sorted()
+        let maximum = max(1, cycles.max() ?? 1)
+        let bucketCount = 6
+        let buckets = (0..<bucketCount).map { index -> (String, Int) in
+            let low = maximum * Double(index) / Double(bucketCount)
+            let high = maximum * Double(index + 1) / Double(bucketCount)
+            let count = cycles.filter { $0 >= low && ($0 < high || index == bucketCount - 1) }.count
+            return ("\(Int(low))", count)
+        }
+        let peak = max(1, buckets.map(\.1).max() ?? 1)
+        return Card("Cycle distribution", subtitle: "How many cases finish in each band.", symbol: "chart.bar") {
+            HStack(alignment: .bottom, spacing: 4) {
+                ForEach(Array(buckets.enumerated()), id: \.offset) { _, bucket in
+                    VStack(spacing: 2) {
+                        Text("\(bucket.1)").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.65))
+                            .frame(width: 20, height: max(4, 54 * CGFloat(bucket.1) / CGFloat(peak)))
+                        Text(bucket.0).font(.system(size: 8)).foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Minutes per case · n=\(cycles.count)")
+                .font(.caption2).foregroundStyle(.tertiary)
+        }
+        .frame(width: 232)
+    }
+
+    private var comparisonCard: some View {
+        Card("View comparison", subtitle: "The filter against the full event log.", symbol: "arrow.left.arrow.right") {
+            HStack(spacing: Space.xl) {
+                comparisonMetric("Cases", before: "\(baseline.cases)", after: "\(mined.cases)")
+                comparisonMetric("Median cycle", before: Fmt.minutes(baseline.medianCycleMinutes),
+                                 after: Fmt.minutes(mined.medianCycleMinutes))
+                comparisonMetric("P90 cycle", before: Fmt.minutes(baseline.p90CycleMinutes),
+                                 after: Fmt.minutes(mined.p90CycleMinutes))
+                comparisonMetric("Rework", before: Fmt.percent(baseline.reworkRate),
+                                 after: Fmt.percent(mined.reworkRate))
+                comparisonMetric("Handoffs", before: Fmt.percent(baseline.handoffRate),
+                                 after: Fmt.percent(mined.handoffRate))
+                Spacer()
+            }
+        }
+    }
+
+    private func comparisonMetric(_ title: String, before: String, after: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption).foregroundStyle(.tertiary)
+            Text(after).font(.headline.monospacedDigit())
+            Text("was \(before)").font(.caption2).foregroundStyle(.secondary)
         }
     }
 

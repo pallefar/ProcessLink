@@ -110,15 +110,20 @@ the standard-work change.
 ## 5. State in this build
 
 **Implemented**
-- macOS Maps workspace reads/writes `signavio-map/1` from
-  `APP_MAPS_DIR` (default Application Support), seeds two maps, binds shapes,
+- macOS Maps workspace imports **every map in every enabled Flightdeck Maps
+  project** through `GET /api/apps/maps/maps` and
+  `GET /api/apps/maps/maps/:id` on open/sync. Maps are deduplicated by id and
+  written to `APP_MAPS_DIR`; an existing local document is kept so a local
+  edit is never overwritten by a re-import.
+- It reads/writes `signavio-map/1` from `APP_MAPS_DIR` (default Application
+  Support), seeds two local as-is maps, binds shapes,
   shows live ProcessLink metrics/opportunities/savings in the shape inspector,
   detects drift, restores from discovery, creates a map KG node, and audits
   edits.
 - Flightdeck schema extension + `ProcessLinkPanel` mounted in the real
   `NodeInspector`.
-- 7 new self-test checks (51 total): document schema, bindings, drift,
-  persistence, graph node and edge.
+- Map checks are included in the 69 in-app checks: document schema, bindings,
+  drift, persistence, graph node and edge, plus live import.
 
 **Not yet**
 - Live host connection (no Flightdeck server in this session); the folder

@@ -1,3 +1,4 @@
+import AppKit
 import ProcessLinkKit
 import SwiftData
 import SwiftUI
@@ -112,7 +113,14 @@ struct MiningPage: View {
                     Label("Import CSV", systemImage: "square.and.arrow.down")
                 }
                 .buttonStyle(.borderedProminent)
-                .help("case_id, activity, timestamp, resource, application")
+                .help("Map columns, attributes and cost before importing")
+
+                Button {
+                    importFolder()
+                } label: {
+                    Label("Import folder", systemImage: "folder.badge.plus")
+                }
+                .help("Import every CSV in a folder (for scheduled system exports)")
             }
         }
         .padding(.horizontal, Space.lg)
@@ -542,6 +550,39 @@ struct MiningPage: View {
     private func elapsed(since start: Date?, now: Date) -> String {
         let seconds = max(0, Int(now.timeIntervalSince(start ?? now)))
         return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
+
+    /// Bulk import for a folder of scheduled exports. The default header
+    /// mapping is used; files with a different schema can be mapped one at a
+    /// time through Import CSV.
+    private func importFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.commaSeparatedText, .plainText]
+        guard panel.runModal() == .OK else { return }
+        var imported = 0
+        var skipped = 0
+        for url in panel.urls {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            guard url.pathExtension.lowercased() == "csv" else { skipped += 1; continue }
+            do {
+                let text = try String(contentsOf: url, encoding: .utf8)
+                _ = try model.importCSV(text: text,
+                                        name: url.deletingPathExtension().lastPathComponent,
+                                        filename: url.lastPathComponent,
+                                        site: "")
+                imported += 1
+            } catch {
+                skipped += 1
+            }
+        }
+        model.showToast(imported > 0 ? "Folder imported" : "No CSV imported",
+                        detail: "\(imported) logs · \(skipped) skipped",
+                        symbol: imported > 0 ? "folder.badge.plus" : "exclamationmark.triangle",
+                        warning: imported == 0)
     }
 
     private func handleImport(_ result: Result<URL, Error>) {

@@ -434,3 +434,13 @@ func miningCustomMapping() throws {
     #expect(result.events.count == 3)
     #expect(result.events.first?.attributes["Channel"] == "Web")
 }
+
+@Test("The mining watchlist explains rework, wait and variant risk")
+func miningAlerts() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let mined = ProcessMining.mine(result.events, name: "Order intake")
+    let alerts = ProcessMining.alerts(mined)
+    #expect(!alerts.isEmpty)
+    #expect(alerts.contains { $0.id == "rework" })
+    #expect(alerts.allSatisfy { !$0.detail.isEmpty })
+}

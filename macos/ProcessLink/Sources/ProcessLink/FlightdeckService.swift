@@ -266,6 +266,7 @@ final class FlightdeckService {
                 }
             }
             self.workspaceNodes(into: model)
+            _ = await self.importFlightdeckMaps(into: model)
             self.lastSync = .now
             Self.defaults.set(self.lastSync, forKey: "fd.lastSync")
             model.audit(action: "connection.sync", subject: "Flightdeck UAT",
@@ -273,6 +274,53 @@ final class FlightdeckService {
             try? model.context.save()
             model.showToast("Flightdeck synced", detail: "OS, Vision and Atlas context refreshed", symbol: "arrow.triangle.2.circlepath")
         }
+    }
+
+    /// Imports every map in every enabled project from Flightdeck Maps. A
+    /// local file with the same id is kept (it may carry approved edits);
+    /// the remote copy is still registered in the graph.
+    @discardableResult
+    func importFlightdeckMaps(into model: AppModel) async -> (imported: Int, failed: Int) {
+        guard principal != nil else { return (0, 0) }
+        if projects.isEmpty { await refreshContext() }
+        guard !workspaceID.isEmpty else { return (0, 0) }
+        var imported = 0
+        var failed = 0
+        var existing = Set(MapsBridge.loadAll().map(\.id))
+        var seen = Set<String>()
+        do {
+            let value = try makeClient()
+            for project in projects where project.enabled {
+                let summaries: [FlightdeckMapSummary]
+                do {
+                    summaries = try await value.maps(workspaceID: workspaceID, projectID: project.id)
+                } catch {
+                    failed += 1
+                    continue
+                }
+                for summary in summaries where !seen.contains(summary.id) {
+                    seen.insert(summary.id)
+                    do {
+                        let data = try await value.mapDocument(id: summary.id,
+                                                              workspaceID: workspaceID,
+                                                              projectID: project.id)
+                        let document = try MapsBridge.importRemote(data, existing: existing.contains(summary.id))
+                        existing.insert(summary.id)
+                        model.registerMap(document, process: nil)
+                        imported += 1
+                    } catch {
+                        failed += 1
+                    }
+                }
+            }
+        } catch {
+            return (imported, failed + 1)
+        }
+        if imported > 0 {
+            lastSync = .now
+            try? model.context.save()
+        }
+        return (imported, failed)
     }
 
     // MARK: Graph write-through

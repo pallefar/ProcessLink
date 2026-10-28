@@ -15,6 +15,9 @@ there is no external discovery tenant or connector.
 | Conformance | Conformance checking | Reference sequence coverage **and** place-based token replay with missing/remaining tokens |
 | Root cause | Process insights | Attribute values correlated with slow cases or rework, with case counts and impact |
 | What-if | Simulation | Automate/remove steps, reduce rework/wait; projected median and assumptions |
+| Comparison | Benchmarking | Current filter against the full log: cycle, P90, rework, handoffs |
+| Watchlist | Alerts | Rework, wait, variant tail, handoffs and automation signals with severity |
+| Bulk import | Connectors | Import every CSV in a folder (scheduled system exports) |
 | Export | — | Cases CSV and a `processlink-mining/1` JSON summary |
 | Business case / ROI | Opportunity engine | Existing scoring and savings lifecycle, now fed by mined facts |
 | Agent/automation handoff | Agent code generation | Existing change-package gate; no autonomous deployment |
@@ -84,7 +87,8 @@ The `ProcessMining` engine in `ProcessLinkKit` produces:
 
 The workbench presents this in six tabs: **Overview, Process, Cases,
 Conformance, Insights, Simulate**. Filters (activity, role, attribute value,
-rework-only) apply to the whole view, not just the table. The process graph is
+rework-only) apply to the whole view, not just the table. Import supports a
+single mapped CSV, the sample log, or a folder of scheduled CSV exports. The process graph is
 a deterministic directly-follows map ordered by the dominant variant; it is
 not a force simulation and it does not animate.
 
