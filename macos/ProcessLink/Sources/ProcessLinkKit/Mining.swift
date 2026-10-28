@@ -961,3 +961,48 @@ public enum ProcessMining {
         return result.reversed()
     }
 }
+
+// MARK: - Benchmarks
+
+public struct BenchmarkRow: Sendable, Identifiable, Hashable {
+    public var id: String { value }
+    public var dimension: String
+    public var value: String
+    public var cases: Int
+    public var medianCycleMinutes: Double
+    public var p90CycleMinutes: Double
+    public var reworkRate: Double
+    public var handoffRate: Double
+}
+
+public extension ProcessMining {
+    /// Compare groups that share the same map/process. The grouping dimension
+    /// comes from imported attributes (site, region, case type, team, …), not
+    /// from a person. Groups smaller than the privacy threshold are hidden.
+    static func benchmarks(events: [EventLogRecord], dimension: String,
+                           minimumCases: Int = 3) -> [BenchmarkRow] {
+        guard !dimension.isEmpty else { return [] }
+        let grouped = Dictionary(grouping: events) { $0.attributes[dimension] ?? "" }
+        return grouped.compactMap { value, group -> BenchmarkRow? in
+            guard !value.isEmpty else { return nil }
+            let cases = Dictionary(grouping: group, by: \.caseID)
+            guard cases.count >= minimumCases else { return nil }
+            let cycles = cases.values.map { events -> Double in
+                guard let first = events.map(\.timestamp).min(),
+                      let last = events.map(\.timestamp).max() else { return 0 }
+                return last.timeIntervalSince(first) / 60
+            }.sorted()
+            let all = cases.values.flatMap { $0 }
+            let repeats = cases.values.reduce(0) { sum, events in
+                sum + max(0, events.count - Set(events.map(\.activity)).count)
+            }
+            let cyclesSorted = cycles.sorted()
+            return BenchmarkRow(
+                dimension: dimension, value: value, cases: cases.count,
+                medianCycleMinutes: cyclesSorted.isEmpty ? 0 : cyclesSorted[cyclesSorted.count / 2],
+                p90CycleMinutes: cyclesSorted.isEmpty ? 0 : cyclesSorted[min(cyclesSorted.count - 1, Int(Double(cyclesSorted.count) * 0.9))],
+                reworkRate: all.isEmpty ? 0 : Double(repeats) / Double(all.count),
+                handoffRate: all.isEmpty ? 0 : Double(zip(all, all.dropFirst()).filter { $0.0.resource != $0.1.resource }.count) / Double(all.count))
+        }.sorted { $0.medianCycleMinutes > $1.medianCycleMinutes }
+    }
+}

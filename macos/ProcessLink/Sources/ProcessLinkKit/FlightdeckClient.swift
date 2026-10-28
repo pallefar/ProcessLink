@@ -135,6 +135,18 @@ public struct AdvantageSnapshot: Sendable {
     public var opportunities: [AdvantageOpportunity]
 }
 
+public struct ContractFlowSummary: Sendable, Identifiable, Hashable {
+    public var id: String
+    public var updatedAt: String
+    public var latestRunID: String
+
+    public init(id: String, updatedAt: String, latestRunID: String) {
+        self.id = id
+        self.updatedAt = updatedAt
+        self.latestRunID = latestRunID
+    }
+}
+
 public struct FlightdeckMapSummary: Sendable, Identifiable, Hashable {
     public var id: String
     public var label: String
@@ -349,6 +361,15 @@ public actor FlightdeckClient {
         }
     }
 
+    public func mapCI(id: String, workspaceID: String, projectID: String) async throws -> Data {
+        let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
+        return try await get("/api/apps/maps/maps/\(encoded)/ci", workspace: workspaceID, project: projectID)
+    }
+
+    public func mapCISettings(workspaceID: String, projectID: String) async throws -> Data {
+        try await get("/api/apps/maps/settings/ci", workspace: workspaceID, project: projectID)
+    }
+
     public func mapDocument(id: String, workspaceID: String, projectID: String) async throws -> Data {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id
         return try await get("/api/apps/maps/maps/\(encoded)", workspace: workspaceID, project: projectID)
@@ -359,6 +380,22 @@ public actor FlightdeckClient {
     /// Contract-flow tickets are real process cases: runs, checks, PDFs,
     /// works-council steps and signatures. This is the operational event log
     /// behind a contract map, not a synthetic map walk.
+    public func contractFlowSummaries(workspaceID: String, projectID: String) async throws -> [ContractFlowSummary] {
+        let data = try await get("/api/contract-flow/tickets", workspace: workspaceID, project: projectID)
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rows = root["tickets"] as? [[String: Any]] else {
+            throw FlightdeckError.decoding("Expected a contract-flow ticket list.")
+        }
+        return rows.compactMap { row in
+            guard let id = row["ticket"] as? String else { return nil }
+            let run = row["latestRun"] as? [String: Any]
+            return ContractFlowSummary(
+                id: id,
+                updatedAt: row["updatedAt"] as? String ?? "",
+                latestRunID: run?["runId"] as? String ?? "")
+        }
+    }
+
     public func contractFlowTicketIDs(workspaceID: String, projectID: String) async throws -> [String] {
         let data = try await get("/api/contract-flow/tickets", workspace: workspaceID, project: projectID)
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],

@@ -53,6 +53,7 @@ public enum CapacitySimulation {
                            roles: [CapacityRole],
                            arrivalPerDay: Double,
                            days: Int,
+                           workingMinutesPerDay: Double = 480,
                            seed: UInt64 = 7) -> CapacityResult {
         guard !mined.caseRecords.isEmpty, !roles.isEmpty, arrivalPerDay > 0, days > 0 else {
             return CapacityResult(cases: 0, medianCycleMinutes: 0, p90CycleMinutes: 0,
@@ -61,7 +62,8 @@ public enum CapacitySimulation {
         }
         var rng = LCG(seed: seed)
         let count = max(10, Int((arrivalPerDay * Double(days)).rounded()))
-        let gap = 1_440 / max(1, arrivalPerDay)
+        let workingMinutes = max(60, min(1_440, workingMinutesPerDay))
+        let gap = workingMinutes / max(1, arrivalPerDay)
         let roleByName = Dictionary(uniqueKeysWithValues: roles.map { ($0.role, $0) })
         var available = Dictionary(uniqueKeysWithValues: roles.map { ($0.role, 0.0) })
         var busy = Dictionary(uniqueKeysWithValues: roles.map { ($0.role, 0.0) })
@@ -118,7 +120,7 @@ public enum CapacitySimulation {
                 "Service time starts from the observed average wait per activity; replace it with a measured touch time before a business case.",
                 "Cases follow the observed variant shares; the seed is fixed.",
                 "Each role is a FIFO queue with the capacity shown.",
-                "Arrivals are spread across the working day (1,440 minutes); no calendar or breaks.",
+                "Arrivals are spread across a \(Int(workingMinutes))-minute working day; weekends, shifts and breaks are not modelled.",
             ])
     }
 

@@ -125,9 +125,27 @@ the standard-work change.
 - Map checks are included in the 73 in-app checks: document schema, bindings,
   drift, persistence, graph node and edge, plus live import.
 
+**Mining a map**
+
+- **Mine** pulls the live contract-flow execution history for a map from
+  `GET /api/contract-flow/tickets` and `GET /api/contract-flow/tickets/:id`.
+  It emits step-level runtime events for intake, recognition, works council,
+  draft, signature and done, with the exact run/check/PDF/signature timestamps
+  where the OS records them and an explicit `step-state` source where it only
+  knows state. A fresh UAT run produced **139 cases / 549 events**.
+- The dataset carries `mapID`, `processID`, `sourceCursor` and
+  `mapMappingJSON`. `Map activities…` edits the mapping; the workbench reports
+  map step and transition coverage and names unmapped activities.
+- **Assign drift review** creates an owned governance review.
+  **Create initiative** creates an A3/kaizen initiative already linked to its
+  bet, KPI and values.
+- Refresh reuses the dataset and replaces its events. The cursor makes a
+  second refresh a no-op when no ticket changed; **Sync & Privacy** can run it
+  every 30 minutes.
+- **Sync Maps KPIs** on Strategy imports the Maps CI goals, derived benefits
+  and manual KPIs (goal, benefit and manual KPI readings in the UAT run) and links them to bets.
+
 **Not yet**
-- Live host connection (no Flightdeck server in this session); the folder
-  bridge is the stand-in.
 - Approval/release round-trip (`PUT` with `If-Match`) — the host route exists,
   the client is next.
 - Shape-level comments from ProcessLink.

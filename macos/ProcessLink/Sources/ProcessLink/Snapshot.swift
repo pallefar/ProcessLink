@@ -36,10 +36,20 @@ enum Snapshot {
                 model.page = .connections
                 try? await Task.sleep(for: .seconds(5))
             }
-            if env["APP_SNAPSHOT_MINE_MAP"] == "1", model.flightdeck.isSignedIn {
+            if env["APP_SNAPSHOT_SYNC_CI"] == "1", model.flightdeck.isSignedIn {
+                _ = await model.flightdeck.importFlightdeckMaps(into: model)
+                _ = await model.flightdeck.syncMapKPIs(into: model)
+                try? await Task.sleep(for: .seconds(1))
+            }
+            if let mine = env["APP_SNAPSHOT_MINE_MAP"], mine == "1" || mine == "2",
+               model.flightdeck.isSignedIn {
                 let maps = MapsBridge.loadAll()
                 if let map = maps.first(where: { $0.label.localizedCaseInsensitiveContains("WC hearing") }) ?? maps.first {
                     _ = await model.flightdeck.importContractFlow(into: model, map: map)
+                    if mine == "2" {
+                        try? await Task.sleep(for: .seconds(1))
+                        _ = await model.flightdeck.importContractFlow(into: model, map: map)
+                    }
                     try? await Task.sleep(for: .seconds(2))
                 }
             }

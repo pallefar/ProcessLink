@@ -62,11 +62,29 @@ struct MiningWorkbench: View {
     @State private var capacityRoles: [CapacityRole] = []
     @State private var arrivalPerDay: Double = 24
     @State private var capacityDays = 5
+    @State private var capacityWorkingMinutes: Double = 480
     @State private var capacityResult: CapacityResult?
     @State private var showMapMapping = false
+    @State private var showDriftReview = false
+    @State private var driftOwner = "Process Owner"
+    @State private var benchmarkDimension = ""
+    @State private var caseNotion = ""
 
     private var allEvents: [EventLogRecord] { model.events(for: dataset) }
-    private var filteredEvents: [EventLogRecord] { ProcessMining.filter(allEvents, with: filter) }
+    private var attributeKeys: [String] { Set(allEvents.flatMap { $0.attributes.keys }).sorted() }
+    /// Object lens: use any imported attribute (site, customer, order, employee)
+    /// as the case notion. The events keep their own identity; only the case
+    /// grouping changes. This is the practical OCEL entry point.
+    private var scopedEvents: [EventLogRecord] {
+        guard !caseNotion.isEmpty else { return allEvents }
+        return allEvents.compactMap { event in
+            guard let value = event.attributes[caseNotion], !value.isEmpty else { return nil }
+            var copy = event
+            copy.caseID = "object:\(value)"
+            return copy
+        }
+    }
+    private var filteredEvents: [EventLogRecord] { ProcessMining.filter(scopedEvents, with: filter) }
     private var mined: MinedProcess {
         ProcessMining.mine(filteredEvents, name: dataset.name)
     }
@@ -188,8 +206,12 @@ struct MiningWorkbench: View {
             }
             if selectedCaseID == nil { selectedCaseID = mined.caseRecords.first?.id }
             if capacityRoles.isEmpty { capacityRoles = CapacitySimulation.defaultRoles(for: mined) }
+            if benchmarkDimension.isEmpty {
+                benchmarkDimension = Set(allEvents.flatMap { $0.attributes.keys }).sorted().first ?? ""
+            }
         }
         .onChange(of: dataset.id) { _, _ in
+            caseNotion = ""
             capacityRoles = CapacitySimulation.defaultRoles(for: mined)
             capacityResult = nil
         }
@@ -399,8 +421,20 @@ struct MiningWorkbench: View {
                 mapMetric("Mapped activities", "\(report.mappedActivities)", nil)
                 mapMetric("Expected transitions", "\(report.observedTransitions)/\(report.expectedTransitions)", report.transitionCoverage)
                 Spacer()
-                Button("Map activities…") { showMapMapping = true }
-                    .controlSize(.small)
+                VStack(alignment: .trailing, spacing: 4) {
+                    Button("Map activities…") { showMapMapping = true }
+                        .controlSize(.small)
+                    if let bottleneck = mined.bottleneck {
+                        Button("Create initiative") {
+                            _ = model.createInitiativeFromMining(dataset: dataset, activity: bottleneck, map: map)
+                        }
+                        .controlSize(.small)
+                    }
+                    if !report.unexpectedTransitions.isEmpty || !report.missingSteps.isEmpty {
+                        Button("Assign drift review") { showDriftReview = true }
+                            .controlSize(.small)
+                    }
+                }
             }
             if !report.unmappedActivities.isEmpty {
                 Text("Not on the map: \(report.unmappedActivities.prefix(5).joined(separator: " · "))")
@@ -896,6 +930,56 @@ struct MiningWorkbench: View {
                 }
             }
 
+            if !caseNotion.isEmpty {
+                Card("Object-centric lens", subtitle: "One object type is now the case. This changes the unit of analysis, not the event log.", symbol: "circle.hexagongrid") {
+                    HStack(spacing: Space.xl) {
+                        MetricTile(title: "Objects", value: "\(Set(scopedEvents.map(\.caseID)).count)",
+                                   detail: "Grouped by \(caseNotion)", symbol: "shippingbox", tint: .purple)
+                        MetricTile(title: "Original cases", value: "\(Set(allEvents.map(\.caseID)).count)",
+                                   detail: "Before the object lens", symbol: "doc.on.doc", tint: .secondary)
+                        MetricTile(title: "Events retained", value: "\(scopedEvents.count)",
+                                   detail: "No event invented", symbol: "list.bullet", tint: .teal)
+                    }
+                    Text("The object lens is useful when one order, invoice or employee crosses several case ids. Compare it with the order-case view before drawing a conclusion.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            let dimensions = Set(filteredEvents.flatMap { $0.attributes.keys }).sorted()
+            if !dimensions.isEmpty {
+                Card("Benchmarks", subtitle: "Compare groups that share this process. Small groups stay hidden.", symbol: "chart.bar.xaxis") {
+                    HStack {
+                        Picker("Dimension", selection: $benchmarkDimension) {
+                            Text("Choose a dimension").tag("")
+                            ForEach(dimensions, id: \.self) { Text($0).tag($0) }
+                        }
+                        .labelsHidden()
+                        .frame(width: 220)
+                        Spacer()
+                        Text("Median cycle, P90 and rework").font(.caption).foregroundStyle(.tertiary)
+                    }
+                    let rows = ProcessMining.benchmarks(events: filteredEvents,
+                                                       dimension: benchmarkDimension.isEmpty ? dimensions[0] : benchmarkDimension)
+                    if rows.isEmpty {
+                        Text("No group has enough cases yet.").font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        VStack(spacing: 0) {
+                            ForEach(rows) { row in
+                                HStack(spacing: Space.sm) {
+                                    Text(row.value).font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, alignment: .leading)
+                                    Text("\(row.cases) cases").font(.caption2).foregroundStyle(.tertiary).frame(width: 72, alignment: .trailing)
+                                    Text(Fmt.minutes(row.medianCycleMinutes)).font(.caption.monospacedDigit()).frame(width: 76, alignment: .trailing)
+                                    Text("P90 \(Fmt.minutes(row.p90CycleMinutes))").font(.caption2).foregroundStyle(.tertiary).frame(width: 88, alignment: .trailing)
+                                    Text(Fmt.percent(row.reworkRate)).font(.caption.monospacedDigit()).foregroundStyle(row.reworkRate > 0.1 ? .orange : .secondary).frame(width: 56, alignment: .trailing)
+                                }
+                                .padding(.vertical, 4)
+                                RowDivider()
+                            }
+                        }
+                    }
+                }
+            }
+
             HStack(alignment: .top, spacing: Space.lg) {
                 Card("Handover network", subtitle: "Role pairs and the wait between them.", symbol: "arrow.left.arrow.right") {
                     VStack(spacing: 0) {
@@ -1020,11 +1104,16 @@ struct MiningWorkbench: View {
                     Stepper(value: $capacityDays, in: 1...60) {
                         Text("\(capacityDays)").font(.caption.monospacedDigit()).frame(width: 24)
                     }
+                    Text("Working min/day").font(.caption)
+                    Stepper(value: $capacityWorkingMinutes, in: 120...720, step: 30) {
+                        Text("\(Int(capacityWorkingMinutes))").font(.caption.monospacedDigit()).frame(width: 32)
+                    }
                     Spacer()
                     Button("Run capacity simulation") {
                         capacityResult = CapacitySimulation.run(
                             mined, roles: capacityRoles,
-                            arrivalPerDay: arrivalPerDay, days: capacityDays)
+                            arrivalPerDay: arrivalPerDay, days: capacityDays,
+                            workingMinutesPerDay: capacityWorkingMinutes)
                     }
                     .buttonStyle(.borderedProminent)
                 }

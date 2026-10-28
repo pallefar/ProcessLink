@@ -908,10 +908,13 @@ final class DatasetRecord {
     var mapID: String = ""
     /// JSON object mapping an observed activity label to a map step id.
     var mapMappingJSON: String = "{}"
+    /// Last ticket/run cursor used for a live-map refresh.
+    var sourceCursor: String = ""
 
     init(id: String, name: String, source: String, importedAt: Date, caseCount: Int,
          eventCount: Int, site: String, classification: DataClass, filename: String, notes: String,
-         processID: String = "", mapID: String = "", mapMappingJSON: String = "{}") {
+         processID: String = "", mapID: String = "", mapMappingJSON: String = "{}",
+         sourceCursor: String = "") {
         self.id = id
         self.name = name
         self.sourceRaw = source
@@ -925,6 +928,7 @@ final class DatasetRecord {
         self.processID = processID
         self.mapID = mapID
         self.mapMappingJSON = mapMappingJSON
+        self.sourceCursor = sourceCursor
     }
 
     var classification: DataClass { DataClass(rawValue: classificationRaw) ?? .internalUse }

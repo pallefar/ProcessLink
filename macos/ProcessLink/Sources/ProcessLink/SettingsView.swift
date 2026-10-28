@@ -117,6 +117,7 @@ private struct SyncSettings: View {
     @Environment(AppModel.self) private var model
     @AppStorage("sync.cadence") private var cadence = "Every 6 hours"
     @AppStorage("sync.webhooks") private var webhooks = true
+    @AppStorage("sync.mapLogs") private var mapLogs = false
 
     var body: some View {
         Section("Schedule") {
@@ -124,7 +125,9 @@ private struct SyncSettings: View {
                 ForEach(["Every hour", "Every 6 hours", "Daily", "Manual"], id: \.self) { Text($0) }
             }
             Toggle("Use webhooks when the host supports them", isOn: $webhooks)
-            Text("Webhooks shorten freshness; a scheduled incremental sync remains the fallback. Both are idempotent and checkpointed.")
+            Toggle("Refresh linked map logs every 30 minutes", isOn: $mapLogs)
+                .onChange(of: mapLogs) { _, _ in model.configureMapRefresh() }
+            Text("Webhooks shorten freshness; a scheduled incremental sync remains the fallback. Both are idempotent and checkpointed. A map-log refresh is a no-op when the ticket cursor has not moved.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

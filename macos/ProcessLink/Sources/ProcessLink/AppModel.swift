@@ -176,6 +176,8 @@ final class AppModel {
     /// they run.
     var now: Date = .now
 
+    @ObservationIgnored private var mapRefreshTimer: Timer?
+
     init(container: ModelContainer) {
         self.container = container
         let defaults = UserDefaults.standard
@@ -188,6 +190,7 @@ final class AppModel {
         migrateLegacyDiscovery()
         StrategyDefaults.installIfNeeded(in: container.mainContext)
         StrategyDefaults.repairAllLinks(in: container.mainContext)
+        configureMapRefresh()
         ActivityCapture.removeScreenshots(olderThan: retentionDays)
     }
 
@@ -963,6 +966,38 @@ final class AppModel {
         return dataset
     }
 
+    func dataset(forMap mapID: String) -> DatasetRecord? {
+        ((try? context.fetch(FetchDescriptor<DatasetRecord>())) ?? [])
+            .filter { $0.mapID == mapID && $0.sourceRaw == "flightdeck-contract-flow" }
+            .sorted { $0.importedAt > $1.importedAt }
+            .first
+    }
+
+    /// Replaces a live map's events in place. The process, map link and
+    /// strategy links stay; only the evidence is refreshed.
+    func replaceEvents(in dataset: DatasetRecord, result: EventLogImport, cursor: String) {
+        let old = (try? context.fetch(FetchDescriptor<EventItemRecord>()))?
+            .filter { $0.datasetID == dataset.id } ?? []
+        for event in old { context.delete(event) }
+        for (index, event) in result.events.enumerated() {
+            let attributes = (try? JSONSerialization.data(withJSONObject: event.attributes))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+            context.insert(EventItemRecord(
+                id: "\(dataset.id)-ev-\(index)", datasetID: dataset.id,
+                caseHash: event.caseID, activity: event.activity,
+                timestamp: event.timestamp, resource: event.resource,
+                application: event.application,
+                attributesJSON: attributes, cost: event.cost))
+        }
+        dataset.caseCount = result.caseCount
+        dataset.eventCount = result.events.count
+        dataset.importedAt = now
+        dataset.sourceCursor = cursor
+        audit(action: "dataset.refreshed", subject: dataset.name,
+              detail: "\(result.caseCount) cases, \(result.events.count) events; cursor \(cursor).")
+        try? context.save()
+    }
+
     /// Turns a mined log into process/step/variant records so every
     /// downstream surface works unchanged.
     @discardableResult
@@ -1240,6 +1275,98 @@ final class AppModel {
         showToast("Discovery refreshed",
                   detail: "\(processes) processes · \(datasets) logs · \(captures) captures",
                   symbol: "arrow.triangle.2.circlepath")
+    }
+
+    // MARK: Scheduled map refresh
+
+    /// Opt-in every-30-minutes refresh of the newest live map log. The cursor
+    /// makes it a no-op when no ticket activity changed.
+    func configureMapRefresh() {
+        mapRefreshTimer?.invalidate()
+        mapRefreshTimer = nil
+        let enabled = UserDefaults.standard.bool(forKey: "sync.mapLogs")
+        guard enabled else { return }
+        mapRefreshTimer = Timer.scheduledTimer(withTimeInterval: 1_800, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.refreshNewestMapLog() }
+        }
+    }
+
+    func refreshNewestMapLog() async {
+        guard let dataset = ((try? context.fetch(FetchDescriptor<DatasetRecord>())) ?? [])
+            .filter({ $0.sourceRaw == "flightdeck-contract-flow" && !$0.mapID.isEmpty })
+            .sorted(by: { $0.importedAt > $1.importedAt }).first,
+              let map = MapsBridge.loadAll().first(where: { $0.id == dataset.mapID }) else { return }
+        _ = await flightdeck.importContractFlow(into: self, map: map)
+    }
+
+    // MARK: Map drift
+
+    @discardableResult
+    func createDriftReview(map: MapsBridge.Document, report: MapMiningReport,
+                           owner: String) -> GovernanceRecord {
+        let id = "gov-drift-\(map.id)"
+        let existing = ((try? context.fetch(FetchDescriptor<GovernanceRecord>())) ?? []).first { $0.id == id }
+        let record = existing ?? GovernanceRecord(
+            id: id, title: "Map drift · \(map.label)",
+            detail: "\(report.unexpectedTransitions.count) observed transitions are outside the map; \(report.missingSteps.count) map steps were not observed. Review the map or the work, then record the decision.",
+            group: "Process model", status: .inProgress, owner: owner, sortKey: 90)
+        record.detail = "\(report.unexpectedTransitions.count) observed transitions are outside the map; \(report.missingSteps.count) map steps were not observed. Review the map or the work, then record the decision."
+        record.owner = owner
+        record.updatedAt = .now
+        if existing == nil { context.insert(record) }
+        audit(action: "map.drift.review", subject: map.label,
+              detail: "Assigned to \(owner); \(report.unexpectedTransitions.count) unexpected transitions, \(report.missingSteps.count) missing steps.")
+        try? context.save()
+        page = .governance
+        showToast("Drift review assigned", detail: owner, symbol: "checkmark.shield")
+        return record
+    }
+
+    /// Agent follow-through: a validated bottleneck becomes a real initiative,
+    /// already carrying its process, strategic bet, KPI and values. The user
+    /// still owns the target and the saving evidence.
+    @discardableResult
+    func createInitiativeFromMining(dataset: DatasetRecord, activity: MinedActivity,
+                                    map: MapsBridge.Document?) -> InitiativeRecord? {
+        let processID: String
+        if !dataset.processID.isEmpty {
+            processID = dataset.processID
+        } else if let process = createProcess(from: dataset) {
+            processID = process.id
+            dataset.processID = process.id
+        } else {
+            return nil
+        }
+        let process = ((try? context.fetch(FetchDescriptor<ProcessRecord>())) ?? []).first { $0.id == processID }
+        let waste: WasteType = activity.reworkCount > 0 ? .rework : activity.averageWaitMinutes > 10 ? .waiting : .overProcessing
+        let link = StrategyDefaults.link(for: processID, waste: waste)
+        let annualHours = min(5_000, Double(activity.events) / Double(max(1, dataset.caseCount)) * 220
+                              * max(1, activity.averageWaitMinutes + 2) / 60)
+        let initiative = InitiativeRecord(
+            id: "ini-mining-\(UUID().uuidString.prefix(8))",
+            title: "Improve \(activity.name) in \(dataset.name)",
+            opportunityID: "", processID: processID,
+            processName: process?.name ?? dataset.name, site: dataset.site,
+            method: .kaizen, owner: "Process Owner", stage: .plan, status: .active,
+            due: now.addingTimeInterval(30 * 86_400), savingsHours: annualHours,
+            savingsStage: .estimated, validatedBy: "", evidenceNote: "",
+            claimsWaste: waste,
+            background: "Mined from \(dataset.caseCount) cases and \(dataset.eventCount) events\(map.map { " in \($0.label)" } ?? ""). \(activity.events) events at \(activity.name); average wait \(Fmt.minutes(activity.averageWaitMinutes)).",
+            target: "Reduce the observed \(waste.label.lowercased()) at \(activity.name) without adding a control step.",
+            rootCause: activity.automationReason,
+            countermeasure: "Test the smallest change that removes the wait or repeat; measure before and after.",
+            result: "", followUp: "Validate with before/after evidence after six weeks.",
+            strategicBetID: link.betID, kpiID: link.kpiID, valueIDs: link.valueIDs,
+            expectedKPIChange: link.expectedChange, visionContribution: link.contribution)
+        context.insert(initiative)
+        audit(action: "mining.initiative.created", subject: initiative.title,
+              detail: "From \(dataset.name) / \(activity.name)\(map.map { " / map \($0.id)" } ?? "").")
+        try? context.save()
+        selectedInitiativeID = initiative.id
+        page = .improvements
+        showToast("Initiative created", detail: "\(initiative.title) · linked to \(link.betID)",
+                  symbol: "flag.pattern.checkered")
+        return initiative
     }
 
     // MARK: Connectors

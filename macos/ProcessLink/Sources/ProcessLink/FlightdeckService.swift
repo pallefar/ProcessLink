@@ -281,6 +281,144 @@ final class FlightdeckService {
         }
     }
 
+    /// Pulls the Maps CI goals, derived benefits and manual KPIs into Strategy.
+    /// The map remains the owner of the definition; ProcessLink keeps the link
+    /// and the current value, not a second independent copy of the process.
+    @discardableResult
+    func syncMapKPIs(into model: AppModel) async -> Int {
+        guard principal != nil else { return 0 }
+        if projects.isEmpty { await refreshContext() }
+        guard !workspaceID.isEmpty else { return 0 }
+        let maps = MapsBridge.loadAll().filter { !$0.id.hasPrefix("map-") }
+        guard !maps.isEmpty else {
+            model.showToast("No Flightdeck maps", detail: "Import a map before syncing its KPIs.",
+                            symbol: "map", warning: true)
+            return 0
+        }
+        var imported = 0
+        do {
+            let value = try makeClient()
+            let context = model.context
+            let settingsData = try await value.mapCISettings(workspaceID: workspaceID, projectID: projectID)
+            let settings = (try? JSONSerialization.jsonObject(with: settingsData)) as? [String: Any] ?? [:]
+            let goals = settings["goals"] as? [[String: Any]] ?? []
+            var bets = (try? context.fetch(FetchDescriptor<StrategicBetRecord>())) ?? []
+            var kpis = (try? context.fetch(FetchDescriptor<KPIRecord>())) ?? []
+            let strategy = ((try? context.fetch(FetchDescriptor<StrategyRecord>())) ?? []).first
+            let existingInitiatives = (try? context.fetch(FetchDescriptor<InitiativeRecord>())) ?? []
+
+            for map in maps {
+                let ciData = try await value.mapCI(id: map.id, workspaceID: workspaceID, projectID: projectID)
+                let ci = (try? JSONSerialization.jsonObject(with: ciData)) as? [String: Any] ?? [:]
+                let benefits = ci["benefits"] as? [[String: Any]] ?? []
+                let manual = ((map.json["meta"] as? [String: Any])?["ci"] as? [String: Any])?["kpis"] as? [[String: Any]] ?? []
+                let mapGoals = Dictionary(uniqueKeysWithValues: goals.compactMap { goal -> (String, String)? in
+                    guard let id = goal["id"] as? String else { return nil }
+                    return (id, goal["label"] as? String ?? id)
+                })
+
+                func betID(_ goalID: String, _ goalLabel: String) -> String {
+                    let id = "bet-map-\(goalID.isEmpty ? "default" : goalID)"
+                    if let existing = bets.first(where: { $0.id == id }) { return existing.id }
+                    let bet = StrategicBetRecord(
+                        id: id, title: goalLabel,
+                        detail: "Imported from Flightdeck Maps continuous-improvement goals.",
+                        owner: "Process Owner", horizon: strategy?.horizon ?? "Current",
+                        status: "active", primaryKPIID: "", valueIDs: [StrategyDefaults.valRight, StrategyDefaults.valSimplify],
+                        order: bets.count)
+                    context.insert(bet)
+                    bets.append(bet)
+                    return id
+                }
+
+                func upsertKPI(id: String, name: String, definition: String, unit: String,
+                               baseline: Double, current: Double, target: Double,
+                               direction: String, source: String, bet: String, cadence: String) {
+                    let kpi: KPIRecord
+                    if let existing = kpis.first(where: { $0.id == id }) {
+                        kpi = existing
+                    } else {
+                        kpi = KPIRecord(id: id, name: name, definition: definition, unit: unit,
+                                        baseline: baseline, current: current, target: target,
+                                        direction: direction, cadence: cadence, source: source,
+                                        strategicBetID: bet)
+                        context.insert(kpi)
+                        kpis.append(kpi)
+                    }
+                    kpi.name = name
+                    kpi.definition = definition
+                    kpi.unit = unit
+                    kpi.baseline = baseline
+                    kpi.current = current
+                    kpi.target = target
+                    kpi.directionRaw = direction
+                    kpi.cadence = cadence
+                    kpi.source = source
+                    kpi.strategicBetID = bet
+                    kpi.updatedAt = .now
+                    if let index = bets.firstIndex(where: { $0.id == bet }), bets[index].primaryKPIID.isEmpty {
+                        bets[index].primaryKPIID = id
+                    }
+                    imported += 1
+                }
+
+                for benefit in benefits {
+                    guard let key = benefit["key"] as? String,
+                          let label = benefit["label"] as? String else { continue }
+                    let goalID = benefit["goalId"] as? String ?? "default"
+                    let goalLabel = benefit["goalLabel"] as? String ?? mapGoals[goalID] ?? "Process improvement"
+                    let bet = betID(goalID, goalLabel)
+                    let rawUnit = benefit["unit"] as? String ?? ""
+                    let unit = rawUnit == "ms" ? "min" : rawUnit
+                    let scale = rawUnit == "ms" ? 1.0 / 60_000.0 : 1.0
+                    let baseline = (benefit["baseline"] as? Double).map { $0 * scale } ?? 0
+                    let current = (benefit["current"] as? Double).map { $0 * scale } ?? 0
+                    upsertKPI(id: "kpi-map-\(map.id)-\(key)",
+                              name: "\(label) · \(map.label)",
+                              definition: benefit["summary"] as? String ?? "Derived by Flightdeck Maps.",
+                              unit: unit, baseline: baseline, current: current,
+                              target: current, direction: benefit["betterWhen"] as? String ?? "lower",
+                              source: "Flightdeck Maps", bet: bet, cadence: "On demand")
+                }
+
+                for item in manual {
+                    guard let key = item["id"] as? String,
+                          let label = item["label"] as? String else { continue }
+                    let goalID = item["goalId"] as? String ?? "default"
+                    let goalLabel = mapGoals[goalID] ?? "Process improvement"
+                    let bet = betID(goalID, goalLabel)
+                    let baseline = (item["baseline"] as? Double) ?? (item["current"] as? Double) ?? 0
+                    let current = (item["current"] as? Double) ?? baseline
+                    let target = (item["target"] as? Double) ?? current
+                    upsertKPI(id: "kpi-map-\(map.id)-\(key)",
+                              name: "\(label) · \(map.label)",
+                              definition: "Manual KPI owned by \(map.label).",
+                              unit: item["unit"] as? String ?? "", baseline: baseline,
+                              current: current, target: target,
+                              direction: item["betterWhen"] as? String ?? "lower",
+                              source: "Flightdeck Maps", bet: bet, cadence: "Manual")
+                }
+
+                // Auto-link an initiative to the map's KPI only when the link
+                // is empty; a human choice always wins.
+                for initiative in existingInitiatives where initiative.processID == map.processID {
+                    if initiative.kpiID.isEmpty, let bet = bets.first(where: { $0.id == initiative.strategicBetID }) {
+                        initiative.kpiID = bet.primaryKPIID
+                    }
+                }
+            }
+            try? context.save()
+            model.showToast("Maps KPIs synced",
+                            detail: "\(imported) KPI readings · \(maps.count) maps",
+                            symbol: "chart.line.uptrend.xyaxis")
+            return imported
+        } catch {
+            model.showToast("Maps KPI sync failed", detail: error.localizedDescription,
+                            symbol: "exclamationmark.triangle", warning: true)
+            return 0
+        }
+    }
+
     /// Pulls the real contract-flow execution history behind a Flightdeck map:
     /// one case per ticket, with run, four-eye check, PDF, works council and
     /// signature events. It is the operational event log, not a map walk.
@@ -291,7 +429,17 @@ final class FlightdeckService {
         guard !workspaceID.isEmpty else { return nil }
         do {
             let value = try makeClient()
-            let ids = try await value.contractFlowTicketIDs(workspaceID: workspaceID, projectID: projectID)
+            let summaries = try await value.contractFlowSummaries(workspaceID: workspaceID, projectID: projectID)
+            let ids = summaries.map(\.id)
+            let cursor = summaries.map { "\($0.updatedAt)|\($0.latestRunID)" }.max() ?? ""
+            if let existing = model.dataset(forMap: map.id), !cursor.isEmpty,
+               existing.sourceCursor == cursor {
+                model.selectedDatasetID = existing.id
+                model.page = .mining
+                model.showToast("Map log is current", detail: "\(existing.caseCount) cases · no new ticket activity",
+                                symbol: "checkmark.circle")
+                return existing
+            }
             guard !ids.isEmpty else {
                 model.showToast("No execution history", detail: "This project has no contract-flow tickets yet.",
                                 symbol: "tray", warning: true)
@@ -309,53 +457,65 @@ final class FlightdeckService {
                 let stage = root["stage"] as? String ?? ""
                 let runs = root["runs"] as? [[String: Any]] ?? []
                 let latest = runs.first
-                var events: [(String, String, String, String, String)] = []
-                if let run = latest {
-                    let outcome = run["outcome"] as? String ?? ""
-                    let checks = run["checks"] as? [String: Any]
-                    let checkText = checks.map { "\($0["passed"] as? Int ?? 0) passed" } ?? ""
-                    let source = run["source"] as? String ?? "flightdeck"
-                    let started = run["startedAt"] as? String ?? ""
-                    if !started.isEmpty {
-                        events.append(("Generate draft", started, "Preparer", outcome, source))
-                    }
-                    if let check = run["check"] as? [String: Any], let at = check["at"] as? String {
-                        events.append(("4-eye check", at, "Reviewer", outcome, source))
-                    }
-                    if let pdf = run["pdf"] as? [String: Any], let at = pdf["at"] as? String {
-                        events.append(("Export PDF", at, "Preparer", outcome, source))
-                    }
-                    if let signature = run["signature"] as? [String: Any], let at = signature["at"] as? String {
-                        events.append(("Signature", at, "Signatory", outcome, source))
-                    }
-                    if let at = run["finishedAt"] as? String, events.isEmpty {
-                        events.append(("Generate draft", at, "Preparer", outcome, source))
-                    }
-                    for event in events {
-                        lines.append(csvLine([ticket, event.0, event.1, event.2, "Flightdeck Maps",
-                                              event.3, project, stage, event.4, checkText]))
+                let history = root["history"] as? [[String: Any]] ?? []
+                let updatedAt = root["updatedAt"] as? String ?? ""
+                let stepRows = root["steps"] as? [[String: Any]] ?? []
+                let run = latest
+                let outcome = run?["outcome"] as? String ?? ""
+                let checks = run?["checks"] as? [String: Any]
+                let checkText = checks.map { "\($0["passed"] as? Int ?? 0) passed" } ?? ""
+                let runSource = run?["source"] as? String ?? "flightdeck"
+                let startAt = run?["startedAt"] as? String ?? ""
+                let finishAt = run?["finishedAt"] as? String ?? ""
+                let checkAt = (run?["check"] as? [String: Any])?["at"] as? String
+                let pdfAt = (run?["pdf"] as? [String: Any])?["at"] as? String
+                let signatureAt = (run?["signature"] as? [String: Any])?["at"] as? String
+                var historyAt: [String: String] = [:]
+                for entry in history {
+                    if let key = entry["stage"] as? String, let at = entry["at"] as? String {
+                        historyAt[key] = at
                     }
                 }
-                // Works-council and closure are ticket-history events, not run
-                // events; add the ones not already represented above.
-                let history = root["history"] as? [[String: Any]] ?? []
-                let macro: [String: String] = [
-                    "wc-sent": "Send to works council",
-                    "wc-approved": "Works council approved",
-                    "wc-rejected": "Works council rejected",
-                    "signed": "Signature",
-                    "done": "Close ticket",
-                    "refused": "Refused",
-                    "checks-failed": "Checks failed",
+                let stepLabels: [String: (String, String)] = [
+                    "intake": ("Open ticket", "HR Services"),
+                    "recognition": ("Check documents", "Engine"),
+                    "wc": ("Works council", "Works council"),
+                    "draft": ("Prepare contract", "Preparer"),
+                    "signature": ("Sign contract", "Signatory"),
+                    "done": ("Close ticket", "HR Services"),
                 ]
-                for entry in history {
-                    guard let stageKey = entry["stage"] as? String,
-                          let activity = macro[stageKey],
-                          let at = entry["at"] as? String else { continue }
-                    if events.contains(where: { $0.0 == activity }) { continue }
-                    let resource = activity.contains("works council") ? "Works council" : "HR Services"
-                    lines.append(csvLine([ticket, activity, at, resource, "Flightdeck Maps",
-                                          stage, project, stageKey, "history", ""]))
+                let stepTime: [String: String] = [
+                    "intake": startAt,
+                    "recognition": finishAt,
+                    "wc": historyAt["wc-sent"] ?? historyAt["wc-approved"] ?? historyAt["wc-rejected"] ?? updatedAt,
+                    "draft": checkAt ?? pdfAt ?? finishAt,
+                    "signature": signatureAt ?? updatedAt,
+                    "done": historyAt["done"] ?? updatedAt,
+                ]
+                var stepEvents: [(String, String, String, String, String)] = []
+                for step in stepRows {
+                    guard let id = step["id"] as? String,
+                          let state = step["state"] as? String, state != "todo",
+                          let label = stepLabels[id],
+                          let at = stepTime[id], !at.isEmpty else { continue }
+                    let source = (state == "done" && at != updatedAt) ? runSource : "step-state"
+                    stepEvents.append((label.0, at, label.1, outcome, source))
+                }
+                // A ticket with a run but no step state still yields one honest
+                // event; never invent a step that the OS did not report.
+                if stepEvents.isEmpty, let at = startAt.isEmpty ? nil : startAt {
+                    stepEvents.append(("Open ticket", at, "HR Services", outcome, runSource))
+                }
+                for event in stepEvents {
+                    lines.append(csvLine([ticket, event.0, event.1, event.2, "Flightdeck Maps",
+                                          event.3, project, stage, event.4, checkText]))
+                }
+                let exceptions = ["refused": ("Refused", "Engine"), "checks-failed": ("Checks failed", "Engine")]
+                for (key, value) in exceptions {
+                    if let at = historyAt[key] {
+                        lines.append(csvLine([ticket, value.0, at, value.1, "Flightdeck Maps",
+                                              stage, project, key, "history-exception", ""]))
+                    }
                 }
                 cases += 1
             }
@@ -365,15 +525,32 @@ final class FlightdeckService {
                 return nil
             }
             let csv = lines.joined(separator: "\n")
-            let dataset = try model.importCSV(
-                text: csv, name: "Contract flow · \(map.label)",
-                filename: "flightdeck-contract-flow.csv", site: "",
-                mapID: map.id,
-                mapMappingJSON: mappingJSON(for: map))
-            guard let process = model.createProcess(from: dataset) else { return dataset }
+            let result = try EventLogImporter.importCSV(csv)
+            let dataset: DatasetRecord
+            if let existing = model.dataset(forMap: map.id) {
+                model.replaceEvents(in: existing, result: result, cursor: cursor)
+                dataset = existing
+            } else {
+                dataset = try model.importCSV(
+                    text: csv, name: "Contract flow · \(map.label)",
+                    filename: "flightdeck-contract-flow.csv", site: "",
+                    mapID: map.id,
+                    mapMappingJSON: mappingJSON(for: map))
+            }
+            let existingProcess = ((try? model.context.fetch(FetchDescriptor<ProcessRecord>())) ?? [])
+                .first { $0.id == dataset.processID }
+            let process: ProcessRecord
+            if let existingProcess {
+                process = existingProcess
+            } else if let created = model.createProcess(from: dataset) {
+                process = created
+            } else {
+                return dataset
+            }
             dataset.processID = process.id
             dataset.mapID = map.id
             dataset.sourceRaw = "flightdeck-contract-flow"
+            dataset.sourceCursor = cursor
             dataset.notes = "Live contract-flow execution history from Flightdeck Maps: \(cases) tickets."
             let processSteps = ((try? model.context.fetch(FetchDescriptor<StepRecord>())) ?? [])
                 .filter { $0.processID == process.id }
@@ -403,13 +580,11 @@ final class FlightdeckService {
                               role: node.role, system: node.system)
         }
         let aliases: [String: String] = [
-            "Generate draft": "prepare_documents",
-            "Export PDF": "prepare_documents",
-            "4-eye check": "qc_four_eye",
-            "Send to works council": "send_to_wc",
-            "Works council approved": "wc_reply",
-            "Works council rejected": "wc_rejected",
-            "Signature": "hrss_signature",
+            "Open ticket": "intake_received",
+            "Check documents": "check_documents",
+            "Prepare contract": "prepare_documents",
+            "Works council": "send_to_wc",
+            "Sign contract": "hrss_signature",
             "Close ticket": "complete",
             "Refused": "request_info",
             "Checks failed": "qc_four_eye",

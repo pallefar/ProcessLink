@@ -528,3 +528,12 @@ func mapMiningConformance() {
     #expect(report.transitionCoverage == 1)
     #expect(report.unmappedActivities.isEmpty)
 }
+
+@Test("Benchmarks compare attribute groups without exposing people")
+func miningBenchmarks() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let rows = ProcessMining.benchmarks(events: result.events, dimension: "region", minimumCases: 2)
+    #expect(!rows.isEmpty)
+    #expect(rows.allSatisfy { $0.cases >= 2 })
+    #expect(rows.allSatisfy { !$0.value.isEmpty })
+}

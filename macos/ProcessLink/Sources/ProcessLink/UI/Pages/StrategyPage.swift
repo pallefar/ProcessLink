@@ -16,6 +16,7 @@ struct StrategyPage: View {
     @State private var editingVision = false
     @State private var editingKPI: KPIRecord?
     @State private var linkingInitiative: InitiativeRecord?
+    @State private var syncingMapKPIs = false
 
     private var strategy: StrategyRecord? { strategies.first }
     private var linked: [InitiativeRecord] { initiatives.filter(\.hasStrategyLink) }
@@ -32,6 +33,19 @@ struct StrategyPage: View {
                              symbol: unlinked.isEmpty ? "link" : "link.badge.plus",
                              tint: unlinked.isEmpty ? .green : .orange)
                         Chip(text: strategy?.horizon ?? "No horizon", symbol: "calendar", tint: .secondary)
+                        Button {
+                            syncingMapKPIs = true
+                            Task {
+                                _ = await model.flightdeck.syncMapKPIs(into: model)
+                                syncingMapKPIs = false
+                            }
+                        } label: {
+                            if syncingMapKPIs { ProgressView().controlSize(.small) }
+                            else { Label("Sync Maps KPIs", systemImage: "arrow.triangle.2.circlepath") }
+                        }
+                        .controlSize(.small)
+                        .disabled(syncingMapKPIs || !model.flightdeck.isSignedIn)
+                        .help("Pull Flightdeck Maps goals, derived metrics and manual KPIs into Strategy")
                     }
                 }
 
