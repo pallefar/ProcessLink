@@ -11,32 +11,37 @@ struct FlightdeckSidebar: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
-            if flightdeck.isSignedIn {
-                workspaceRow
-                projectRow
-                links
-                if let health = flightdeck.health["os"] {
-                    Text(health.detail)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .help(health.detail)
-                }
-            } else {
-                Button {
-                    model.page = .connections
-                } label: {
-                    Label("Connect Flightdeck", systemImage: "link.badge.plus")
-                        .font(.caption)
+            VStack(spacing: Space.xs) {
+                if flightdeck.isSignedIn {
+                    workspaceMenu
+                    projectMenu
+                    links
+                    if let health = flightdeck.health["os"] {
+                        Text(health.detail)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .help(health.detail)
+                    }
+                } else {
+                    Button {
+                        model.page = .connections
+                    } label: {
+                        Label("Connect Flightdeck", systemImage: "link.badge.plus")
+                            .font(.body)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
+            .padding(.horizontal, Space.xs)
+            .padding(.top, 2)
         } label: {
             HStack(spacing: Space.sm) {
-                Image(systemName: "cloud")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("Flightdeck")
-                    .font(.subheadline.weight(.medium))
+                Label("Flightdeck", systemImage: "cloud")
+                    .font(.body.weight(.medium))
                 Spacer()
                 Circle()
                     .fill(statusTint)
@@ -49,53 +54,87 @@ struct FlightdeckSidebar: View {
         }
     }
 
-    private var workspaceRow: some View {
-        HStack(spacing: Space.sm) {
-            Image(systemName: "square.stack.3d.up")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-            Picker("Workspace", selection: $flightdeck.workspaceID) {
-                ForEach(flightdeck.workspaces) { workspace in
-                    Text(workspace.label).tag(workspace.id)
+    // MARK: Workspace and project
+
+    private var workspaceMenu: some View {
+        Menu {
+            ForEach(flightdeck.workspaces) { workspace in
+                Button {
+                    flightdeck.workspaceID = workspace.id
+                    Task { await flightdeck.refreshContext() }
+                } label: {
+                    if workspace.id == flightdeck.workspaceID {
+                        Label(workspace.label, systemImage: "checkmark")
+                    } else {
+                        Text(workspace.label)
+                    }
                 }
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .onChange(of: flightdeck.workspaceID) { _, _ in
-                Task { await flightdeck.refreshContext() }
-            }
+        } label: {
+            menuLabel(symbol: "square.stack.3d.up",
+                      text: flightdeck.workspaces.first(where: { $0.id == flightdeck.workspaceID })?.label ?? "Workspace")
         }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .frame(maxWidth: .infinity, alignment: .center)
         .help("Flightdeck workspace")
     }
 
-    private var projectRow: some View {
-        HStack(spacing: Space.sm) {
-            Image(systemName: "folder")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
-            Picker("Project", selection: $flightdeck.projectID) {
-                ForEach(flightdeck.projects.filter(\.enabled)) { project in
-                    Text(project.label).tag(project.id)
+    private var projectMenu: some View {
+        Menu {
+            ForEach(flightdeck.projects.filter(\.enabled)) { project in
+                Button {
+                    flightdeck.projectID = project.id
+                } label: {
+                    if project.id == flightdeck.projectID {
+                        Label(project.label, systemImage: "checkmark")
+                    } else {
+                        Text(project.label)
+                    }
                 }
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
+        } label: {
+            menuLabel(symbol: "folder",
+                      text: flightdeck.projects.first(where: { $0.id == flightdeck.projectID })?.label ?? "Project")
         }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .frame(maxWidth: .infinity, alignment: .center)
         .help("Flightdeck project")
     }
 
-    private var links: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            link("Flightdeck OS", symbol: "macwindow", url: flightdeck.baseURLString)
-            link("Atlas", symbol: "square.stack.3d.up", url: flightdeck.atlasURLString)
-            link("Vision", symbol: "scope", url: visionURL)
+    private func menuLabel(symbol: String, text: String) -> some View {
+        HStack(spacing: Space.sm) {
+            Image(systemName: symbol)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(text)
+                .font(.body)
+                .lineLimit(1)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(.leading, 24)
+        .padding(.horizontal, Space.sm)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .contentShape(Rectangle())
     }
 
-    private func link(_ title: String, symbol: String, url: String) -> some View {
+    // MARK: Links
+
+    private var links: some View {
+        HStack(spacing: Space.xs) {
+            link("OS", title: "Flightdeck OS", symbol: "macwindow", url: flightdeck.baseURLString)
+            link("Atlas", title: "Atlas", symbol: "square.stack.3d.up", url: flightdeck.atlasURLString)
+            link("Vision", title: "Vision", symbol: "scope", url: visionURL)
+        }
+        .padding(.top, 2)
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private func link(_ label: String, title: String, symbol: String, url: String) -> some View {
         Button {
             guard let value = URL(string: url.trimmingCharacters(in: .whitespaces)),
                   !url.trimmingCharacters(in: .whitespaces).isEmpty else {
@@ -104,19 +143,21 @@ struct FlightdeckSidebar: View {
             }
             NSWorkspace.shared.open(value)
         } label: {
-            HStack(spacing: Space.sm) {
+            VStack(spacing: 2) {
                 Image(systemName: symbol)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
-                Text(title)
                     .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(label)
+                    .font(.caption2)
                     .lineLimit(1)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+            .background(Color.primary.opacity(0.04),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
         .help("Open \(title)")
         .accessibilityLabel("Open \(title)")
     }

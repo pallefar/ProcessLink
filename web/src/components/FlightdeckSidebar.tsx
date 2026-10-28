@@ -27,6 +27,7 @@ export function FlightdeckSidebar() {
             <select value={workspace} onChange={e => setWorkspace(e.target.value)} aria-label="Flightdeck workspace">
               <option>TE Operations</option>
             </select>
+            <span className="fd-chevron" aria-hidden="true">⌄</span>
           </label>
           <label className="fd-select-row">
             <Icon name="folder" size={13} />
@@ -35,11 +36,12 @@ export function FlightdeckSidebar() {
               <option>General</option>
               <option>Cockpits</option>
             </select>
+            <span className="fd-chevron" aria-hidden="true">⌄</span>
           </label>
           <div className="fd-links">
-            <a href={OS_URL} target="_blank" rel="noreferrer"><Icon name="macwindow" size={12} />Flightdeck OS</a>
-            <a href={ATLAS_URL} target="_blank" rel="noreferrer"><Icon name="layers" size={12} />Atlas</a>
-            <a href={VISION_URL} target="_blank" rel="noreferrer"><Icon name="vision" size={12} />Vision</a>
+            <a href={OS_URL} target="_blank" rel="noreferrer" title="Flightdeck OS"><Icon name="macwindow" size={12} />OS</a>
+            <a href={ATLAS_URL} target="_blank" rel="noreferrer" title="Atlas"><Icon name="layers" size={12} />Atlas</a>
+            <a href={VISION_URL} target="_blank" rel="noreferrer" title="Vision"><Icon name="vision" size={12} />Vision</a>
           </div>
           <div className="fd-caption">UAT · {workspace} · {project}</div>
         </div>
