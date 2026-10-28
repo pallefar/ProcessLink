@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../App'
-import { Card, Chip, Empty, KV, Note, PageHead } from '../components/ui'
+import { Card, Chip, Empty, KV, Metric, Note, PageHead } from '../components/ui'
+import { GraphOverview } from '../components/GraphOverview'
 import { KG_LABEL, PREDICATE_LABEL } from '../domain/labels'
 import type { KGKind } from '../domain/types'
 
@@ -31,14 +32,19 @@ export default function Graph() {
 
   return (
     <>
-      <PageHead title="Knowledge graph" subtitle="The shared semantic backbone. KYP.ai facts become nodes with provenance; ProcessLink proposes, a human confirms." />
+      <PageHead title="Knowledge Graph" subtitle="The shared semantic backbone. KYP.ai facts become nodes with provenance; ProcessLink proposes, a human confirms." />
 
       <div className="grid metrics">
-        <Card><div className="metric" style={{ border: 0, padding: 0, boxShadow: 'none' }}><div className="label">Nodes</div><div className="value">{nodes.length}</div><div className="detail">{KINDS.length} of 25 proposed types in use</div></div></Card>
-        <Card><div className="metric" style={{ border: 0, padding: 0, boxShadow: 'none' }}><div className="label">Edges</div><div className="value">{edges.length}</div><div className="detail">Provenance on every one</div></div></Card>
-        <Card><div className="metric" style={{ border: 0, padding: 0, boxShadow: 'none' }}><div className="label">Orphans</div><div className="value">{orphans}</div><div className="detail">{orphans === 0 ? 'Every node is connected' : 'Nodes with no relation'}</div></div></Card>
-        <Card><div className="metric" style={{ border: 0, padding: 0, boxShadow: 'none' }}><div className="label">Uncertain matches</div><div className="value">{suggested.length}</div><div className="detail">Never merged without a human</div></div></Card>
+        <Metric label="Nodes" value={String(nodes.length)} detail={`${KINDS.length} of 29 proposed types in use`} />
+        <Metric label="Edges" value={String(edges.length)} detail="Provenance on every one" />
+        <Metric label="Orphans" value={String(orphans)} detail={orphans === 0 ? 'Every node is connected' : 'Nodes with no relation'} />
+        <Metric label="Uncertain matches" value={String(suggested.length)} detail="Never merged without a human" />
       </div>
+
+      <Card title="Graph overview" subtitle="The working set, laid out by what it is: process, opportunity, initiative, meeting, objective." glyph="⬡"
+        actions={<Chip>{nodes.length} nodes · {edges.length} edges</Chip>}>
+        <GraphOverview nodes={nodes} edges={edges} selected={node?.id} onSelect={selectNode} />
+      </Card>
 
       {suggested.length > 0 && (
         <Card title="Entity resolution queue" subtitle="Low-confidence matches are proposals. They stay separate until a human confirms or rejects them." glyph="?" >

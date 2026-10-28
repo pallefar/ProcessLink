@@ -8,7 +8,9 @@ import Meetings from './pages/Meetings'
 import Graph from './pages/Graph'
 import Improvements from './pages/Improvements'
 import Ask from './pages/Ask'
+import Mining from './pages/Mining'
 import Governance from './pages/Governance'
+import { Icon } from './components/Icon'
 
 const PAGES = {
   overview: Overview,
@@ -16,6 +18,7 @@ const PAGES = {
   opportunities: Opportunities,
   maps: Maps,
   meetings: Meetings,
+  mining: Mining,
   graph: Graph,
   improvements: Improvements,
   ask: Ask,
@@ -49,7 +52,7 @@ export function Shell() {
                   aria-current={page === item.id ? 'page' : undefined}
                   onClick={() => navigate(item.id)}
                 >
-                  <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+                  <span className="nav-icon" aria-hidden="true"><Icon name={item.icon as never} /></span>
                   {item.label}
                   {item.id === 'opportunities' && <span className="count">{opportunities.filter(o => o.status === 'new').length}</span>}
                   {item.id === 'governance' && <span className="count">{governance.filter(g => g.status === 'blocked').length}</span>}
@@ -59,25 +62,25 @@ export function Shell() {
           ))}
         </nav>
         <div className="side-foot">
-          <strong>Improvement only</strong>
-          <span>Groups ≥ {policy.minimumGroupSize} · {policy.region} · sandbox data</span>
+          <span className="foot-shield"><Icon name="governance" size={13} /> Improvement only · ≥ {policy.minimumGroupSize} · {policy.region}</span>
         </div>
       </aside>
 
       <main className="main">
         <div className="topbar">
-          <div className="crumb">ProcessLink / <strong>{active?.label ?? 'Overview'}</strong></div>
+          <h1 className="topbar-title">{active?.label ?? 'Overview'}</h1>
           <Chip tone="orange">Sandbox</Chip>
           <div className="spacer" />
-          <button className="btn" onClick={sync}>↻ Sync</button>
-          <button className="btn" onClick={exportBrief}>↑ Export brief</button>
+          <button className="icon-btn" onClick={sync} aria-label="Sync sources" title="Sync sources"><Icon name="sync" size={16} /></button>
+          <button className="icon-btn" onClick={() => navigate('ask')} aria-label="Ask ProcessLink" title="Ask ProcessLink"><Icon name="ask" size={16} /></button>
+          <button className="icon-btn" onClick={exportBrief} aria-label="Export brief" title="Export brief"><Icon name="export" size={16} /></button>
           <button
-            className="btn"
+            className="icon-btn"
             onClick={() => setTheme(theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : 'auto')}
             aria-label={`Theme: ${theme}`}
             title={`Theme: ${theme}`}
           >
-            ◐ {theme === 'auto' ? 'Auto' : theme === 'light' ? 'Light' : 'Dark'}
+            <Icon name="theme" size={16} />
           </button>
         </div>
         <div className="content">

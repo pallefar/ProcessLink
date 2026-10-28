@@ -51,6 +51,7 @@ export default function Discoveries() {
             </div>
             <div className="rowflex" style={{ marginTop: 8 }}>
               <Chip tone="blue">{process.site}</Chip>
+              <Chip>KYP.ai task mining</Chip>
               <Chip>{process.businessUnit}</Chip>
               <Chip>{process.valueStream}</Chip>
               <Chip>Maturity {process.maturity}/5</Chip>

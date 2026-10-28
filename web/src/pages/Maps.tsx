@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../App'
-import { Card, Chip, Empty, KV, Note, PageHead, routeTone } from '../components/ui'
-import { MapSvg, type Overlay } from '../components/MapSvg'
+import { Card, Chip, Empty, KV, Note } from '../components/ui'
+import { MapSvg, overlayText, type Overlay } from '../components/MapSvg'
 import { fmt, scoreOpportunity } from '../domain/rules'
 import { WASTE_LABEL } from '../domain/labels'
+import type { Step } from '../domain/types'
 
 const OVERLAYS: Array<{ id: Overlay; label: string }> = [
   { id: 'cycle', label: 'Cycle time' },
@@ -12,145 +13,179 @@ const OVERLAYS: Array<{ id: Overlay; label: string }> = [
   { id: 'automation', label: 'Automation potential' },
 ]
 
+interface Draft { label: string; role: string; system: string; minutes: string }
+
 export default function Maps() {
-  const { processes, selectedProcess, selectProcess, opportunities, selectOpportunity, navigate, notify, selectNode } = useApp()
+  const {
+    processes, selectedProcess, selectProcess, opportunities, initiatives, navigate, notify,
+    selectNode, selectOpportunity,
+  } = useApp()
   const eligible = processes.filter(p => p.status === 'discovered' && p.steps.length > 0)
   const process = eligible.find(p => p.id === selectedProcess) ?? eligible[0]
+
   const [overlay, setOverlay] = useState<Overlay>('cycle')
-  const [selectedStep, setSelectedStep] = useState<string | undefined>(undefined)
+  const [selectedStepId, setSelectedStepId] = useState<string | undefined>(undefined)
+  const [overrides, setOverrides] = useState<Record<string, Partial<Step>>>({})
+  const [draft, setDraft] = useState<Draft>({ label: '', role: '', system: '', minutes: '' })
 
   useEffect(() => {
     const hottest = [...(process?.steps ?? [])].sort((a, b) => b.minutes - a.minutes)[0]
-    setSelectedStep(hottest?.id)
+    setSelectedStepId(hottest?.id)
+    setOverrides({})
   }, [process?.id])
 
-  if (!process) {
-    return <><PageHead title="Maps" subtitle="Generated from KYP.ai." /><Empty title="No map to draw" detail="A process with mined steps is needed." /></>
+  const steps = useMemo(() => (process?.steps ?? []).map(step => ({ ...step, ...overrides[step.id] })), [process, overrides])
+  const mapped = useMemo(() => process ? { ...process, steps } : undefined, [process, steps])
+  const step = steps.find(item => item.id === selectedStepId)
+  const base = process?.steps.find(item => item.id === selectedStepId)
+
+  useEffect(() => {
+    if (!step) return
+    setDraft({ label: step.name, role: step.role, system: step.application, minutes: String(step.minutes) })
+    // Only reset when the selected shape changes; typing must not be clobbered.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step?.id])
+
+  if (!process || !mapped) {
+    return <Empty title="No map to draw" detail="A process with mined steps is needed." />
   }
 
-  const step = process.steps.find(s => s.id === selectedStep)
-  const best = opportunities
+  const topOpportunity = opportunities
     .filter(o => o.processId === process.id && o.status !== 'deferred')
     .sort((a, b) => scoreOpportunity(b).total - scoreOpportunity(a).total)[0]
+  const validated = initiatives
+    .filter(i => i.processId === process.id && i.savingsStage === 'validated')
+    .reduce((sum, i) => sum + i.savingsHours, 0)
+
+  const drift: Array<[string, string, string]> = []
+  if (base && step) {
+    if (step.name !== base.name) drift.push(['Label', step.name, base.name])
+    if (step.role !== base.role) drift.push(['Role', step.role, base.role])
+    if (step.application !== base.application) drift.push(['System', step.application, base.application])
+    if (Math.abs(step.minutes - base.minutes) > 0.01) drift.push(['Time', fmt.minutes(step.minutes), fmt.minutes(base.minutes)])
+  }
+
+  const save = () => {
+    if (!step) return
+    const minutes = Number(draft.minutes)
+    setOverrides(current => ({
+      ...current,
+      [step.id]: {
+        name: draft.label,
+        role: draft.role,
+        application: draft.system,
+        minutes: Number.isFinite(minutes) && minutes > 0 ? minutes : step.minutes,
+      },
+    }))
+    notify('Map saved', 'Change recorded as a map proposal; discovery is not overwritten.', false)
+  }
+
+  const restore = () => {
+    if (!step || !base) return
+    setOverrides(current => {
+      const next = { ...current }
+      delete next[step.id]
+      return next
+    })
+    setDraft({ label: base.name, role: base.role, system: base.application, minutes: String(base.minutes) })
+    notify('Restored from discovery', base.name, false)
+  }
 
   return (
-    <>
-      <PageHead
-        title="Process map"
-        subtitle="Generated from KYP.ai, bound shape by shape to the knowledge graph. Edits here propose a KG change; they never overwrite discovery."
-        actions={
-          <>
-            <select
-              aria-label="Process to map"
-              value={process.id}
-              onChange={event => selectProcess(event.target.value)}
-              style={{ border: '1px solid var(--border-strong)', background: 'var(--panel)', borderRadius: 8, padding: '4px 8px', fontSize: 12 }}
-            >
-              {eligible.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-            <button className="btn" onClick={() => notify('Map regenerated', `${process.steps.length} shapes re-bound to live KG nodes.`)}>↻ Regenerate</button>
-          </>
-        }
-      />
+    <div className="maps-workspace">
+      <div className="map-toolbar">
+        <select
+          className="map-picker"
+          aria-label="Flightdeck map"
+          value={process.id}
+          onChange={event => selectProcess(event.target.value)}
+        >
+          {eligible.map(item => <option key={item.id} value={item.id}>{item.name} — as-is</option>)}
+        </select>
+        <Chip>signavio-map/1</Chip>
+        <span className="subtle inline-subtle">{process.site}</span>
+        <div className="spacer" />
+        <select
+          className="map-overlay"
+          aria-label="Overlay"
+          value={overlay}
+          onChange={event => setOverlay(event.target.value as Overlay)}
+        >
+          {OVERLAYS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
+        <button className="btn" onClick={() => { setOverrides({}); notify('Maps reloaded', 'Pulled the latest signavio-map/1 document.') }}>↻ Pull</button>
+        <button className="icon-btn" aria-label="Map actions" title="Map actions" onClick={() => notify('Document', `${process.id} · ${process.steps.length} shapes · Flightdeck Maps owns this file.`)}>⋯</button>
+      </div>
 
-      {process.staleDays > 14 && (
-        <div className="card" style={{ borderColor: 'color-mix(in srgb, var(--orange) 40%, transparent)', background: 'var(--orange-weak)' }}>
-          <div className="rowflex">
-            <span aria-hidden="true">▲</span>
-            <span>This map was last generated from evidence {process.staleDays} days old. It no longer matches the latest discovery.</span>
-            <button className="btn small" style={{ marginLeft: 'auto' }} onClick={() => notify('Sync started', 'A new batch will refresh the map.')}>Sync now</button>
-          </div>
+      <div className="map-surface">
+        <MapSvg process={mapped} overlay={overlay} selected={step?.id} onSelect={next => setSelectedStepId(next.id)} />
+        <div className="map-legend">
+          <span>{process.steps.length} shapes · {process.steps.length} bound{steps[0] ? ` · ${overlayText(steps[0], overlay)}` : ''} …</span>
+          <span>low <span className="heat-strip" aria-hidden="true" /> high</span>
         </div>
-      )}
+      </div>
 
-      <Card
-        title={`As-is · ${process.name}`}
-        subtitle={`${process.steps.length} steps · ${process.handoffs} handoffs · ${fmt.minutes(process.cycleMinutes)} median cycle · every shape is a KG node`}
-        glyph="⌁"
-        actions={
-          <div className="rowflex" role="tablist" aria-label="Map overlay">
-            {OVERLAYS.map(item => (
-              <button key={item.id} className={item.id === overlay ? 'btn small primary' : 'btn small'} role="tab" aria-selected={item.id === overlay} onClick={() => setOverlay(item.id)}>
-                {item.label}
-              </button>
-            ))}
-          </div>
-        }
-      >
-        <MapSvg process={process} overlay={overlay} selected={step?.id} onSelect={next => setSelectedStep(next.id)} />
-        <div className="between" style={{ marginTop: 8 }}>
-          <span className="tiny">Drawn from {process.kypId}. Hue and the number on each shape carry the same overlay value.</span>
-          <span className="tiny">low <span aria-hidden="true" style={{ display: 'inline-block', width: 56, height: 6, borderRadius: 999, background: 'linear-gradient(to right, var(--green), var(--orange), var(--red))', verticalAlign: 'middle' }} /> high</span>
-        </div>
-      </Card>
-
-      <div className="grid two">
-        <Card title="Shape detail" subtitle="Bound to the knowledge graph." glyph="⌖">
+      <div className="map-inspector">
+        <Card title="Map fields" subtitle="Owned by Flightdeck Maps. Saving writes the document." glyph="▤">
           {step ? (
-            <>
-              <div className="rowflex" style={{ marginBottom: 8 }}>
-                <strong style={{ fontSize: 13 }}>{step.name}</strong>
-                <Chip tone="orange">{WASTE_LABEL[step.waste]}</Chip>
+            <div className="map-fields">
+              <label>Label<input value={draft.label} onChange={e => setDraft({ ...draft, label: e.target.value })} /></label>
+              <label>Role / lane<input value={draft.role} onChange={e => setDraft({ ...draft, role: e.target.value })} /></label>
+              <label>Application<input value={draft.system} onChange={e => setDraft({ ...draft, system: e.target.value })} /></label>
+              <label className="inline-label">Minutes<input className="minutes" value={draft.minutes} onChange={e => setDraft({ ...draft, minutes: e.target.value })} /></label>
+              <div className="rowflex">
+                <button className="btn primary" onClick={save}>Save to map</button>
+                <button className="btn" onClick={restore} disabled={!base}>Restore</button>
               </div>
-              <KV items={[
-                ['Role', step.role],
-                ['Application', step.application],
-                ['Time', fmt.minutes(step.minutes)],
-                ['Handoffs', String(step.handoffs)],
-                ['Rework share', fmt.percent(step.rework)],
-                ['Evidence', `${step.evidence} mined events`],
-                ['Standard', step.standardAligned ? 'Aligned with the SOP' : 'Deviates from the SOP'],
-                ['KG node', <span className="mono">{step.kgId}</span>],
-              ]} />
-              <div className="rowflex" style={{ marginTop: 10 }}>
-                <button className="btn small" onClick={() => { selectNode(step.kgId); navigate('graph') }}>Open in KG</button>
-                <button className="btn small" onClick={() => notify('SOP linked', 'Knowledge Guardian will open the linked document.')}>Open SOP</button>
-              </div>
-              <Note>This shape shows an aggregate. There is no per-person drill-down, by design.</Note>
-            </>
-          ) : <Empty title="No shape selected" detail="Click a shape to see its binding." />}
+            </div>
+          ) : <Empty title="No shape selected" detail="Click a shape to edit it." />}
         </Card>
 
-        <Card title="Variant comparison" subtitle="Where the paths diverge." glyph="⇄">
-          <div className="stack" style={{ gap: 10 }}>
-            {process.variants.map(variant => (
-              <div key={variant.name}>
-                <div className="between">
-                  <span style={{ fontSize: 12 }}>{variant.name}</span>
-                  <span className="tiny">{fmt.minutes(variant.cycle)} · {fmt.percent(variant.rework)} rework</span>
+        <Card title="ProcessLink" subtitle="Live mined facts for this shape." glyph="⬡">
+          {step ? (
+            <>
+              <KV items={[
+                ['Process', process.name],
+                ['Step', step.name],
+                ['Time', fmt.minutes(step.minutes)],
+                ['Handoffs', String(step.handoffs)],
+                ['Rework', fmt.percent(step.rework)],
+                ['Waste', WASTE_LABEL[step.waste]],
+                ['KG node', <span className="mono">{step.kgId}</span>],
+                ['Mined events', String(step.evidence)],
+              ]} />
+              {topOpportunity && (
+                <div className="shape-opp">
+                  <strong>{opportunities.filter(o => o.processId === process.id).length} opportunities on this process</strong>
+                  <span>{topOpportunity.title}</span>
+                  <div className="rowflex">
+                    <Chip tone="orange">{fmt.hoursPerYear(topOpportunity.hours)}</Chip>
+                    <button className="btn small" onClick={() => { selectOpportunity(topOpportunity.id); navigate('opportunities') }}>Open</button>
+                  </div>
                 </div>
-                <div style={{ height: 5, borderRadius: 999, background: 'var(--border)', overflow: 'hidden', margin: '4px 0' }}>
-                  <div style={{ height: '100%', width: `${variant.share * 100}%`, background: variant.rework > 0.3 ? 'var(--orange)' : 'var(--accent)' }} />
-                </div>
-                <div className="tiny" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{variant.path}</div>
-              </div>
-            ))}
+              )}
+              {validated > 0 && <div className="validated-line"><Chip tone="green">✓</Chip> {fmt.hours(validated)} validated on this process</div>}
+            </>
+          ) : <Empty title="No shape selected" detail="Mined metrics appear here." />}
+        </Card>
+
+        <Card title={drift.length ? 'Map differs from discovery' : 'Proposal rules'} subtitle="A proposal, not a silent overwrite." glyph={drift.length ? '⚠' : '⛨'}>
+          {drift.length > 0 ? (
+            <div className="drift-list">
+              {drift.map(([label, mapValue, mined]) => (
+                <div key={label}><span>{label}</span><strong>{mapValue}</strong><span className="subtle">mined {mined}</span></div>
+              ))}
+              <Note>Saving records a map change proposal. A human decides whether to update standard work or the map.</Note>
+            </div>
+          ) : (
+            <Note>Select a shape or edit its fields. Saving records a map change proposal; the mined step is not overwritten.</Note>
+          )}
+          <div className="rowflex map-actions">
+            <button className="btn small" onClick={() => { if (step) selectNode(step.kgId); navigate('graph') }} disabled={!step}>Open in KG</button>
+            <button className="btn small" onClick={() => navigate('discoveries')}>Open process</button>
           </div>
         </Card>
       </div>
-
-      <Card title="As-is vs to-be" subtitle="A to-be map is an opportunity, not a promise." glyph="⇥">
-        {best ? (
-          <div className="rowflex" style={{ alignItems: 'flex-end', gap: 24 }}>
-            <div>
-              <div className="tiny">As-is</div>
-              <div style={{ fontSize: 24, fontWeight: 650 }}>{fmt.hoursPerYear(process.annualHours)}</div>
-              <div className="tiny">{process.steps.length} steps · {fmt.percent(process.reworkRate)} rework</div>
-            </div>
-            <div aria-hidden="true" className="muted">→</div>
-            <div>
-              <div className="tiny">To-be</div>
-              <div style={{ fontSize: 24, fontWeight: 650 }}>{fmt.hoursPerYear(Math.max(0, process.annualHours - best.hours))}</div>
-              <div className="tiny">{best.route}: {best.title}</div>
-            </div>
-            <div style={{ marginLeft: 'auto', textAlign: 'right' }} className="stack">
-              <Chip tone={routeTone(best.route)}>Projected −{fmt.hours(best.hours)}</Chip>
-              <span className="tiny">Estimate · {fmt.percent(best.confidence)} confidence</span>
-              <button className="btn small" onClick={() => { selectOpportunity(best.id); navigate('opportunities') }}>Open opportunity</button>
-            </div>
-          </div>
-        ) : <Empty title="No opportunity linked" detail="Promote a discovered process first." />}
-      </Card>
-    </>
+    </div>
   )
 }

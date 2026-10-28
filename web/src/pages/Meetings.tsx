@@ -106,8 +106,7 @@ function MeetingDetail({ id }: { id: string }) {
           style={{ border: '1px solid var(--border)', background: 'var(--panel-2)', borderRadius: 6, padding: '3px 6px', fontSize: 11 }}>
           <option value="planned">Planned</option><option value="notes">Notes</option><option value="done">Done</option>
         </select>
-        <input type="date" value={dateValue} onChange={e => updateMeeting(id, { date: new Date(e.target.value).toISOString() })} aria-label="Meeting date"
-          style={{ border: '1px solid var(--border)', background: 'var(--panel-2)', borderRadius: 6, padding: '3px 6px', fontSize: 11 }} />
+        <DateField value={dateValue} onChange={next => updateMeeting(id, { date: new Date(next).toISOString() })} label="Meeting date" />
         <Chip tone="blue">{meeting.site || 'No site'}</Chip>
         <Chip>{meeting.owner}</Chip>
         <span className="tiny" style={{ marginLeft: 'auto' }}>{meeting.attendees.join(' · ')}</span>
@@ -150,9 +149,7 @@ function MeetingDetail({ id }: { id: string }) {
                     <input value={item.owner} onChange={e => updateBlock(item.id, { owner: e.target.value })}
                       placeholder="Owner role" aria-label="Action owner"
                       style={{ width: 150, border: '1px solid var(--border)', background: 'var(--panel)', borderRadius: 6, padding: '2px 6px', fontSize: 10.5 }} />
-                    <input type="date" value={item.due?.slice(0, 10) ?? ''} onChange={e => updateBlock(item.id, { due: new Date(e.target.value).toISOString() })}
-                      aria-label="Action due date"
-                      style={{ border: '1px solid var(--border)', background: 'var(--panel)', borderRadius: 6, padding: '2px 6px', fontSize: 10.5 }} />
+                    <DateField value={item.due?.slice(0, 10) ?? ''} onChange={next => updateBlock(item.id, { due: new Date(next).toISOString() })} label="Action due date" />
                     <button className="btn small" onClick={() => promoteAction(item.id)} disabled={!item.owner}>Promote</button>
                   </div>
                 )}
@@ -208,4 +205,20 @@ function MeetingDetail({ id }: { id: string }) {
       </Card>
     </div>
   )
+}
+
+
+function DateField({ value, onChange, label }: { value: string; onChange: (next: string) => void; label: string }) {
+  const [editing, setEditing] = useState(false)
+  if (editing) {
+    return (
+      <input type="date" autoFocus value={value} aria-label={label}
+        onChange={event => onChange(event.target.value)}
+        onBlur={() => setEditing(false)} />
+    )
+  }
+  const display = value
+    ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : 'Set date'
+  return <button className="date-button" onClick={() => setEditing(true)} aria-label={`${label}: ${display}`}>{display}</button>
 }

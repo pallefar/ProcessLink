@@ -12,19 +12,20 @@ import type {
 } from './domain/types'
 
 export type Page =
-  | 'overview' | 'discoveries' | 'opportunities' | 'maps' | 'meetings'
+  | 'overview' | 'discoveries' | 'opportunities' | 'maps' | 'meetings' | 'mining'
   | 'graph' | 'improvements' | 'ask' | 'governance'
 
 export const NAV: Array<{ id: Page; label: string; group: string; icon: string }> = [
-  { id: 'overview', label: 'Overview', group: 'Work', icon: '▦' },
-  { id: 'discoveries', label: 'Discoveries', group: 'Work', icon: '◉' },
-  { id: 'opportunities', label: 'Opportunities', group: 'Work', icon: '◈' },
-  { id: 'maps', label: 'Maps', group: 'Work', icon: '⌁' },
-  { id: 'meetings', label: 'Meetings', group: 'Work', icon: '◫' },
-  { id: 'improvements', label: 'Improvements', group: 'Improve', icon: '⚑' },
-  { id: 'ask', label: 'Ask', group: 'Improve', icon: '◍' },
-  { id: 'graph', label: 'Knowledge Graph', group: 'Trust', icon: '⬡' },
-  { id: 'governance', label: 'Governance', group: 'Trust', icon: '⛨' },
+  { id: 'overview', label: 'Overview', group: 'Work', icon: 'overview' },
+  { id: 'discoveries', label: 'Discoveries', group: 'Work', icon: 'discoveries' },
+  { id: 'opportunities', label: 'Opportunities', group: 'Work', icon: 'opportunities' },
+  { id: 'maps', label: 'Maps', group: 'Work', icon: 'maps' },
+  { id: 'meetings', label: 'Meetings', group: 'Work', icon: 'meetings' },
+  { id: 'mining', label: 'Mining', group: 'Work', icon: 'mining' },
+  { id: 'improvements', label: 'Improvements', group: 'Improve', icon: 'improvements' },
+  { id: 'ask', label: 'Ask', group: 'Improve', icon: 'ask' },
+  { id: 'graph', label: 'Knowledge Graph', group: 'Trust', icon: 'graph' },
+  { id: 'governance', label: 'Governance', group: 'Trust', icon: 'governance' },
 ]
 
 interface Toast { id: number; title: string; detail?: string; warning?: boolean }

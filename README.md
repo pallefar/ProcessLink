@@ -15,7 +15,7 @@ KYP.ai  →  ProcessLink  →  KG · Maps · TEOA · DeckForge
 | Form | Where | Status |
 |---|---|---|
 | **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 17 unit tests + 26 in-app checks, light/dark snapshots |
-| **Web** — React 19 + Vite, strict TS | [`web`](web) | Built and screenshotted; the Flightdeck sub-app replacement is in [`web/src/flightdeck`](web/src/flightdeck) |
+| **Web** — React 19 + Vite, strict TS | [`web`](web) | Same shell, tokens and pages as the app; the Flightdeck sub-app replacement is in [`web/src/flightdeck`](web/src/flightdeck) |
 | **Windows** — Tauri 2 + WebView2 | [`windows/ProcessLink.Windows`](windows/ProcessLink.Windows) | Scaffolded with config and Rust entry; not built on a Windows host here |
 
 Shared domain rules (privacy guard, opportunity scoring, savings ledger,
@@ -81,7 +81,16 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 |---|---|
 | ![Governance](docs/shots/governance-light.png) | ![Ask](docs/shots/ask-light.png) |
 
-More in [`docs/shots`](docs/shots), including dark mode, Settings and the web form.
+| Web overview | Web maps |
+|---|---|
+| ![Web overview](docs/shots/web-overview.png) | ![Web maps](docs/shots/web-maps.png) |
+
+| Web mining | Web graph |
+|---|---|
+| ![Web mining](docs/shots/web-mining.png) | ![Web graph](docs/shots/web-graph.png) |
+
+More in [`docs/shots`](docs/shots), including dark mode and Settings. The
+design parity contract is in [`docs/WEB-PARITY.md`](docs/WEB-PARITY.md).
 
 ## Run the macOS app
 
@@ -175,6 +184,7 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 | [`docs/RISKS-AND-MVP.md`](docs/RISKS-AND-MVP.md) | Feasibility/risk table, build-vs-buy with licence notes, MVP cut line, phase plan |
 | [`docs/MAPS-INTEGRATION.md`](docs/MAPS-INTEGRATION.md) | The two-way `signavio-map/1` contract, schema extension, host routes, drift rules |
 | [`docs/IN-HOUSE-DISCOVERY.md`](docs/IN-HOUSE-DISCOVERY.md) | What ProcessLink now does without KYP.ai, the privacy boundary, and what is still KYP's job |
+| [`docs/WEB-PARITY.md`](docs/WEB-PARITY.md) | How the web form matches the macOS shell, tokens, pages and where it deliberately differs |
 
 ## Repository
 

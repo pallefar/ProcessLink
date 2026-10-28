@@ -30,14 +30,16 @@ process creation, capture aggregates and capture-to-process).
 
 | Check | Command | Result |
 |---|---|---|
-| Typecheck + build | `npm run build` | `tsc --noEmit` clean; Vite build 353 kB JS / 14.9 kB CSS (≈106 kB gzip) |
-| Render review | headless Chrome, 1440×1000 | Overview, Discoveries, Opportunities, Maps, Meetings, Graph, Improvements, Ask, Governance; light and dark |
+| Typecheck + build | `npm run build` | `tsc --noEmit` clean; Vite build 367 kB JS / 21.9 kB CSS (≈110 kB gzip) |
+| Render review | headless Chrome, 1440×900 | Overview, Discoveries, Opportunities, Maps, Meetings, Mining, Graph, Improvements, Ask, Governance; light and dark |
 | Deep links | `#/overview`, `?theme=light|dark`, `?q=...` | Verified via screenshots |
 | Local preview | `npm run preview` on port 4175 | 200 OK |
 
-The web form uses the same seed facts and the same rule set as the app. It is
-not connected to a host API in this build; the adapter in
-`web/src/flightdeck` defines the seam.
+The web form uses the same seed facts and the same rule set as the app, and the
+same shell and design tokens (see `WEB-PARITY.md`). It is not connected to a
+host API in this build; the adapter in `web/src/flightdeck` defines the seam.
+Mining on the web mirrors the sample result; live CSV import and task capture
+are desktop features.
 
 ## Windows
 

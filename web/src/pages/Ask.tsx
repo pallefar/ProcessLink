@@ -13,7 +13,7 @@ export default function Ask() {
   }
 
   return (
-    <>
+    <div className="ask-page">
       <PageHead title="Ask the process" subtitle="Questions over KYP.ai discovery, the knowledge graph and TEOA work. Local provider by default; the hosted provider follows the same guard." />
       <div className="rowflex">
         <Chip tone="green">{policy.provider}</Chip>
@@ -90,6 +90,6 @@ export default function Ask() {
         <button className="btn primary" onClick={send} disabled={!draft.trim()}>Ask</button>
       </div>
       <Note>Numbers trace to KYP.ai ids or KG nodes. Personal-data patterns are masked before any call. Estimates are not validated savings.</Note>
-    </>
+    </div>
   )
 }
