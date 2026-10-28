@@ -79,6 +79,9 @@ struct ContentView: View {
     private var sidebar: some View {
         @Bindable var model = model
         return List(selection: $model.page) {
+            Section {
+                FlightdeckSidebar(flightdeck: model.flightdeck)
+            }
             Section("Work") {
                 ForEach([SidebarItem.overview, .discoveries, .opportunities, .maps, .meetings, .mining]) { item in
                     row(item)

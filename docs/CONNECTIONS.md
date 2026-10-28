@@ -104,6 +104,11 @@ real count in the header, so a live sync cannot turn the canvas into a stack.
 
 ## UI
 
+The **sidebar** has a collapsible **Flightdeck** section with the live
+workspace and project menus and direct **Flightdeck OS / Atlas / Vision**
+links. It uses the same session as this page, so the same account and context
+apply everywhere.
+
 **Trust → Connections** has a card for each source, the UAT account picker,
 workspace/project selectors, Atlas URL/e-mail/token, one **Sync all** action,
 last-sync time and sign-out. A snapshot run can connect without a hardcoded

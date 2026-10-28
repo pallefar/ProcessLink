@@ -13,7 +13,7 @@ switching products.
 | Type | SF Pro 13 pt body, 22 pt page title, 26 pt metric | system stack 13 px body, 22 px page title, 26 px metric |
 | Colour | system blue accent, white/`#f5f5f7` surfaces, dark `#1d1d1f` panels | same values as CSS tokens |
 | Cards | 12 pt radius, hairline border, 16 pt inset, 13 pt heading | same |
-| Sidebar | Work / Improve / Trust, icon + label + count, governance footer | same |
+| Sidebar | Flightdeck context, then Work / Improve / Trust, icon + label + count, governance footer | same, with the Flightdeck workspace/project and OS/Atlas/Vision links |
 | Toolbar | page title, sandbox chip, sync / Ask / export / theme icon buttons | same actions and placement |
 | Split panes | 260–330 pt list + detail, selected row tinted | same, responsive collapse under 1180 px |
 | Chips | 11 px, rounded, tinted by state | same |

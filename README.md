@@ -60,10 +60,11 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
    (frontmost app, minutes, switches — no titles, keys or screenshots). Mined
    results become the same process/KG/map/opportunity records.
 9. **Connections** — a real UAT API connection to Flightdeck OS, Vision and
-   Atlas. UAT quick-login accounts are listed without passwords; the session
-   cookie lives in the Keychain. Workspaces, projects, 14 KPIs, ranked
-   opportunities, Vision goals/roadmap and Atlas projects are read into the
-   graph — read-only, no writes back.
+   Atlas. The sidebar carries the Flightdeck workspace/project dropdowns and
+   direct **OS / Atlas / Vision** links; UAT quick-login accounts are listed
+   without passwords and the session cookie lives in the Keychain. Workspaces,
+   projects, 14 KPIs, ranked opportunities, Vision goals/roadmap and Atlas
+   projects are read into the graph — read-only, no writes back.
 10. **Governance** — purpose limitation, group-size suppression, classification
     refusal, PII masking and an audit log are enforced in code and visible in
     the UI. The launch checklist blocks production.
@@ -209,12 +210,12 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 Tag a version and GitHub Actions builds both desktop installers:
 
 ```bash
-git tag v0.1.2 && git push origin v0.1.2
+git tag v0.1.3 && git push origin v0.1.3
 ```
 
 The release contains a universal macOS DMG (`arm64` + `x86_64`), a Windows
 NSIS setup (and an MSI from the Windows CI job), and `SHA256SUMS.txt`.
-[Download v0.1.2](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.2).
+[Download v0.1.3](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.3).
 Local packaging, signing and the current Actions billing note are in
 [`docs/RELEASING.md`](docs/RELEASING.md).
 

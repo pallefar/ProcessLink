@@ -532,3 +532,28 @@ table.ledger td.num, table.ledger th.num { text-align: right; font-variant-numer
 .date-button:hover { background: var(--panel-2); border-color: var(--border); }
 .ask-page { display: flex; flex-direction: column; gap: var(--s5); min-height: calc(100vh - 52px - 40px); }
 .ask-page .composer { margin-top: auto; }
+
+/* Flightdeck context in the sidebar */
+.fd-sidebar { margin: 0 4px var(--s2); }
+.fd-head {
+  width: 100%; display: flex; align-items: center; gap: 6px;
+  border: 0; background: transparent; color: var(--text);
+  padding: 5px 6px; border-radius: 7px; font-size: 12px; font-weight: 600;
+}
+.fd-head:hover { background: var(--accent-weak); }
+.fd-chevron { display: inline-block; color: var(--tertiary); font-size: 12px; transition: transform .15s ease; }
+.fd-chevron.open { transform: rotate(90deg); }
+.fd-dot { margin-left: auto; width: 6px; height: 6px; border-radius: 999px; background: var(--green); }
+.fd-body { display: flex; flex-direction: column; gap: 4px; padding: 2px 4px 4px 20px; }
+.fd-select-row { display: flex; align-items: center; gap: 6px; color: var(--secondary); }
+.fd-select-row select {
+  flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel-2); color: var(--text); font-size: 11px; padding: 3px 5px;
+}
+.fd-links { display: flex; flex-direction: column; gap: 1px; padding-left: 2px; }
+.fd-links a {
+  display: flex; align-items: center; gap: 6px; color: var(--secondary);
+  text-decoration: none; font-size: 11px; padding: 3px 4px; border-radius: 5px;
+}
+.fd-links a:hover { color: var(--text); background: var(--accent-weak); }
+.fd-caption { font-size: 9.5px; color: var(--tertiary); padding-left: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

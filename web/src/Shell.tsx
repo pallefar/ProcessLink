@@ -11,6 +11,7 @@ import Ask from './pages/Ask'
 import Mining from './pages/Mining'
 import Governance from './pages/Governance'
 import { Icon } from './components/Icon'
+import { FlightdeckSidebar } from './components/FlightdeckSidebar'
 
 const PAGES = {
   overview: Overview,
@@ -41,6 +42,7 @@ export function Shell() {
             <span>Discovery → TEOA</span>
           </div>
         </div>
+        <FlightdeckSidebar />
         <nav className="nav" aria-label="Sections">
           {groups.map(group => (
             <div key={group}>

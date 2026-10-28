@@ -146,6 +146,7 @@ final class FlightdeckService {
     }
 
     func restoreSession() async {
+        guard principal == nil else { return }
         guard !baseURLString.isEmpty else { return }
         guard let cookie = KeychainStore.get(account: Self.cookieAccount) else { return }
         await perform {

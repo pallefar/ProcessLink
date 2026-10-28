@@ -1,6 +1,6 @@
 [package]
 name = "processlink"
-version = "0.1.2"
+version = "0.1.3"
 description = "ProcessLink — in-house discovery into TEOA improvement work"
 authors = ["TE Operating Advantage"]
 edition = "2021"

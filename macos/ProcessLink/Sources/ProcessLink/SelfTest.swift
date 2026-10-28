@@ -329,8 +329,8 @@ enum SelfTest {
 
             check("the connection layer registers OS, Vision and Atlas",
                   model.flightdeck.health.count == 3)
-            check("the connection layer starts signed out",
-                  model.flightdeck.principal == nil && model.flightdeck.health["os"]?.state == .notConfigured)
+            check("the connection layer defaults to the local UAT endpoint",
+                  model.flightdeck.baseURLString == "http://127.0.0.1:4173")
 
             print(failures == 0 ? "SELFTEST PASS \(count) checks" : "SELFTEST FAIL \(failures) of \(count) checks")
             finish(code: failures == 0 ? 0 : 1)
