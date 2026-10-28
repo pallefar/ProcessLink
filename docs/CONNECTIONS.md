@@ -16,6 +16,7 @@ Run on 2026-10-28 against the local UAT stack:
 | Advantage | `/api/apps/advantage/process-kpis`, `/opportunities` | 14 KPIs and 30 opportunities read; 44 graph facts written |
 | Vision | `/api/project-vision`, `/api/vision/bootstrap` | projection `not_required`, strategy “HR AI rollout”, 4 roadmap items; owner view available to `uat-admin` |
 | Atlas | `http://localhost:5173` | local UAT super-admin; 2 projects read; 3 graph facts written |
+| Atlas ↔ OS | OS `:5174` → Atlas `:5173`; Atlas `/api/flightdeck/context` | Atlas reads OS `te-ops` and its 4 projects with the inbound `read:context` credential |
 
 The live client test is in
 `Tests/ProcessLinkKitTests/ProcessLinkKitTests.swift` and only runs when
@@ -65,6 +66,20 @@ cookie only to `localhost`/`127.0.0.1`. A **hosted Atlas** sits behind its own
 hosting dispatcher and needs a gateway sign-in token; set the optional token in
 the Atlas card. Atlas SSO with Flightdeck is not implemented by Atlas yet, so
 this is deliberately a UAT bridge, not production SSO.
+
+**Atlas ↔ OS.** Atlas is launched from the repo
+`https://github.com/pallefar/flightdeck-atlas`. Its server-side `.env.local`
+points at the OS (`ATLAS_FLIGHTDECK_URL=http://127.0.0.1:4173`) and holds a
+minted inbound credential with `read:context` (and `submit:proposal` for
+onboarding). The OS shell's **Atlas** link is configured for `:5174`; a
+loopback bridge from `:5174` to Atlas's dev server on `:5173` keeps that link
+live while the Atlas local sign-in plugin insists on a loopback peer. The
+verified context response contains workspace `te-ops` and projects
+`general`, `cockpits`, `dtp-image-test-2026-10-07` and `project-contract`.
+
+Atlas SSO with Flightdeck is still pending in Atlas itself; the local identity
+is `seedy@sites.test`. ProcessLink requires no Atlas e-mail on loopback — it
+uses the local development cookie and reads the identity Atlas returns.
 
 Atlas's e-mail is kept out of the knowledge graph. The Atlas workspace node is
 named “Atlas workspace”; only the local connection card shows the e-mail for

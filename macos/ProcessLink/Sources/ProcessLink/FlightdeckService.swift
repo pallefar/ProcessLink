@@ -66,7 +66,9 @@ final class FlightdeckService {
 
     init() {
         baseURLString = Self.defaults.string(forKey: "fd.baseURL") ?? "http://127.0.0.1:4173"
-        atlasURLString = Self.defaults.string(forKey: "fd.atlasURL") ?? "http://localhost:5173"
+        let storedAtlasURL = Self.defaults.string(forKey: "fd.atlasURL")
+        atlasURLString = (storedAtlasURL == "http://localhost:5174" ? "http://localhost:5173" : storedAtlasURL)
+            ?? "http://localhost:5173"
         atlasEmail = Self.defaults.string(forKey: "fd.atlasEmail") ?? ""
         workspaceID = Self.defaults.string(forKey: "fd.workspace") ?? ""
         projectID = Self.defaults.string(forKey: "fd.project") ?? ""
@@ -208,11 +210,6 @@ final class FlightdeckService {
     }
 
     func testAtlas() async {
-        guard !atlasEmail.trimmingCharacters(in: .whitespaces).isEmpty else {
-            errorMessage = FlightdeckError.atlasIdentityRequired.localizedDescription
-            updateHealth("atlas", state: .error, detail: "Set the Atlas UAT identity e-mail", count: 0)
-            return
-        }
         busy = true
         errorMessage = nil
         defer { busy = false }
@@ -258,7 +255,7 @@ final class FlightdeckService {
                                   count: advantage.kpis.count + advantage.opportunities.count)
             }
 
-            if !self.atlasEmail.trimmingCharacters(in: .whitespaces).isEmpty {
+            if !self.atlasURLString.trimmingCharacters(in: .whitespaces).isEmpty {
                 do {
                     let atlas = try await value.atlas(email: self.atlasEmail, token: self.atlasToken)
                     self.lastAtlas = atlas

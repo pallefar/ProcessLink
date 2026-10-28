@@ -69,7 +69,7 @@ struct ConnectionsPage: View {
                     }
                     if fd.principal != nil {
                         await fd.sync(into: model)
-                        if !fd.atlasEmail.isEmpty { await fd.testAtlas() }
+                        await fd.testAtlas()
                     }
                 }
             }
@@ -296,7 +296,7 @@ private struct AtlasConnectionCard: View {
             VStack(alignment: .leading, spacing: Space.sm) {
                 TextField("Atlas URL", text: $fd.atlasURLString)
                     .textFieldStyle(.roundedBorder)
-                TextField("Atlas UAT e-mail", text: $fd.atlasEmail)
+                TextField("Atlas UAT e-mail (optional on loopback)", text: $fd.atlasEmail)
                     .textFieldStyle(.roundedBorder)
                 HStack(spacing: Space.sm) {
                     if showToken {
@@ -316,7 +316,7 @@ private struct AtlasConnectionCard: View {
                         Task { await fd.testAtlas() }
                     }
                     .buttonStyle(.bordered)
-                    .disabled(fd.atlasEmail.isEmpty || fd.busy)
+                    .disabled(fd.busy)
                     if let atlas = fd.lastAtlas {
                         Chip(text: "\(atlas.projects.count) projects", symbol: "square.stack.3d.up", tint: .teal)
                     }

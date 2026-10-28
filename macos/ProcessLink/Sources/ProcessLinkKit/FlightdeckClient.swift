@@ -419,7 +419,8 @@ public actor FlightdeckClient {
     /// sign-in token and is reported as unavailable rather than guessed.
     public func atlas(email: String, token: String? = nil) async throws -> AtlasSnapshot {
         guard let atlasURL else { throw FlightdeckError.notConfigured("Set an Atlas URL first.") }
-        guard !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedEmail.isEmpty && (token?.isEmpty ?? true) && !isLoopback(atlasURL) {
             throw FlightdeckError.atlasIdentityRequired
         }
         var headers = ["Accept": "application/json"]
@@ -444,7 +445,7 @@ public actor FlightdeckClient {
                                 status: item["status"] as? String ?? "active")
         }
         return AtlasSnapshot(workspaceID: "", workspaceName: "Atlas", projects: projects,
-                             localIdentity: access["email"] as? String ?? email)
+                             localIdentity: access["email"] as? String ?? trimmedEmail)
     }
 
     // MARK: HTTP
