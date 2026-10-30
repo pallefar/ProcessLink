@@ -9,6 +9,7 @@ interface MapNode { id: string; type: string; label: string; data?: { role?: str
 interface MapDetail { schema: string; id: string; label: string; nodes: MapNode[]; edges: Array<{ id: string; source: string; target: string }> }
 interface MapApproval { canApprove: boolean; blocked: string; approved: string | null; latestRelease: string | null; draftMatchesRelease: boolean | null; lastEditor?: string }
 interface MapRelease { version?: string; id?: string; status?: string; createdAt?: string; createdBy?: string }
+interface MapComment { id: string; body: string; author: string; createdAt: string; nodeId: string | null; parentId: string | null; resolved: boolean | string | null; detached?: boolean }
 
 export default function OsMaps() {
   const { processes } = useApp()
@@ -21,6 +22,10 @@ export default function OsMaps() {
   const [mapSearch, setMapSearch] = useState('')
   const [approval, setApproval] = useState<MapApproval | null>(null)
   const [releases, setReleases] = useState<MapRelease[]>([])
+  const [comments, setComments] = useState<MapComment[]>([])
+  const [commentDraft, setCommentDraft] = useState('')
+  const [commentBusy, setCommentBusy] = useState(false)
+  const [commentError, setCommentError] = useState('')
   const [aiBusy, setAiBusy] = useState(false)
   const [aiError, setAiError] = useState('')
   const [aiMapping, setAiMapping] = useState<Record<string, { step: string; confidence: number }>>({})
@@ -41,6 +46,7 @@ export default function OsMaps() {
     })
     void osGet<MapApproval>(`/api/apps/maps/maps/${encodeURIComponent(selected)}/approval`).then(setApproval)
     void osGet<{ releases: MapRelease[] }>(`/api/apps/maps/maps/${encodeURIComponent(selected)}/releases`).then(value => setReleases(value?.releases ?? []))
+    void osGet<{ comments: MapComment[] }>(`/api/apps/maps/maps/${encodeURIComponent(selected)}/comments`).then(value => setComments(value?.comments ?? []))
   }, [selected])
 
   const process = processes.find(item => item.id === processId) ?? processes[0]
@@ -157,6 +163,33 @@ export default function OsMaps() {
                       <span>{release.version ?? release.id ?? `Release ${index + 1}`}</span><span className="tiny">{release.status ?? ''} {release.createdAt ? new Date(release.createdAt).toLocaleDateString('en-GB') : ''}</span>
                     </div>
                   ))}
+                </Card>
+
+                <Card title="DiagramForge comments" subtitle="The map's shared OS comments; local annotations stay separate." glyph="◌">
+                  {comments.length === 0 ? <p className="subtle">No DiagramForge comments yet.</p> : comments.slice(0, 6).map(comment => (
+                    <div key={comment.id} className="osmap-step">
+                      <div className="row-meta"><strong>{comment.author}</strong><span className="tiny">{new Date(comment.createdAt).toLocaleString('en-GB')}</span>{comment.nodeId && <Chip>{comment.nodeId}</Chip>}{comment.detached && <Chip tone="orange">Detached</Chip>}</div>
+                      <div className="tiny">{comment.body}</div>
+                    </div>
+                  ))}
+                  <div className="row-meta" style={{ marginTop: 8 }}>
+                    <input className="osmap-search" placeholder="Post a comment to DiagramForge…" value={commentDraft} onChange={e => setCommentDraft(e.target.value)} />
+                    <button className="btn small" disabled={commentBusy || !commentDraft.trim()} onClick={async () => {
+                      if (!detail) return
+                      setCommentBusy(true); setCommentError('')
+                      try {
+                        const response = await fetch(`/api/apps/maps/maps/${encodeURIComponent(detail.id)}/comments`, {
+                          method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+                          body: JSON.stringify({ body: commentDraft.trim() }),
+                        })
+                        if (!response.ok) throw new Error(`DiagramForge HTTP ${response.status}`)
+                        const created = await response.json() as MapComment
+                        setComments(current => [created, ...current]); setCommentDraft('')
+                      } catch (error) { setCommentError(error instanceof Error ? error.message : 'Post failed') }
+                      finally { setCommentBusy(false) }
+                    }}>{commentBusy ? 'Posting…' : 'Post'}</button>
+                  </div>
+                  {commentError && <div className="tiny" style={{ color: 'var(--orange)' }}>{commentError}</div>}
                 </Card>
 
                 <Card title="Process comparison" subtitle="Compare live map steps with a ProcessLink process." glyph="⇄">
