@@ -161,6 +161,7 @@ design parity contract is in [`docs/WEB-PARITY.md`](docs/WEB-PARITY.md).
 ```bash
 cd macos/ProcessLink
 ./build.sh --open          # release build, installs ~/Applications/ProcessLink.app
+tools/verify-production.sh
 tools/selftest.sh          # 80 checks, exit 0
 tools/snap.sh              # light/dark PNGs of every page + Settings
 swift test --scratch-path ~/Library/Developer/ProcessLink/test-build
