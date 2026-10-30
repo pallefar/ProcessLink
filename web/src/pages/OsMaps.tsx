@@ -7,6 +7,8 @@ import { osGet, type LiveMap } from '../domain/osBridge'
 
 interface MapNode { id: string; type: string; label: string; data?: { role?: string; description?: string; stepId?: string; statutory?: boolean; humanOnly?: boolean } }
 interface MapDetail { schema: string; id: string; label: string; nodes: MapNode[]; edges: Array<{ id: string; source: string; target: string }> }
+interface MapApproval { canApprove: boolean; blocked: string; approved: string | null; latestRelease: string | null; draftMatchesRelease: boolean | null; lastEditor?: string }
+interface MapRelease { version?: string; id?: string; status?: string; createdAt?: string; createdBy?: string }
 
 export default function OsMaps() {
   const { processes } = useApp()
@@ -16,6 +18,9 @@ export default function OsMaps() {
   const [detail, setDetail] = useState<MapDetail | null>(null)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [mapSearch, setMapSearch] = useState('')
+  const [approval, setApproval] = useState<MapApproval | null>(null)
+  const [releases, setReleases] = useState<MapRelease[]>([])
   const [aiBusy, setAiBusy] = useState(false)
   const [aiError, setAiError] = useState('')
   const [aiMapping, setAiMapping] = useState<Record<string, { step: string; confidence: number }>>({})
@@ -30,10 +35,12 @@ export default function OsMaps() {
 
   useEffect(() => {
     if (!selected) return
-    setDetail(null); setError('')
+    setDetail(null); setError(''); setApproval(null); setReleases([])
     void osGet<MapDetail>(`/api/apps/maps/maps/${encodeURIComponent(selected)}`).then(value => {
       if (value) setDetail(value); else setError('The OS map could not be read with this session.')
     })
+    void osGet<MapApproval>(`/api/apps/maps/maps/${encodeURIComponent(selected)}/approval`).then(setApproval)
+    void osGet<{ releases: MapRelease[] }>(`/api/apps/maps/maps/${encodeURIComponent(selected)}/releases`).then(value => setReleases(value?.releases ?? []))
   }, [selected])
 
   const process = processes.find(item => item.id === processId) ?? processes[0]
@@ -97,7 +104,8 @@ export default function OsMaps() {
           <div className="list-pane">
             <div className="pane-head"><strong>{maps.length} maps</strong><Chip tone="green">Live</Chip></div>
             <div className="scroll-list">
-              {maps.map(map => (
+              <input className="osmap-search" placeholder="Filter maps…" value={mapSearch} onChange={e => setMapSearch(e.target.value)} />
+              {maps.filter(map => !mapSearch || map.label.toLowerCase().includes(mapSearch.toLowerCase())).map(map => (
                 <button key={map.id} className="row" aria-selected={map.id === selected} onClick={() => setSelected(map.id)}>
                   <span style={{ minWidth: 0 }}>
                     <div className="title">{map.label}</div>
@@ -127,6 +135,30 @@ export default function OsMaps() {
                     ['Source', 'Flightdeck OS · Maps'],
                   ]} />
                 </Card>
+                <Card title="Approval & releases" subtitle="DiagramForge lifecycle through the same OS session." glyph="✓">
+                  <KV items={[
+                    ['Approval', approval?.approved ?? 'Not approved'],
+                    ['State', approval?.blocked ?? '—'],
+                    ['Latest release', approval?.latestRelease ?? 'None'],
+                    ['Draft matches release', approval?.draftMatchesRelease == null ? '—' : approval.draftMatchesRelease ? 'Yes' : 'No'],
+                    ['Last editor', approval?.lastEditor ?? '—'],
+                  ]} />
+                  <div className="row-meta" style={{ marginTop: 6 }}>
+                    <Chip tone={approval?.canApprove ? 'green' : 'orange'}>{approval?.canApprove ? 'Can approve' : 'Approval blocked'}</Chip>
+                    <button className="btn small" onClick={() => {
+                      if (!approval || !detail) return
+                      const blob = new Blob([JSON.stringify({ schema: 'processlink-map-approval/1', map: detail.id, approval, releases }, null, 2)], { type: 'application/json' })
+                      const url = URL.createObjectURL(blob); const link = document.createElement('a')
+                      link.href = url; link.download = `${detail.id}-approval.json`; link.click(); URL.revokeObjectURL(url)
+                    }}>Download approval record</button>
+                  </div>
+                  {releases.length === 0 ? <p className="subtle">No approved releases yet.</p> : releases.slice(0, 5).map((release, index) => (
+                    <div className="row-meta" key={release.id ?? index} style={{ justifyContent: 'space-between', padding: '3px 0' }}>
+                      <span>{release.version ?? release.id ?? `Release ${index + 1}`}</span><span className="tiny">{release.status ?? ''} {release.createdAt ? new Date(release.createdAt).toLocaleDateString('en-GB') : ''}</span>
+                    </div>
+                  ))}
+                </Card>
+
                 <Card title="Process comparison" subtitle="Compare live map steps with a ProcessLink process." glyph="⇄">
                   <div className="row-meta" style={{ marginBottom: 8 }}>
                     <select value={processId || process?.id || ''} onChange={e => setProcessId(e.target.value)} aria-label="Process">
