@@ -11,6 +11,7 @@ export default function Improvements() {
   const [validating, setValidating] = useState<string | null>(null)
   const [deckBusy, setDeckBusy] = useState(false)
   const [deckStatus, setDeckStatus] = useState('')
+  const [createdDeck, setCreatedDeck] = useState<{ id: string; revision: number } | null>(null)
   const lines = initiatives.map(initiativeLine)
   const totals = {
     estimated: savingsTotal(lines, 'estimated'),
@@ -121,6 +122,28 @@ export default function Improvements() {
                   <button className="btn small" onClick={() => setValidating(selected.id)} disabled={selected.savingsStage === 'validated'}>Validate with evidence…</button>
                   <button className="btn small" onClick={() => downloadHandoff(selected, processes.find(p => p.id === selected.processId)?.steps ?? [])}>Download handoff (.md)</button>
                   <button className="btn small" onClick={() => downloadDeckBrief(selected, processes.find(p => p.id === selected.processId)?.steps ?? [])}>DeckForge brief</button>
+                  {createdDeck && <button className="btn small" disabled={deckBusy} onClick={async () => {
+                    setDeckBusy(true); setDeckStatus('')
+                    try {
+                      const detail = await fetch(`/deckforge/api/apps/presentation-studio/decks/${encodeURIComponent(createdDeck.id)}`, { credentials: 'same-origin' })
+                      if (!detail.ok) throw new Error(`DeckForge read HTTP ${detail.status}`)
+                      const payload = await detail.json() as { doc: Record<string, unknown>; revision: number }
+                      const doc = structuredClone(payload.doc)
+                      doc.title = selected.title
+                      const sections = doc.sections as Array<{ slides?: Array<{ elements?: Array<{ placement?: { slot?: string }; paragraphs?: Array<{ runs?: Array<{ text?: string }> }> }> }> }> | undefined
+                      const titleElement = sections?.[0]?.slides?.[0]?.elements?.find(element => element.placement?.slot === 'title')
+                      if (titleElement?.paragraphs?.[0]?.runs?.[0]) titleElement.paragraphs[0].runs[0].text = selected.title
+                      const response = await fetch(`/deckforge/api/apps/presentation-studio/decks/${encodeURIComponent(createdDeck.id)}`, {
+                        method: 'PUT', credentials: 'same-origin', headers: { 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
+                        body: JSON.stringify({ doc, revision: payload.revision, reason: 'named', label: 'ProcessLink update' }),
+                      })
+                      if (!response.ok) throw new Error(`DeckForge update HTTP ${response.status}`)
+                      const result = await response.json() as { rev?: number }
+                      setCreatedDeck({ id: createdDeck.id, revision: result.rev ?? payload.revision })
+                      setDeckStatus(`Deck ${createdDeck.id} updated to revision ${result.rev ?? payload.revision}`)
+                    } catch (error) { setDeckStatus(error instanceof Error ? error.message : 'Deck update failed') }
+                    finally { setDeckBusy(false) }
+                  }}>Update DeckForge deck</button>}
                   <button className="btn small" disabled={deckBusy} onClick={async () => {
                     setDeckBusy(true); setDeckStatus('')
                     try {
@@ -144,6 +167,7 @@ export default function Improvements() {
                       })
                       if (!created.ok) throw new Error(`DeckForge create HTTP ${created.status}`)
                       const result = await created.json() as { deckId?: string }
+                      setCreatedDeck(result.deckId ? { id: result.deckId, revision: 1 } : null)
                       setDeckStatus(`Deck ${result.deckId ?? ''} created in DeckForge`)
                     } catch (error) {
                       setDeckStatus(error instanceof Error ? error.message : 'Deck creation failed')
