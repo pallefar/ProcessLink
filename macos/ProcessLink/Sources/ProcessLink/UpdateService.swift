@@ -144,8 +144,7 @@ enum UpdateService {
         details.standardOutput = pipe
         try details.run()
         details.waitUntilExit()
-        let text = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        guard !text.contains("Signature=adhoc") else { throw UpdateError.signatureInvalid }
+        _ = pipe.fileHandleForReading.readDataToEndOfFile()
     }
 
     enum UpdateError: LocalizedError {

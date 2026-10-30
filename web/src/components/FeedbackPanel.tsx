@@ -39,6 +39,7 @@ export function FeedbackPanel({ subject, onClose }: { subject: FeedbackSubject; 
           return (
             <article key={root.id} className={`feedback-card ${root.resolved ? 'is-resolved' : ''}`}>
               <div className="feedback-meta"><strong>{root.author}</strong><span>{new Date(root.createdAt).toLocaleString('en-GB')}</span></div>
+              {root.page ? <Chip tone="blue">Page {root.page}</Chip> : null}
               <p>{root.body}</p>
               <div className="row-meta">{root.mentions.map(m => <Chip key={m} tone="blue">{m}</Chip>)}</div>
               {replies.map(reply => (

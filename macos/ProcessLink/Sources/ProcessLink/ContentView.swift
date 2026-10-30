@@ -63,6 +63,10 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .processLinkHotKey)) { _ in
             QuickAskController.shared.toggle(model: model)
         }
+        .overlay(alignment: .bottomTrailing) {
+            FloatingNotes()
+                .padding(Space.lg)
+        }
         .overlay(alignment: .bottom) {
             if let toast = model.toast {
                 ToastView(toast: toast)

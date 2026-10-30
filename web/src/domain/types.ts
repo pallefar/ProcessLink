@@ -293,7 +293,7 @@ export interface SavingsLine {
 }
 
 
-export type FeedbackKind = 'map' | 'mapShape' | 'process' | 'opportunity' | 'initiative' | 'meeting' | 'miningCase'
+export type FeedbackKind = 'map' | 'mapShape' | 'process' | 'opportunity' | 'initiative' | 'meeting' | 'miningCase' | 'document'
 
 export interface Feedback {
   id: string
@@ -306,4 +306,6 @@ export interface Feedback {
   createdAt: string
   resolved: boolean
   mentions: string[]
+  page?: number
+  documentId?: string
 }

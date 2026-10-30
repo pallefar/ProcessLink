@@ -1391,3 +1391,19 @@ final class AppFeedbackRecord {
         self.page = page
     }
 }
+
+@Model
+final class PageNoteRecord: Identifiable {
+    var id: String = ""
+    var pageRaw: String = ""
+    var body: String = ""
+    var author: String = ""
+    var createdAt: Date = Date.now
+
+    init(id: String, page: String, body: String, author: String) {
+        self.id = id
+        self.pageRaw = page
+        self.body = body
+        self.author = author
+    }
+}

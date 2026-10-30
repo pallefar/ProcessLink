@@ -2685,7 +2685,7 @@ dependencies = [
 
 [[package]]
 name = "processlink"
-version = "0.1.57"
+version = "0.1.58"
 dependencies = [
  "serde",
  "serde_json",

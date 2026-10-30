@@ -7,6 +7,7 @@ const PORT = Number(process.env.AGENT_PORT || 4185)
 const DATA = process.env.AGENT_DATA_DIR || path.join(process.cwd(), 'data')
 const TOKEN = process.env.AGENT_ENROLL_TOKEN || 'local-dev-token'
 const FILE = path.join(DATA, 'agents.json')
+const buckets = new Map()
 
 function load() {
   try { return JSON.parse(fs.readFileSync(FILE, 'utf8')) } catch { return { agents: {} } }
@@ -46,6 +47,12 @@ function deviceFor(req, state) {
 
 const server = http.createServer(async (req, res) => {
   try {
+    const key = req.socket.remoteAddress || 'local'
+    const now = Date.now()
+    const bucket = (buckets.get(key) || []).filter(time => now - time < 60_000)
+    if (bucket.length >= 120) return json(res, 429, { error: 'rate limit exceeded' })
+    bucket.push(now)
+    buckets.set(key, bucket)
     if (req.method === 'OPTIONS') return json(res, 204, {})
     if (req.method === 'GET' && req.url === '/health') return json(res, 200, { ok: true, service: 'processlink-agent-control' })
     if (req.url === '/health') return json(res, 200, { ok: true, service: 'processlink-agent-control' })

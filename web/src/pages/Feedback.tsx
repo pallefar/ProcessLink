@@ -8,11 +8,11 @@ import { ProductFeedbackList } from '../components/ProductFeedbackList'
 
 const KIND_LABEL: Record<FeedbackKind, string> = {
   map: 'Map', mapShape: 'Map shape', process: 'Process', opportunity: 'Opportunity',
-  initiative: 'Initiative', meeting: 'Meeting', miningCase: 'Mining case',
+  initiative: 'Initiative', meeting: 'Meeting', miningCase: 'Mining case', document: 'Document',
 }
 
 export default function Feedback() {
-  const { feedback } = useApp()
+  const { feedback, addFeedback } = useApp()
   const [filter, setFilter] = useState<'open' | 'resolved' | 'all'>('open')
   const [selected, setSelected] = useState<FeedbackSubject>()
 
@@ -25,6 +25,13 @@ export default function Feedback() {
   const openCount = feedback.filter(i => !i.parentId && !i.resolved).length
   const resolvedCount = feedback.filter(i => !i.parentId && i.resolved).length
   const active = selected ?? (roots[0] ? { kind: roots[0].kind, subjectId: roots[0].subjectId, subjectLabel: roots[0].subjectLabel } : undefined)
+  const importPageNote = async (file: File) => {
+    try {
+      const payload = JSON.parse(await file.text()) as { schema?: string; document?: string; page?: number; body?: string; author?: string }
+      if (payload.schema !== 'processlink-page-note/1' || !payload.body) throw new Error('Not a ProcessLink page note')
+      addFeedback({ kind: 'document', subjectId: `${payload.document ?? file.name}#${payload.page ?? 0}`, subjectLabel: `${payload.document ?? file.name} · p.${payload.page ?? 0}`, body: payload.body, page: payload.page, documentId: payload.document })
+    } catch (error) { window.alert(error instanceof Error ? error.message : 'Import failed') }
+  }
   const exportCSV = () => {
     const rows = [['type', 'kind', 'subject', 'rating', 'priority', 'resolved', 'author', 'createdAt', 'body']]
     for (const item of feedback) rows.push(['annotation', item.kind, item.subjectLabel, '', '', item.resolved ? 'yes' : 'no', item.author, item.createdAt, item.body])
@@ -60,6 +67,7 @@ export default function Feedback() {
           <button className="btn small" onClick={exportForPdfStudio}>Export for PDF Studio</button>
           <button className="btn small" onClick={exportCSV}>Export CSV</button>
           <ProductFeedbackButton page="feedback" />
+          <label className="btn small" style={{ cursor: 'pointer' }}>Import page note<input type="file" accept="application/json" hidden onChange={event => { const file = event.target.files?.[0]; if (file) void importPageNote(file) }} /></label>
         </div>
       </div>
 

@@ -18,6 +18,7 @@ import Mining from './pages/Mining'
 import Governance from './pages/Governance'
 import { Icon } from './components/Icon'
 import { FlightdeckSidebar } from './components/FlightdeckSidebar'
+import { FloatingNotes } from './components/FloatingNotes'
 
 const PAGES = {
   overview: Overview,
@@ -128,6 +129,7 @@ export function Shell() {
         <div className="content">
           <Current />
         </div>
+        <FloatingNotes />
       </main>
 
       {toast && (

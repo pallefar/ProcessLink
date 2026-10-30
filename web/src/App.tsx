@@ -44,7 +44,7 @@ interface AppValue {
   opportunities: Opportunity[]
   initiatives: Initiative[]
   feedback: Feedback[]
-  addFeedback: (input: { kind: FeedbackKind; subjectId: string; subjectLabel: string; body: string; parentId?: string }) => boolean
+  addFeedback: (input: { kind: FeedbackKind; subjectId: string; subjectLabel: string; body: string; parentId?: string; page?: number; documentId?: string }) => boolean
   setFeedbackResolved: (id: string, resolved: boolean) => void
   nodes: KGNode[]
   edges: KGEdge[]
@@ -106,7 +106,11 @@ const pageFromHash = (): Page => {
 }
 
 export default function ProcessLink({ embedded = false }: { embedded?: boolean } = {}) {
-  const [page, setPage] = useState<Page>(() => embedded ? 'overview' : pageFromHash())
+  const [page, setPage] = useState<Page>(() => {
+    if (!embedded) return pageFromHash()
+    const requested = new URLSearchParams(window.location.search).get('p')
+    return requested && NAV.some(item => item.id === requested) ? requested as Page : 'overview'
+  })
   const [opportunities, setOpportunities] = useState<Opportunity[]>(OPPORTUNITIES)
   const [initiatives, setInitiatives] = useState<Initiative[]>(INITIATIVES)
   const [nodes, setNodes] = useState<KGNode[]>(KG_NODES)
@@ -180,7 +184,7 @@ export default function ProcessLink({ embedded = false }: { embedded?: boolean }
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  const addFeedback = useCallback((input: { kind: FeedbackKind; subjectId: string; subjectLabel: string; body: string; parentId?: string }) => {
+  const addFeedback = useCallback((input: { kind: FeedbackKind; subjectId: string; subjectLabel: string; body: string; parentId?: string; page?: number; documentId?: string }) => {
     const trimmed = input.body.trim()
     if (!trimmed) return false
     const mentions = trimmed.match(/@[A-Za-z0-9._-]+/g) ?? []
@@ -189,6 +193,7 @@ export default function ProcessLink({ embedded = false }: { embedded?: boolean }
       kind: input.kind, subjectId: input.subjectId, subjectLabel: input.subjectLabel,
       parentId: input.parentId ?? '', body: trimmed, author: 'CI Manager (role)',
       createdAt: new Date().toISOString(), resolved: false, mentions: [...new Set(mentions)],
+      page: input.page, documentId: input.documentId,
     }
     setFeedback(current => [record, ...current])
     return true
@@ -210,8 +215,23 @@ export default function ProcessLink({ embedded = false }: { embedded?: boolean }
 
   const navigate = useCallback((next: Page) => {
     setPage(next)
+    if (embedded) {
+      const url = new URL(window.location.href)
+      url.searchParams.set('p', next)
+      window.history.pushState({ processlinkPage: next }, '', url)
+    }
     window.scrollTo({ top: 0 })
-  }, [])
+  }, [embedded])
+
+  useEffect(() => {
+    if (!embedded) return
+    const onPop = () => {
+      const requested = new URLSearchParams(window.location.search).get('p')
+      setPage(requested && NAV.some(item => item.id === requested) ? requested as Page : 'overview')
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [embedded])
 
   const upsertNode = useCallback((node: KGNode) => {
     setNodes(current => current.some(n => n.id === node.id)
