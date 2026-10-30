@@ -100,6 +100,8 @@ private struct ConnectorEditorSheet: View {
     @State private var costField: String
     @State private var incrementalParam: String
     @State private var scheduleMinutes: Int
+    @State private var pageParam: String
+    @State private var maxPages: Int
     @State private var secret: String
 
     init(connector: ConnectorRecord?) {
@@ -121,6 +123,8 @@ private struct ConnectorEditorSheet: View {
         _costField = State(initialValue: mapping.costField)
         _incrementalParam = State(initialValue: connector?.incrementalParam ?? "updated_since")
         _scheduleMinutes = State(initialValue: connector?.scheduleMinutes ?? 0)
+        _pageParam = State(initialValue: connector?.pageParam ?? "cursor")
+        _maxPages = State(initialValue: connector?.maxPages ?? 1)
         _secret = State(initialValue: "")
     }
 
@@ -206,6 +210,13 @@ private struct ConnectorEditorSheet: View {
                         .textFieldStyle(.roundedBorder)
                 }
                 GridRow {
+                    Text("Pagination").font(.caption).foregroundStyle(.secondary)
+                    HStack(spacing: Space.sm) {
+                        TextField("page param", text: $pageParam).textFieldStyle(.roundedBorder).frame(maxWidth: 120)
+                        Stepper(value: $maxPages, in: 1...20) { Text("\(maxPages) page(s)").font(.caption) }
+                    }
+                }
+                GridRow {
                     Text("Refresh").font(.caption).foregroundStyle(.secondary)
                     Stepper(value: $scheduleMinutes, in: 0...1_440, step: 15) {
                         Text(scheduleMinutes == 0 ? "Manual only" : "Every \(scheduleMinutes) min")
@@ -262,6 +273,8 @@ private struct ConnectorEditorSheet: View {
         target.costField = costField
         target.incrementalParam = incrementalParam
         target.scheduleMinutes = scheduleMinutes
+        target.pageParam = pageParam
+        target.maxPages = maxPages
         if !secret.isEmpty { model.setConnectorSecret(secret, for: target.id) }
         try? model.context.save()
         dismiss()

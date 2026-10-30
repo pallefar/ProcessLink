@@ -14,6 +14,14 @@ struct GovernancePage: View {
     @State private var piiSample = "Please fix case EMP-4821 for anna.schmidt@example.com, IBAN DE44 5001 0517 5407 3249 31."
     @State private var pii: PIIScan?
     @State private var confirmPurge = false
+    @State private var auditFilter = ""
+
+    private var filteredAudits: [AuditRecord] {
+        guard !auditFilter.isEmpty else { return audits }
+        return audits.filter { entry in
+            [entry.actor, entry.action, entry.subject, entry.detail].joined(separator: " ").localizedCaseInsensitiveContains(auditFilter)
+        }
+    }
 
     private func items(in group: String) -> [GovernanceRecord] {
         governance.filter { $0.group == group }.sorted { $0.sortKey < $1.sortKey }
@@ -244,6 +252,9 @@ struct GovernancePage: View {
 
     private var auditCard: some View {
         Card("Audit log", subtitle: "Append-only in the product: syncs, queries, AI calls, approvals and exports.", symbol: "list.bullet.rectangle.portrait") {
+            TextField("Filter audit…", text: $auditFilter)
+                .textFieldStyle(.roundedBorder)
+                .font(.caption)
             VStack(spacing: 0) {
                 HStack(spacing: Space.sm) {
                     Text("When").frame(width: 132, alignment: .leading)
@@ -256,7 +267,7 @@ struct GovernancePage: View {
                 .foregroundStyle(.tertiary)
                 .padding(.bottom, Space.xs)
 
-                ForEach(audits.prefix(9)) { entry in
+                ForEach(filteredAudits.prefix(9)) { entry in
                     HStack(alignment: .firstTextBaseline, spacing: Space.sm) {
                         Text(Fmt.stamp(entry.at))
                             .font(.caption.monospacedDigit())
@@ -281,7 +292,7 @@ struct GovernancePage: View {
                     }
                     .padding(.vertical, 4)
                     .help(entry.detail)
-                    if entry.id != audits.prefix(9).last?.id { RowDivider() }
+                    if entry.id != filteredAudits.prefix(9).last?.id { RowDivider() }
                 }
             }
         }

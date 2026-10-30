@@ -26,6 +26,7 @@ export default function Suite() {
   const [liveProjects, setLiveProjects] = useState<LiveProjects | null>(null)
   const [roadmap, setRoadmap] = useState<VisionRoadmap | null>(null)
   const [decks, setDecks] = useState<DeckForgeDecks | null>(null)
+  const [health, setHealth] = useState<Record<string, 'checking' | 'up' | 'down'>>({})
   const [aiStatus, setAiStatus] = useState<{ ok: boolean; model?: string } | null>(null)
   useEffect(() => {
     void fetch('http://127.0.0.1:4183/health').then(async response => {
@@ -48,7 +49,7 @@ export default function Suite() {
       if (!response.ok) throw new Error(`GitHub HTTP ${response.status}`)
       const data = await response.json() as { tag_name: string; html_url: string }
       const latest = data.tag_name.replace(/^v/i, '')
-      const current = '0.1.33'
+      const current = '0.1.34'
       const newer = latest.localeCompare(current, undefined, { numeric: true }) > 0
       setUpdate({ status: newer ? 'available' : 'current', latest, url: data.html_url })
     } catch (error) {
@@ -75,7 +76,20 @@ export default function Suite() {
               <Chip tone={link.tone}>{new URL(link.url).protocol.replace(':', '')}</Chip>
               <span className="subtle mono" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link.url}</span>
             </div>
-            <a className="btn small" href={link.url} target="_blank" rel="noreferrer">Open {link.label}</a>
+            <div className="row-meta">
+              <a className="btn small" href={link.url} target="_blank" rel="noreferrer">Open {link.label}</a>
+              {link.url.startsWith('http') && <button className="btn small" onClick={async () => {
+                setHealth(current => ({ ...current, [link.id]: 'checking' }))
+                try {
+                  await fetch(link.url, { mode: 'no-cors', cache: 'no-store' })
+                  setHealth(current => ({ ...current, [link.id]: 'up' }))
+                } catch {
+                  setHealth(current => ({ ...current, [link.id]: 'down' }))
+                }
+              }}>{health[link.id] === 'checking' ? 'Checking…' : 'Check'}</button>}
+              {health[link.id] === 'up' && <Chip tone="green">Up</Chip>}
+              {health[link.id] === 'down' && <Chip tone="red">Down</Chip>}
+            </div>
           </Card>
         ))}
       </div>
@@ -139,7 +153,7 @@ export default function Suite() {
 
       <Card title="ProcessLink updates" subtitle="Reads the public GitHub release feed; never installs silently." glyph="↓">
         <div className="row-meta">
-          <Chip>Installed 0.1.33</Chip>
+          <Chip>Installed 0.1.34</Chip>
           {update.latest && <Chip tone="blue">Latest {update.latest}</Chip>}
           {update.status === 'current' && <Chip tone="green">Up to date</Chip>}
           {update.status === 'available' && <Chip tone="orange">Update available</Chip>}

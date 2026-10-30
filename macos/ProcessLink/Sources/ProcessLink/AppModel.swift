@@ -1985,8 +1985,31 @@ final class AppModel {
                           symbol: "checkmark.icloud")
                 return true
             }
-            let csv = try ConnectorParser.csv(from: data, provider: connector.provider,
+            var csv = try ConnectorParser.csv(from: data, provider: connector.provider,
                                               mapping: connector.mapping)
+            var cursor = nextConnectorCursor(data: data, response: http)
+            if connector.maxPages > 1, let firstNext = cursor, firstNext != connector.cursor {
+                var pageCursor = firstNext
+                for _ in 1..<max(1, min(20, connector.maxPages)) {
+                    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                    var items = components?.queryItems ?? []
+                    items.append(URLQueryItem(name: connector.pageParam, value: pageCursor))
+                    components?.queryItems = items
+                    guard let pageURL = components?.url else { break }
+                    var pageRequest = request
+                    pageRequest.url = pageURL
+                    guard let (pageData, pageResponse) = try? await URLSession.shared.data(for: pageRequest),
+                          let pageHTTP = pageResponse as? HTTPURLResponse,
+                          (200..<300).contains(pageHTTP.statusCode) else { break }
+                    let pageCSV = try ConnectorParser.csv(from: pageData, provider: connector.provider,
+                                                         mapping: connector.mapping)
+                    csv = mergeConnectorCSV(csv, pageCSV)
+                    guard let next = nextConnectorCursor(data: pageData, response: pageHTTP),
+                          next != pageCursor else { break }
+                    pageCursor = next
+                    cursor = next
+                }
+            }
             let result = try EventLogImporter.importCSV(csv)
             let dataset = storeDataset(
                 name: "\(connector.name) · \(Fmt.day(now))", result: result,
@@ -1996,14 +2019,7 @@ final class AppModel {
             connector.lastStatus = "success"
             connector.lastError = ""
             connector.lastRunAt = .now
-            if let next = http.value(forHTTPHeaderField: "X-Next-Cursor") ?? http.value(forHTTPHeaderField: "X-Cursor") {
-                connector.cursor = next
-            } else if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let next = root["nextCursor"] as? String ?? root["cursor"] as? String {
-                connector.cursor = next
-            } else {
-                connector.cursor = ISO8601DateFormatter().string(from: now)
-            }
+            connector.cursor = cursor ?? ISO8601DateFormatter().string(from: now)
             audit(action: "connector.run", subject: connector.name,
                   detail: "\(result.events.count) events, \(result.caseCount) cases")
             try? context.save()
@@ -2021,6 +2037,27 @@ final class AppModel {
                       symbol: "exclamationmark.triangle", warning: true)
             return false
         }
+    }
+
+    private func nextConnectorCursor(data: Data, response: HTTPURLResponse) -> String? {
+        if let next = response.value(forHTTPHeaderField: "X-Next-Cursor") ?? response.value(forHTTPHeaderField: "X-Cursor"),
+           !next.isEmpty {
+            return next
+        }
+        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let next = root["nextCursor"] as? String ?? root["cursor"] as? String,
+           !next.isEmpty {
+            return next
+        }
+        return nil
+    }
+
+    private func mergeConnectorCSV(_ first: String, _ second: String) -> String {
+        let firstLines = first.split(separator: "\n", omittingEmptySubsequences: false)
+        let secondLines = second.split(separator: "\n", omittingEmptySubsequences: false)
+        guard let header = firstLines.first else { return second }
+        let rows = firstLines.dropFirst() + secondLines.dropFirst()
+        return ([header] + rows).joined(separator: "\n")
     }
 
     private func connectorURL(_ connector: ConnectorRecord) -> URL? {

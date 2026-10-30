@@ -1098,6 +1098,8 @@ final class ConnectorRecord {
     var active: Bool = true
     var incrementalParam: String = "updated_since"
     var cursor: String = ""
+    var pageParam: String = "cursor"
+    var maxPages: Int = 1
     var scheduleMinutes: Int = 0
     var lastRunAt: Date?
     var lastStatus: String = "never"
