@@ -52,6 +52,19 @@ enum SelfTest {
                   !seededInitiatives.isEmpty && seededInitiatives.allSatisfy(\.hasStrategyLink),
                   "\(seededInitiatives.filter { $0.hasStrategyLink }.count) of \(seededInitiatives.count) linked")
 
+            if let initiative = seededInitiatives.first {
+                if let handoff = model.generateAutomationHandoff(for: initiative) {
+                    let files = (try? FileManager.default.contentsOfDirectory(atPath: handoff.packagePath)) ?? []
+                    check("automation handoff writes the package",
+                          files.contains("automation.json") && files.contains("agent.py"), "\(files)")
+                    check("automation handoff starts un-deployed", handoff.statusRaw == "ready")
+                    model.setAutomationStatus(handoff, status: "retired")
+                    check("automation handoff status is tracked", handoff.statusRaw == "retired")
+                } else {
+                    check("automation handoff can be generated", false)
+                }
+            }
+
             // Feedback: anchored, threaded, mention-parsed and resolvable.
             if let note = model.addFeedback(kind: .process, subjectID: "p-order-intake",
                                             subjectLabel: "Order intake & validation",

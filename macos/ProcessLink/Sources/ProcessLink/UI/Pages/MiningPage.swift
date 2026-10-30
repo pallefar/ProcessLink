@@ -21,6 +21,9 @@ struct MiningPage: View {
     @Query private var captureApps: [CaptureAppRecord]
     @Query private var captureWindows: [CaptureWindowRecord]
     @Query private var captureShots: [CaptureShotRecord]
+    @Query private var capturePolicies: [CapturePolicyRecord]
+    @Query private var captureConsents: [ConsentRecord]
+    @Query private var captureTasks: [CaptureTaskRecord]
     @Query(sort: \ProcessRecord.name) private var processes: [ProcessRecord]
     @Query(sort: \StepRecord.order) private var steps: [StepRecord]
 
@@ -34,6 +37,11 @@ struct MiningPage: View {
     @State private var captureSite = "Bensheim"
     @State private var captureName = "Desktop work"
     @State private var selectedCaptureID: String?
+    @State private var showingConsent = false
+    @State private var consentSite = ""
+    @State private var consentRole = ""
+    @State private var consentReference = ""
+    @State private var aiNaming = false
     @AppStorage("capture.windowTitles") private var captureWindowTitles = false
     @AppStorage("capture.screenshots") private var captureScreenshots = false
     @AppStorage("capture.inputCounts") private var captureInputCounts = false
@@ -417,6 +425,7 @@ struct MiningPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Space.xl) {
                 captureHeader
+                managedAgentCard
                 if capture.isRunning {
                     liveCapture
                 } else {
@@ -509,6 +518,88 @@ struct MiningPage: View {
                 Button("Request") { request() }.controlSize(.mini)
                 Button("Settings") { ActivityCapture.openPrivacyPane(title.contains("Screen") ? "screen" : "accessibility") }
                     .controlSize(.mini)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var managedAgentCard: some View {
+        if let policy = capturePolicies.first {
+            Card("Managed capture agent", subtitle: "A local policy with explicit consent. No fleet server is contacted.", symbol: "desktopcomputer") {
+                VStack(alignment: .leading, spacing: Space.md) {
+                    HStack(spacing: Space.md) {
+                        Toggle("Agent policy active", isOn: Binding(
+                            get: { policy.active },
+                            set: { policy.active = $0; policy.updatedAt = .now; try? model.context.save() }))
+                        .toggleStyle(.checkbox)
+                        Text("Every \(policy.intervalMinutes) min · max \(policy.maxSessionMinutes) min")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        if model.validConsent(for: policy) {
+                            Chip(text: "Consent \(policy.consentVersion)", symbol: "checkmark.shield", tint: .green)
+                        } else {
+                            Chip(text: "Consent needed", symbol: "hand.raised", tint: .orange)
+                        }
+                    }
+                    HStack(spacing: Space.md) {
+                        Stepper(value: Binding(get: { policy.intervalMinutes }, set: { policy.intervalMinutes = $0 }),
+                                in: 15...1_440, step: 15) {
+                            Text("Interval \(policy.intervalMinutes) min").font(.caption)
+                        }
+                        Stepper(value: Binding(get: { policy.maxSessionMinutes }, set: { policy.maxSessionMinutes = $0 }),
+                                in: 1...120, step: 1) {
+                            Text("Session \(policy.maxSessionMinutes) min").font(.caption)
+                        }
+                        Toggle("Titles", isOn: Binding(get: { policy.windowTitles }, set: { policy.windowTitles = $0 }))
+                            .toggleStyle(.checkbox).font(.caption)
+                        Toggle("Screenshots", isOn: Binding(get: { policy.screenshots }, set: { policy.screenshots = $0 }))
+                            .toggleStyle(.checkbox).font(.caption)
+                        Toggle("Input counts", isOn: Binding(get: { policy.inputCounts }, set: { policy.inputCounts = $0 }))
+                            .toggleStyle(.checkbox).font(.caption)
+                    }
+                    HStack(spacing: Space.sm) {
+                        Button("Grant consent…") { showingConsent = true }
+                            .controlSize(.small)
+                        if !model.validConsent(for: policy) {
+                            Text("Capture cannot start until consent is recorded.")
+                                .font(.caption2).foregroundStyle(.orange)
+                        }
+                        Spacer()
+                        Button {
+                            if model.startManagedAgent() {
+                                model.showToast("Agent session started", detail: "Stops after \(policy.maxSessionMinutes) min and saves a local session.",
+                                                symbol: "record.circle")
+                            }
+                        } label: {
+                            Label("Start agent session", systemImage: "play.circle")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(policy.active == false || !model.validConsent(for: policy) || capture.isRunning)
+                    }
+                    GuardrailNote(text: "The policy, consent and session stay on this Mac. @mentions and feedback do not upload capture data. A fleet deployment still needs a DPIA and works-council agreement.")
+                }
+            }
+            .sheet(isPresented: $showingConsent) {
+                VStack(alignment: .leading, spacing: Space.md) {
+                    Text("Record consent").font(.title3.weight(.semibold))
+                    Text("Consent is per site and role, not per named person.").font(.caption).foregroundStyle(.secondary)
+                    TextField("Site", text: $consentSite).textFieldStyle(.roundedBorder)
+                    TextField("Role", text: $consentRole).textFieldStyle(.roundedBorder)
+                    TextField("Reference / agreement id", text: $consentReference).textFieldStyle(.roundedBorder)
+                    HStack {
+                        Spacer()
+                        Button("Cancel") { showingConsent = false }
+                        Button("Save consent") {
+                            model.grantConsent(site: consentSite, role: consentRole,
+                                               reference: consentReference, expiresAt: nil)
+                            showingConsent = false
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(consentSite.isEmpty || consentRole.isEmpty || consentReference.isEmpty)
+                    }
+                }
+                .padding(Space.lg)
+                .frame(width: 460)
             }
         }
     }
@@ -641,6 +732,28 @@ struct MiningPage: View {
                     Text("\(window.samples) samples").font(.caption2).foregroundStyle(.tertiary)
                 }
             }
+            let tasks = captureTasks.filter { $0.sessionID == session.id }.sorted { $0.minutes > $1.minutes }
+            if !tasks.isEmpty {
+                HStack {
+                    Text("Task segments").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        nameTasksWithAI(tasks)
+                    } label: {
+                        if aiNaming { ProgressView().controlSize(.small) }
+                        else { Label("AI name tasks", systemImage: "sparkles") }
+                    }
+                    .controlSize(.small)
+                    .disabled(aiNaming)
+                }
+                ForEach(tasks.prefix(6)) { task in
+                    HStack(spacing: Space.sm) {
+                        Text(task.label).font(.caption).lineLimit(1)
+                        Spacer()
+                        Text("\(String(format: "%.1f", task.minutes)) min").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
+            }
             if !shots.isEmpty {
                 ScrollView(.horizontal) {
                     HStack(spacing: Space.sm) {
@@ -662,6 +775,39 @@ struct MiningPage: View {
         .padding(.top, Space.sm)
     }
 
+    private func nameTasksWithAI(_ tasks: [CaptureTaskRecord]) {
+        let candidates = Array(Set(steps.map(\.name) + processes.map(\.name))).sorted()
+        guard !candidates.isEmpty else {
+            model.showToast("AI needs a vocabulary", detail: "Import a process with steps first.",
+                            symbol: "exclamationmark.triangle", warning: true)
+            return
+        }
+        aiNaming = true
+        let samples = tasks.map { task -> (app: String, title: String) in
+            let title = task.label.split(separator: "|", maxSplits: 1).last.map(String.init) ?? task.label
+            return (task.appName, title)
+        }
+        Task {
+            defer { Task { @MainActor in aiNaming = false } }
+            do {
+                let named = try await ProcessLinkAI.suggestTaskNames(samples: samples, candidates: candidates)
+                await MainActor.run {
+                    for (index, task) in tasks.enumerated() where index < named.count {
+                        task.label = named[index].suggestedName
+                    }
+                    try? model.context.save()
+                    model.showToast("Task names suggested", detail: "\(named.count) segments · local transformers.js",
+                                    symbol: "sparkles")
+                }
+            } catch {
+                await MainActor.run {
+                    model.showToast("AI naming unavailable", detail: error.localizedDescription,
+                                    symbol: "exclamationmark.triangle", warning: true)
+                }
+            }
+        }
+    }
+
     private func stopCapture() {
         guard let result = capture.stop() else { return }
         model.recordCapture(name: captureName.isEmpty ? "Desktop work" : captureName,
@@ -672,6 +818,7 @@ struct MiningPage: View {
                             keystrokeCount: result.keystrokes, clickCount: result.clicks,
                             windows: result.windows.map { ($0.appName, $0.title, $0.minutes, $0.samples) },
                             shots: result.shots.map { ($0.path, $0.appName, $0.capturedAt) },
+                            tasks: result.segments.map { ($0.appName, $0.label, $0.startedAt, $0.minutes, $0.samples) },
                             apps: result.apps.map { ($0.name, $0.bundleID, $0.minutes, $0.idleMinutes, $0.switches) })
         capture.reset()
     }

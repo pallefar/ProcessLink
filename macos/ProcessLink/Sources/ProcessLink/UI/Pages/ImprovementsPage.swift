@@ -8,6 +8,7 @@ struct ImprovementsPage: View {
     @Environment(AppModel.self) private var model
     @Query(sort: \InitiativeRecord.createdAt, order: .reverse) private var initiatives: [InitiativeRecord]
     @Query private var processes: [ProcessRecord]
+    @Query private var handoffs: [AutomationHandoffRecord]
     @Query(sort: \MeetingRecord.date, order: .reverse) private var meetingNotes: [MeetingRecord]
 
     @State private var validating: InitiativeRecord?
@@ -249,6 +250,7 @@ struct ImprovementsPage: View {
                 }
 
                 strategyLinkCard(initiative)
+                automationHandoffCard(initiative)
                 savingsCard(initiative)
                 if isAutomationPackage(initiative) { changePackage(initiative) }
                 meetingCard(initiative)
@@ -310,6 +312,43 @@ struct ImprovementsPage: View {
 
     private func valueNames(_ initiative: InitiativeRecord) -> [String] {
         StrategyDefaults.valueNames(for: initiative.valueIDs, in: model.context)
+    }
+
+    private func automationHandoffCard(_ initiative: InitiativeRecord) -> some View {
+        let handoff = handoffs.first { $0.initiativeID == initiative.id }
+        return Card("Automation handoff", subtitle: "A package for engineering, not a deployment.", symbol: "shippingbox") {
+            VStack(alignment: .leading, spacing: Space.sm) {
+                if let handoff {
+                    HStack {
+                        Picker("Status", selection: Binding(
+                            get: { handoff.statusRaw },
+                            set: { model.setAutomationStatus(handoff, status: $0) })) {
+                            Text("Draft").tag("draft")
+                            Text("Ready").tag("ready")
+                            Text("In review").tag("inReview")
+                            Text("Deployed").tag("deployed")
+                            Text("Retired").tag("retired")
+                        }
+                        .labelsHidden()
+                        .frame(width: 152)
+                        Spacer()
+                        Button("Open folder") { NSWorkspace.shared.open(URL(fileURLWithPath: handoff.packagePath)) }
+                            .controlSize(.small)
+                        Button("Regenerate") { _ = model.generateAutomationHandoff(for: initiative) }
+                            .controlSize(.small)
+                    }
+                    Text("automation.json · README.md · test-plan.md · agent.py")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                } else {
+                    Text("Generate a scaffold carrying the process steps, strategic link, KPI and guardrails. No code is deployed.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("Generate handoff package") { _ = model.generateAutomationHandoff(for: initiative) }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                }
+                GuardrailNote(text: "The generated agent is a skeleton with a human approval step. Deployment, credentials and production monitoring are separate engineering work.")
+            }
+        }
     }
 
     private func savingsCard(_ initiative: InitiativeRecord) -> some View {

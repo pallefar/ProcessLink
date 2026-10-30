@@ -180,6 +180,8 @@ final class AppModel {
     var now: Date = .now
 
     @ObservationIgnored private var mapRefreshTimer: Timer?
+    @ObservationIgnored private var connectorTimer: Timer?
+    @ObservationIgnored private var agentTimer: Timer?
 
     init(container: ModelContainer) {
         self.container = container
@@ -193,7 +195,13 @@ final class AppModel {
         migrateLegacyDiscovery()
         StrategyDefaults.installIfNeeded(in: container.mainContext)
         StrategyDefaults.repairAllLinks(in: container.mainContext)
+        if ((try? container.mainContext.fetchCount(FetchDescriptor<CapturePolicyRecord>())) ?? 0) == 0 {
+            container.mainContext.insert(CapturePolicyRecord())
+            try? container.mainContext.save()
+        }
         configureMapRefresh()
+        configureConnectorRefresh()
+        configureAgentTimer()
         ActivityCapture.removeScreenshots(olderThan: retentionDays)
     }
 
@@ -1129,6 +1137,7 @@ final class AppModel {
                        keystrokeCount: Int = 0, clickCount: Int = 0,
                        windows: [(app: String, title: String, minutes: Double, samples: Int)] = [],
                        shots: [(path: String, app: String, at: Date)] = [],
+                       tasks: [(app: String, label: String, startedAt: Date, minutes: Double, samples: Int)] = [],
                        apps: [(name: String, bundleID: String, minutes: Double, idle: Double, switches: Int)]) {
         let session = CaptureSessionRecord(
             id: "cap-\(UUID().uuidString.prefix(8))", name: name, role: role, site: site,
@@ -1155,6 +1164,12 @@ final class AppModel {
             context.insert(CaptureShotRecord(
                 id: "\(session.id)-shot-\(index)", sessionID: session.id,
                 path: shot.path, appName: shot.app, capturedAt: shot.at))
+        }
+        for (index, task) in tasks.enumerated() {
+            context.insert(CaptureTaskRecord(
+                id: "\(session.id)-task-\(index)", sessionID: session.id,
+                appName: task.app, label: task.label, startedAt: task.startedAt,
+                minutes: task.minutes, samples: task.samples))
         }
         audit(action: "capture.completed", subject: name,
               detail: "\(String(format: "%.0f", minutes)) active minutes, \(switchCount) switches, \(apps.count) apps, \(windows.count) titles, \(shots.count) screenshots, \(keystrokeCount) keystrokes (count only).")
@@ -1294,12 +1309,206 @@ final class AppModel {
         }
     }
 
+    func configureConnectorRefresh() {
+        connectorTimer?.invalidate()
+        connectorTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.refreshDueConnectors() }
+        }
+    }
+
+    func refreshDueConnectors() async {
+        let connectors = (try? context.fetch(FetchDescriptor<ConnectorRecord>())) ?? []
+        for connector in connectors where connector.active && connector.scheduleMinutes > 0 {
+            let due = connector.lastRunAt.map { now.timeIntervalSince($0) >= Double(connector.scheduleMinutes) * 60 } ?? true
+            guard due else { continue }
+            _ = await runConnector(connector)
+        }
+    }
+
     func refreshNewestMapLog() async {
         guard let dataset = ((try? context.fetch(FetchDescriptor<DatasetRecord>())) ?? [])
             .filter({ $0.sourceRaw == "flightdeck-contract-flow" && !$0.mapID.isEmpty })
             .sorted(by: { $0.importedAt > $1.importedAt }).first,
               let map = MapsBridge.loadAll().first(where: { $0.id == dataset.mapID }) else { return }
         _ = await flightdeck.importContractFlow(into: self, map: map)
+    }
+
+    // MARK: Managed capture agent
+
+    func capturePolicy() -> CapturePolicyRecord? {
+        ((try? context.fetch(FetchDescriptor<CapturePolicyRecord>())) ?? []).first
+    }
+
+    func validConsent(for policy: CapturePolicyRecord) -> Bool {
+        let consents = (try? context.fetch(FetchDescriptor<ConsentRecord>())) ?? []
+        return consents.contains {
+            $0.revokedAt == nil && $0.version == policy.consentVersion
+                && ($0.expiresAt.map { $0 > now } ?? true)
+        }
+    }
+
+    func grantConsent(site: String, role: String, reference: String, expiresAt: Date?) {
+        let policy = capturePolicy()
+        let record = ConsentRecord(
+            id: "consent-\(UUID().uuidString.prefix(8))",
+            site: site, role: role, version: policy?.consentVersion ?? "v1",
+            expiresAt: expiresAt, reference: reference)
+        context.insert(record)
+        audit(action: "capture.consent.granted", subject: "\(site)/\(role)",
+              detail: "Version \(record.version); \(reference)")
+        try? context.save()
+        showToast("Consent recorded", detail: "\(site) · \(role)", symbol: "checkmark.shield")
+    }
+
+    @discardableResult
+    func startManagedAgent() -> Bool {
+        guard let policy = capturePolicy(), policy.active else {
+            showToast("Agent policy is off", detail: "Turn on the managed capture policy first.",
+                      symbol: "pause.circle", warning: true)
+            return false
+        }
+        guard validConsent(for: policy) else {
+            showToast("Consent required", detail: "Record a consent for this site/role and version.",
+                      symbol: "hand.raised", warning: true)
+            page = .mining
+            return false
+        }
+        guard !ActivityCapture.shared.isRunning else { return false }
+        let options = ActivityCapture.Options(
+            windowTitles: policy.windowTitles, screenshots: policy.screenshots,
+            inputCounts: policy.inputCounts)
+        ActivityCapture.shared.start(options: options)
+        let maxMinutes = max(1, policy.maxSessionMinutes)
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(maxMinutes * 60))
+            guard let result = ActivityCapture.shared.stop() else { return }
+            recordCapture(
+                name: "Agent · \(Fmt.day(now))", role: "Managed agent", site: "",
+                startedAt: result.startedAt, endedAt: result.endedAt,
+                minutes: result.activeMinutes, idleMinutes: result.idleMinutes,
+                switchCount: result.switches, keystrokeCount: result.keystrokes,
+                clickCount: result.clicks,
+                windows: result.windows.map { ($0.appName, $0.title, $0.minutes, $0.samples) },
+                shots: result.shots.map { ($0.path, $0.appName, $0.capturedAt) },
+                tasks: result.segments.map { ($0.appName, $0.label, $0.startedAt, $0.minutes, $0.samples) },
+                apps: result.apps.map { ($0.name, $0.bundleID, $0.minutes, $0.idleMinutes, $0.switches) })
+            policy.lastRunAt = now
+            try? context.save()
+        }
+        return true
+    }
+
+    func configureAgentTimer() {
+        agentTimer?.invalidate()
+        agentTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let policy = self.capturePolicy(), policy.active,
+                      !ActivityCapture.shared.isRunning, self.validConsent(for: policy) else { return }
+                let due = policy.lastRunAt.map { self.now.timeIntervalSince($0) >= Double(policy.intervalMinutes) * 60 } ?? true
+                guard due else { return }
+                _ = self.startManagedAgent()
+            }
+        }
+    }
+
+    // MARK: Automation handoff
+
+    @discardableResult
+    func generateAutomationHandoff(for initiative: InitiativeRecord) -> AutomationHandoffRecord? {
+        let existing = ((try? context.fetch(FetchDescriptor<AutomationHandoffRecord>())) ?? [])
+            .first { $0.initiativeID == initiative.id }
+        let id = existing?.id ?? "handoff-\(UUID().uuidString.prefix(8))"
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        let folder = base.appendingPathComponent("ProcessLink/handoffs/\(id)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let steps = ((try? context.fetch(FetchDescriptor<StepRecord>())) ?? [])
+                .filter { $0.processID == initiative.processID }
+                .sorted { $0.order < $1.order }
+            let payload: [String: Any] = [
+                "schema": "processlink-automation-handoff/1",
+                "generatedAt": ISO8601DateFormatter().string(from: now),
+                "initiative": [
+                    "id": initiative.id, "title": initiative.title,
+                    "owner": initiative.owner, "process": initiative.processName,
+                    "stage": initiative.stage.label, "savingHours": initiative.savingsHours,
+                    "savingStage": initiative.savingsStage.label,
+                ],
+                "strategy": [
+                    "bet": initiative.strategicBetID, "kpi": initiative.kpiID,
+                    "values": initiative.valueIDs, "expectedKPIChange": initiative.expectedKPIChange,
+                ],
+                "steps": steps.map { ["name": $0.name, "role": $0.role, "application": $0.application,
+                                      "minutes": $0.minutes, "waste": $0.waste.rawValue] },
+                "guardrails": [
+                    "No automatic send, release or performance decision.",
+                    "A named human validates the KPI change and the saving.",
+                    "The package is a scaffold, not a deployed automation.",
+                ],
+            ]
+            let json = try JSONSerialization.data(withJSONObject: payload,
+                                                  options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            try json.write(to: folder.appendingPathComponent("automation.json"), options: .atomic)
+            let readme = """
+            # Automation handoff — \(initiative.title)
+
+            Owner: \(initiative.owner)
+            Process: \(initiative.processName)
+            Strategic bet: \(initiative.strategicBetID)
+            KPI: \(initiative.kpiID)
+            Expected change: \(initiative.expectedKPIChange)
+
+            This folder is a handoff scaffold. It does not deploy code or change a production system.
+            Read automation.json for the machine-readable package, test-plan.md for acceptance,
+            and agent.py for the minimal agent skeleton.
+            """
+            try readme.write(to: folder.appendingPathComponent("README.md"), atomically: true, encoding: .utf8)
+            let testPlan = """
+            # Test plan
+
+            - Before/after KPI measurement with a named validator
+            - Sample audit of at least 10 cases
+            - Human review of every automated recommendation
+            - Rollback owner and date
+            - No automatic send, release or performance action
+            """
+            try testPlan.write(to: folder.appendingPathComponent("test-plan.md"), atomically: true, encoding: .utf8)
+            let agent = """
+            # ProcessLink automation skeleton — generated, not deployed.
+            # Fill in the system adapter and keep a human approval step.
+            def run(case):
+                draft = {"case": case, "action": "review", "requires_human": True}
+                return draft
+            """
+            try agent.write(to: folder.appendingPathComponent("agent.py"), atomically: true, encoding: .utf8)
+
+            let record = existing ?? AutomationHandoffRecord(
+                id: id, initiativeID: initiative.id, status: "ready",
+                packagePath: folder.path, target: initiative.processName,
+                notes: "Generated from \(initiative.title).")
+            if existing == nil { context.insert(record) }
+            record.statusRaw = "ready"
+            record.packagePath = folder.path
+            record.updatedAt = now
+            audit(action: "automation.handoff.generated", subject: initiative.title,
+                  detail: "Package at \(folder.path); not deployed.")
+            try? context.save()
+            showToast("Automation handoff ready", detail: "Package generated; no deployment.",
+                      symbol: "shippingbox")
+            return record
+        } catch {
+            showToast("Handoff failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+            return nil
+        }
+    }
+
+    func setAutomationStatus(_ record: AutomationHandoffRecord, status: String) {
+        record.statusRaw = status
+        record.updatedAt = now
+        audit(action: "automation.handoff.status", subject: record.id, detail: status)
+        try? context.save()
     }
 
     // MARK: Feedback
@@ -1470,7 +1679,15 @@ final class AppModel {
             try? context.save()
             return false
         }
-        var request = URLRequest(url: url)
+        var requestURL = url
+        if !testOnly, !connector.cursor.isEmpty, !connector.incrementalParam.isEmpty,
+           var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            var items = components.queryItems ?? []
+            items.append(URLQueryItem(name: connector.incrementalParam, value: connector.cursor))
+            components.queryItems = items
+            requestURL = components.url ?? url
+        }
+        var request = URLRequest(url: requestURL)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let secret = connectorSecret(for: connector.id), !secret.isEmpty {
             if connector.authMode == "basic" {
@@ -1507,6 +1724,7 @@ final class AppModel {
             connector.lastStatus = "success"
             connector.lastError = ""
             connector.lastRunAt = .now
+            connector.cursor = ISO8601DateFormatter().string(from: now)
             audit(action: "connector.run", subject: connector.name,
                   detail: "\(result.events.count) events, \(result.caseCount) cases")
             try? context.save()

@@ -183,7 +183,7 @@ enum Store {
                                       MeetingRecord.self, MeetingBlockRecord.self,
                                       DatasetRecord.self, EventItemRecord.self,
                                       CaptureSessionRecord.self, CaptureAppRecord.self,
-                                      CaptureWindowRecord.self, CaptureShotRecord.self, ConnectorRecord.self, CapacityStudyRecord.self, FeedbackRecord.self, StrategyRecord.self, StrategicBetRecord.self, KPIRecord.self, ValueRecord.self,
+                                      CaptureWindowRecord.self, CaptureShotRecord.self, CapturePolicyRecord.self, ConsentRecord.self, CaptureTaskRecord.self, ConnectorRecord.self, CapacityStudyRecord.self, FeedbackRecord.self, AutomationHandoffRecord.self, StrategyRecord.self, StrategicBetRecord.self, KPIRecord.self, ValueRecord.self,
                                       GovernanceRecord.self, AuditRecord.self, SyncRecord.self,
                                       configurations: ModelConfiguration(url: url))
         } catch {

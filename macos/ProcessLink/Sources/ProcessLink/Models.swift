@@ -1096,6 +1096,9 @@ final class ConnectorRecord {
     var applicationField: String = "application"
     var costField: String = "cost"
     var active: Bool = true
+    var incrementalParam: String = "updated_since"
+    var cursor: String = ""
+    var scheduleMinutes: Int = 0
     var lastRunAt: Date?
     var lastStatus: String = "never"
     var lastError: String = ""
@@ -1244,5 +1247,106 @@ final class FeedbackRecord {
         return regex.matches(in: body, range: range).compactMap { match in
             Range(match.range, in: body).map { String(body[$0]) }
         }
+    }
+}
+
+/// A generated automation handoff package and its lifecycle. The package is a
+/// scaffold for a human/engineering team; ProcessLink never deploys it.
+@Model
+final class AutomationHandoffRecord {
+    var id: String = ""
+    var initiativeID: String = ""
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
+    /// draft, ready, inReview, deployed, retired
+    var statusRaw: String = "draft"
+    var packagePath: String = ""
+    var target: String = ""
+    var notes: String = ""
+
+    init(id: String, initiativeID: String, status: String, packagePath: String,
+         target: String, notes: String) {
+        self.id = id
+        self.initiativeID = initiativeID
+        self.statusRaw = status
+        self.packagePath = packagePath
+        self.target = target
+        self.notes = notes
+    }
+
+    var statusLabel: String {
+        switch statusRaw {
+        case "ready": "Ready"
+        case "inReview": "In review"
+        case "deployed": "Deployed"
+        case "retired": "Retired"
+        default: "Draft"
+        }
+    }
+}
+
+// MARK: - Managed task-mining agent
+
+@Model
+final class CapturePolicyRecord {
+    var id: String = "capture-agent-policy"
+    var active: Bool = false
+    var workspaceID: String = ""
+    var projectID: String = ""
+    var intervalMinutes: Int = 60
+    var maxSessionMinutes: Int = 15
+    var windowTitles: Bool = false
+    var screenshots: Bool = false
+    var inputCounts: Bool = false
+    var consentVersion: String = "v1"
+    var updatedAt: Date = Date.now
+    var lastRunAt: Date?
+
+    init() {}
+}
+
+/// Consent is recorded per site/role, never per named person. A session that
+/// uses titles, screenshots or input counts requires a matching consent record.
+@Model
+final class ConsentRecord {
+    var id: String = ""
+    var site: String = ""
+    var role: String = ""
+    var version: String = "v1"
+    var grantedAt: Date = Date.now
+    var expiresAt: Date?
+    var reference: String = ""
+    var revokedAt: Date?
+
+    init(id: String, site: String, role: String, version: String,
+         expiresAt: Date?, reference: String) {
+        self.id = id
+        self.site = site
+        self.role = role
+        self.version = version
+        self.expiresAt = expiresAt
+        self.reference = reference
+    }
+}
+
+@Model
+final class CaptureTaskRecord {
+    var id: String = ""
+    var sessionID: String = ""
+    var appName: String = ""
+    var label: String = ""
+    var startedAt: Date = Date.now
+    var minutes: Double = 0
+    var samples: Int = 0
+
+    init(id: String, sessionID: String, appName: String, label: String,
+         startedAt: Date, minutes: Double, samples: Int) {
+        self.id = id
+        self.sessionID = sessionID
+        self.appName = appName
+        self.label = label
+        self.startedAt = startedAt
+        self.minutes = minutes
+        self.samples = samples
     }
 }

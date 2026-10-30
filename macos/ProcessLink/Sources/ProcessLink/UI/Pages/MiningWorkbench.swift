@@ -73,6 +73,7 @@ struct MiningWorkbench: View {
     @State private var studyName = ""
     @State private var selectedStudy: CapacityStudyRecord?
     @State private var caseNotion = ""
+    @State private var ocelKeys: Set<String> = []
 
     private var allEvents: [EventLogRecord] { model.events(for: dataset) }
     private var attributeKeys: [String] { Set(allEvents.flatMap { $0.attributes.keys }).sorted() }
@@ -213,6 +214,7 @@ struct MiningWorkbench: View {
             if benchmarkDimension.isEmpty {
                 benchmarkDimension = Set(allEvents.flatMap { $0.attributes.keys }).sorted().first ?? ""
             }
+            if ocelKeys.isEmpty, let first = attributeKeys.first { ocelKeys = [first] }
         }
         .onChange(of: dataset.id) { _, _ in
             caseNotion = ""
@@ -985,6 +987,58 @@ struct MiningWorkbench: View {
                             }
                         }
                     }
+                    let peer = PeerBenchmarks.closest(to: mined)
+                    HStack(spacing: Space.md) {
+                        Chip(text: "Peer · \(peer.label)", symbol: "person.3", tint: .blue)
+                        Text("median \(Fmt.minutes(peer.medianCycleMinutes)) · rework \(Fmt.percent(peer.reworkRate))")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Text(peer.note).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+                    }
+                }
+            }
+
+            if !attributeKeys.isEmpty {
+                let keys = ocelKeys.isEmpty ? Set([attributeKeys[0]]) : ocelKeys
+                let ocel = OCEL.build(events: allEvents, objectKeys: Array(keys))
+                Card("Object-centric log", subtitle: "Multiple object notions linked from imported dimensions.", symbol: "circle.hexagongrid") {
+                    HStack(spacing: Space.md) {
+                        Menu {
+                            ForEach(attributeKeys, id: \.self) { key in
+                                Button {
+                                    if ocelKeys.contains(key) { ocelKeys.remove(key) } else { ocelKeys.insert(key) }
+                                } label: {
+                                    if keys.contains(key) { Label(key, systemImage: "checkmark") } else { Text(key) }
+                                }
+                            }
+                        } label: {
+                            Label("\(keys.count) object dimension(s)", systemImage: "square.stack.3d.up")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                        Spacer()
+                        Text("\(ocel.eventsWithMultipleObjects) events touch more than one object")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: Space.lg) {
+                        ForEach(ocel.objectTypes, id: \.type) { type in
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(type.type).font(.caption2).foregroundStyle(.tertiary)
+                                Text("\(type.count)").font(.headline.monospacedDigit())
+                            }
+                        }
+                        Spacer()
+                    }
+                    ForEach(ocel.interactions.prefix(5)) { interaction in
+                        HStack(spacing: Space.sm) {
+                            Text(interaction.from).font(.caption).lineLimit(1)
+                            Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
+                            Text(interaction.to).font(.caption).lineLimit(1)
+                            Spacer()
+                            Text("\(interaction.events) events").font(.caption2).foregroundStyle(.tertiary)
+                        }
+                        .padding(.vertical, 2)
+                    }
                 }
             }
 
@@ -1347,6 +1401,9 @@ private struct MapActivityMappingSheet: View {
     let activities: [String]
 
     @State private var mapping: [String: String]
+    @State private var aiBusy = false
+    @State private var aiError: String?
+    @State private var aiConfidence: [String: Double] = [:]
 
     init(dataset: DatasetRecord, map: MapsBridge.Document, activities: [String]) {
         self.dataset = dataset
@@ -1369,7 +1426,22 @@ private struct MapActivityMappingSheet: View {
                     Text("Only mapped activities count towards map coverage.").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
+                if !aiConfidence.isEmpty {
+                    Chip(text: "AI \(aiConfidence.values.max().map { Int($0 * 100) } ?? 0)%", symbol: "sparkles", tint: .purple)
+                }
+                Button {
+                    suggestWithAI()
+                } label: {
+                    if aiBusy { ProgressView().controlSize(.small) }
+                    else { Label("Suggest with AI", systemImage: "sparkles") }
+                }
+                .controlSize(.small)
+                .disabled(aiBusy || activities.isEmpty || steps.isEmpty)
+                .help("Use the local transformers.js sidecar to match activities to map steps")
                 Button("Cancel") { dismiss() }
+            }
+            if let aiError {
+                Text(aiError).font(.caption2).foregroundStyle(.orange)
             }
             ScrollView {
                 VStack(spacing: 0) {
@@ -1441,5 +1513,33 @@ private struct CapacityStudyDetail: View {
         }
         .padding(Space.lg)
         .frame(width: 520)
+    }
+}
+
+
+private extension MapActivityMappingSheet {
+    func suggestWithAI() {
+        aiBusy = true
+        aiError = nil
+        let stepRefs = steps.map { (id: $0.link?.stepID ?? ($0.stepID.isEmpty ? $0.id : $0.stepID), label: $0.label) }
+        Task {
+            do {
+                let result = try await ProcessLinkAI.suggestMapping(activities: activities, steps: stepRefs)
+                await MainActor.run {
+                    for (activity, step) in result.mapping where steps.contains(where: {
+                        ($0.link?.stepID ?? ($0.stepID.isEmpty ? $0.id : $0.stepID)) == step
+                    }) {
+                        mapping[activity] = step
+                    }
+                    aiConfidence = result.confidence ?? [:]
+                    aiBusy = false
+                }
+            } catch {
+                await MainActor.run {
+                    aiError = error.localizedDescription
+                    aiBusy = false
+                }
+            }
+        }
     }
 }

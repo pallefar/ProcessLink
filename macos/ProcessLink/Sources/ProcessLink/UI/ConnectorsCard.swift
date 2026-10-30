@@ -37,6 +37,9 @@ struct DataConnectorsCard: View {
                                     Text(connector.name).font(.subheadline.weight(.medium))
                                     Text(parts.joined(separator: " · "))
                                         .font(.caption2).foregroundStyle(.tertiary)
+                                    if !connector.cursor.isEmpty {
+                                        Text("cursor \(connector.cursor.prefix(19))").font(.caption2).foregroundStyle(.tertiary)
+                                    }
                                     if !connector.lastError.isEmpty {
                                         Text(connector.lastError).font(.caption2).foregroundStyle(.red).lineLimit(1)
                                     }
@@ -95,6 +98,8 @@ private struct ConnectorEditorSheet: View {
     @State private var resourceField: String
     @State private var applicationField: String
     @State private var costField: String
+    @State private var incrementalParam: String
+    @State private var scheduleMinutes: Int
     @State private var secret: String
 
     init(connector: ConnectorRecord?) {
@@ -114,6 +119,8 @@ private struct ConnectorEditorSheet: View {
         _resourceField = State(initialValue: mapping.resourceField)
         _applicationField = State(initialValue: mapping.applicationField)
         _costField = State(initialValue: mapping.costField)
+        _incrementalParam = State(initialValue: connector?.incrementalParam ?? "updated_since")
+        _scheduleMinutes = State(initialValue: connector?.scheduleMinutes ?? 0)
         _secret = State(initialValue: "")
     }
 
@@ -193,6 +200,18 @@ private struct ConnectorEditorSheet: View {
                     Text("Site").font(.caption).foregroundStyle(.secondary)
                     TextField("Optional site", text: $site).textFieldStyle(.roundedBorder)
                 }
+                GridRow {
+                    Text("Incremental").font(.caption).foregroundStyle(.secondary)
+                    TextField("Query parameter, e.g. updated_since", text: $incrementalParam)
+                        .textFieldStyle(.roundedBorder)
+                }
+                GridRow {
+                    Text("Refresh").font(.caption).foregroundStyle(.secondary)
+                    Stepper(value: $scheduleMinutes, in: 0...1_440, step: 15) {
+                        Text(scheduleMinutes == 0 ? "Manual only" : "Every \(scheduleMinutes) min")
+                            .font(.caption)
+                    }
+                }
             }
 
             Text("Field mapping").font(.caption).foregroundStyle(.secondary)
@@ -241,6 +260,8 @@ private struct ConnectorEditorSheet: View {
         target.resourceField = resourceField
         target.applicationField = applicationField
         target.costField = costField
+        target.incrementalParam = incrementalParam
+        target.scheduleMinutes = scheduleMinutes
         if !secret.isEmpty { model.setConnectorSecret(secret, for: target.id) }
         try? model.context.save()
         dismiss()

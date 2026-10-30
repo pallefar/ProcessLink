@@ -537,3 +537,28 @@ func miningBenchmarks() throws {
     #expect(rows.allSatisfy { $0.cases >= 2 })
     #expect(rows.allSatisfy { !$0.value.isEmpty })
 }
+
+@Test("OCEL links objects from imported dimensions without inventing identity")
+func ocelBuild() {
+    let start = Date(timeIntervalSince1970: 1_700_000_000)
+    let events = [
+        EventLogRecord(caseID: "case-a", activity: "Open", timestamp: start,
+                       resource: "Desk", attributes: ["order": "O-1", "customer": "C-1"]),
+        EventLogRecord(caseID: "case-a", activity: "Close", timestamp: start.addingTimeInterval(60),
+                       resource: "Desk", attributes: ["order": "O-1", "customer": "C-1"]),
+    ]
+    let model = OCEL.build(events: events, objectKeys: ["order", "customer"])
+    #expect(model.objects.count == 3)
+    #expect(model.objectTypes.map(\.type).contains("order"))
+    #expect(model.eventsWithMultipleObjects == 2)
+    #expect(!model.interactions.isEmpty)
+}
+
+@Test("Peer benchmark library is illustrative and comparable")
+func peerBenchmarks() throws {
+    let result = try EventLogImporter.importCSV(EventLogImporter.sampleCSV())
+    let mined = ProcessMining.mine(result.events, name: "Order intake")
+    let peer = PeerBenchmarks.closest(to: mined)
+    #expect(peer.sampleCases > 0)
+    #expect(peer.note.contains("Illustrative"))
+}

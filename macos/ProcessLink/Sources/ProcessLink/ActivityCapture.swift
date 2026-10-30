@@ -39,6 +39,16 @@ final class ActivityCapture {
         var samples: Int = 0
     }
 
+    struct Segment: Identifiable {
+        var id: String { "\(appName)|\(label)|\(startedAt.timeIntervalSince1970)" }
+        var appName: String
+        var label: String
+        var startedAt: Date
+        var endedAt: Date
+        var minutes: Double
+        var samples: Int
+    }
+
     struct Shot: Identifiable {
         var id: UUID = UUID()
         var path: String
@@ -58,6 +68,7 @@ final class ActivityCapture {
         var apps: [LiveApp]
         var windows: [LiveWindow]
         var shots: [Shot]
+        var segments: [Segment]
     }
 
     private(set) var isRunning = false
@@ -66,6 +77,7 @@ final class ActivityCapture {
     private(set) var apps: [String: LiveApp] = [:]
     private(set) var windows: [String: LiveWindow] = [:]
     private(set) var shots: [Shot] = []
+    private(set) var segments: [Segment] = []
     private(set) var activeMinutes: Double = 0
     private(set) var idleMinutes: Double = 0
     private(set) var switches: Int = 0
@@ -77,6 +89,9 @@ final class ActivityCapture {
     private(set) var isCapturingShot = false
 
     private var lastApp: String?
+    private var segmentStart: Date?
+    private var segmentKey: String = ""
+    private var segmentApp: String = ""
     private var lastShotAt = Date.distantPast
     private var sessionID = ""
     private var keyMonitor: Any?
@@ -113,6 +128,10 @@ final class ActivityCapture {
         apps = [:]
         windows = [:]
         shots = []
+        segments = []
+        segmentStart = nil
+        segmentKey = ""
+        segmentApp = ""
         activeMinutes = 0
         idleMinutes = 0
         switches = 0
@@ -139,6 +158,17 @@ final class ActivityCapture {
         timer?.invalidate()
         timer = nil
         stopInputMonitors()
+        if let start = segmentStart {
+            let final = Segment(appName: segmentApp, label: segmentKey,
+                                startedAt: start, endedAt: Date.now,
+                                minutes: max(0, Date.now.timeIntervalSince(start) / 60),
+                                samples: 1)
+            if let last = segments.last, last.startedAt == start {
+                segments[segments.count - 1] = final
+            } else {
+                segments.append(final)
+            }
+        }
         let ended = Date.now
         return Result(
             sessionID: sessionID, startedAt: startedAt, endedAt: ended,
@@ -146,13 +176,18 @@ final class ActivityCapture {
             switches: switches, keystrokes: keystrokes, clicks: clicks,
             apps: apps.values.sorted { $0.minutes > $1.minutes },
             windows: windows.values.sorted { $0.minutes > $1.minutes },
-            shots: shots.sorted { $0.capturedAt < $1.capturedAt })
+            shots: shots.sorted { $0.capturedAt < $1.capturedAt },
+            segments: segments.sorted { $0.startedAt < $1.startedAt })
     }
 
     func reset() {
         apps = [:]
         windows = [:]
         shots = []
+        segments = []
+        segmentStart = nil
+        segmentKey = ""
+        segmentApp = ""
         activeMinutes = 0
         idleMinutes = 0
         switches = 0
@@ -199,6 +234,31 @@ final class ActivityCapture {
 
         guard !idle else { return }
         let window = frontmostWindow(pid: front?.processIdentifier)
+        let title = options.windowTitles ? PIIScanner.scan(window?.title ?? "").maskedText : ""
+        let key = "\(name)|\(title)"
+        if segmentStart == nil || segmentKey != key {
+            if let start = segmentStart {
+                let entry = Segment(appName: segmentApp, label: segmentKey,
+                                    startedAt: start, endedAt: now,
+                                    minutes: max(0, now.timeIntervalSince(start) / 60),
+                                    samples: 1)
+                segments.append(entry)
+            }
+            segmentStart = now
+            segmentKey = key
+            segmentApp = name
+        }
+        // Keep the open segment in the list as a live entry.
+        if let start = segmentStart {
+            let open = Segment(appName: segmentApp, label: segmentKey, startedAt: start,
+                               endedAt: now, minutes: max(0, now.timeIntervalSince(start) / 60), samples: 1)
+            if let last = segments.last, last.appName == open.appName, last.label == open.label,
+               last.startedAt == open.startedAt {
+                segments[segments.count - 1] = open
+            } else if segments.last?.startedAt != start {
+                segments.append(open)
+            }
+        }
         if options.windowTitles, let title = window?.title, !title.isEmpty {
             let masked = PIIScanner.scan(title).maskedText
             let key = "\(name)|\(masked)"

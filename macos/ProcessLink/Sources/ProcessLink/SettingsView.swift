@@ -165,6 +165,8 @@ private struct SyncSettings: View {
 
 private struct AISettings: View {
     @Environment(AppModel.self) private var model
+    @AppStorage(ProcessLinkAI.defaultsKey) private var transformersURL = "http://127.0.0.1:4183"
+    @State private var aiStatus = "Not checked"
 
     var body: some View {
         Section("Provider") {
@@ -177,6 +179,26 @@ private struct AISettings: View {
             }
             .disabled(true)
             Text("The hosted provider is reached through the Flightdeck AI gateway with the caller's permissions. Local keeps everything on this Mac; the same citation checks run on both.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+
+        Section("Local transformers.js") {
+            TextField("Sidecar URL", text: $transformersURL)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Button("Test sidecar") {
+                    ProcessLinkAI.endpoint = transformersURL
+                    aiStatus = "Checking…"
+                    Task {
+                        let ok = await ProcessLinkAI.health()
+                        await MainActor.run { aiStatus = ok ? "Connected" : "Unavailable" }
+                    }
+                }
+                .controlSize(.small)
+                Text(aiStatus).font(.caption).foregroundStyle(aiStatus == "Connected" ? .green : .secondary)
+            }
+            Text("Runs on this Mac via ai/server.mjs. It receives only activity and map labels; case ids and person data never leave the app.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
