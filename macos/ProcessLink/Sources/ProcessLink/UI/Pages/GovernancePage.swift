@@ -15,6 +15,7 @@ struct GovernancePage: View {
     @State private var pii: PIIScan?
     @State private var confirmPurge = false
     @State private var auditFilter = ""
+    @State private var showingRestoreReview = false
 
     private var filteredAudits: [AuditRecord] {
         guard !auditFilter.isEmpty else { return audits }
@@ -81,6 +82,9 @@ struct GovernancePage: View {
         }
         .gridArea("governance")
         .navigationTitle("Governance")
+        .sheet(isPresented: $showingRestoreReview) {
+            RestoreReviewSheet()
+        }
         .alert("Apply retention purge?", isPresented: $confirmPurge) {
             Button("Cancel", role: .cancel) {}
             Button("Purge expired capture", role: .destructive) { model.purgeExpiredCapture() }
@@ -205,6 +209,11 @@ struct GovernancePage: View {
                         .controlSize(.small)
                     Button("Inspect backup…") { model.inspectWorkspaceBackup() }
                         .controlSize(.small)
+                    Button("Restore into review…") {
+                        model.loadRestoreReview()
+                        if model.restoreReview != nil { showingRestoreReview = true }
+                    }
+                    .controlSize(.small)
                     Button("Apply retention purge") { confirmPurge = true }
                         .controlSize(.small)
                 }
@@ -334,5 +343,44 @@ struct GovernancePage: View {
         case "AI & security": "Approved models, regions, and the guard."
         default: ""
         }
+    }
+}
+
+
+private struct RestoreReviewSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.md) {
+            HStack {
+                Text("Restore review").font(.title3.weight(.semibold))
+                Spacer()
+                Button("Close") { model.restoreReview = nil; dismiss() }
+            }
+            if let review = model.restoreReview {
+                Text(review.fileName).font(.caption).foregroundStyle(.secondary)
+                Text("Exported \(review.exportedAt)").font(.caption2).foregroundStyle(.tertiary)
+                HStack(spacing: Space.lg) {
+                    VStack { Text("\(review.processes.count)").font(.headline); Text("processes").font(.caption2) }
+                    VStack { Text("\(review.opportunities.count)").font(.headline); Text("opportunities").font(.caption2) }
+                    VStack { Text("\(review.initiatives.count)").font(.headline); Text("initiatives").font(.caption2) }
+                }
+                Text("Only processes are promoted in this review. They are marked discovered with a review reason; opportunities and initiatives stay staged.")
+                    .font(.caption).foregroundStyle(.secondary)
+                ForEach(Array(review.processes.prefix(8).enumerated()), id: \.offset) { _, row in
+                    Text(row["name"] as? String ?? row["id"] as? String ?? "—")
+                        .font(.caption)
+                }
+                HStack {
+                    Button("Discard") { model.restoreReview = nil; dismiss() }
+                    Spacer()
+                    Button("Promote \(review.processes.count) processes") { model.promoteRestoreProcesses(); dismiss() }
+                        .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+        .padding(Space.lg)
+        .frame(width: 560)
     }
 }

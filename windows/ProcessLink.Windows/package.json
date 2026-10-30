@@ -1,7 +1,7 @@
 {
   "name": "processlink-windows",
   "private": true,
-  "version": "0.1.54",
+  "version": "0.1.55",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",

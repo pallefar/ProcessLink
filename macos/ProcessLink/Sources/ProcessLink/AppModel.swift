@@ -161,6 +161,7 @@ final class AppModel {
     var updateError: String = ""
     var updateLastChecked: Date?
     var fleetAgents: [AgentFleetDevice] = []
+    var restoreReview: RestoreReview?
 
     /// Policy values. Persisted per Mac; the real thresholds are a works
     /// council decision, not a slider a developer ships.
@@ -1913,6 +1914,62 @@ final class AppModel {
             showToast("Revoke failed", detail: error.localizedDescription,
                       symbol: "exclamationmark.triangle", warning: true)
         }
+    }
+
+    struct RestoreReview {
+        var fileName: String
+        var exportedAt: String
+        var processes: [[String: Any]]
+        var opportunities: [[String: Any]]
+        var initiatives: [[String: Any]]
+    }
+
+    func loadRestoreReview() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url,
+              let data = try? Data(contentsOf: url),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              root["schema"] as? String == "processlink-workspace-backup/1" else {
+            return
+        }
+        restoreReview = RestoreReview(
+            fileName: url.lastPathComponent,
+            exportedAt: root["exportedAt"] as? String ?? "unknown",
+            processes: root["processes"] as? [[String: Any]] ?? [],
+            opportunities: root["opportunities"] as? [[String: Any]] ?? [],
+            initiatives: root["initiatives"] as? [[String: Any]] ?? [])
+    }
+
+    func promoteRestoreProcesses() {
+        guard let review = restoreReview else { return }
+        let existing = Set(((try? context.fetch(FetchDescriptor<ProcessRecord>())) ?? []).map(\.id))
+        var inserted = 0
+        for row in review.processes {
+            guard let id = row["id"] as? String, !id.isEmpty, !existing.contains(id) else { continue }
+            let process = ProcessRecord(
+                id: id, name: row["name"] as? String ?? "Restored process",
+                site: row["site"] as? String ?? "Unknown site",
+                businessUnit: row["businessUnit"] as? String ?? "Restored unit",
+                valueStream: "Restored", ownerRole: "Restored owner",
+                discoveryID: "", kgID: "", summary: row["summary"] as? String ?? "",
+                applications: [], variantNames: [],
+                capturedFrom: now, capturedTo: now, lastSynced: now,
+                confidence: 0.3, people: 0, annualHours: 0, cycleMinutes: 0,
+                reworkRate: 0, handoffs: 0, variantCount: 1, adherence: 0,
+                maturity: 0, classification: .internalUse, status: .discovered,
+                statusReason: "Restored from backup; review before use.",
+                standardDocument: "", standardVersion: "", source: "ProcessLink restore")
+            context.insert(process)
+            inserted += 1
+        }
+        audit(action: "workspace.restore.processes", subject: review.fileName,
+              detail: "\(inserted) processes promoted; review flags set")
+        try? context.save()
+        restoreReview = nil
+        showToast("Restore review promoted", detail: "\(inserted) processes added for review",
+                  symbol: "arrow.uturn.backward")
     }
 
     // MARK: Updates
