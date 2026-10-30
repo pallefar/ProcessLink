@@ -26,6 +26,7 @@ export default function OsMaps() {
   const [commentDraft, setCommentDraft] = useState('')
   const [commentBusy, setCommentBusy] = useState(false)
   const [commentError, setCommentError] = useState('')
+  const [commentNode, setCommentNode] = useState('')
   const [aiBusy, setAiBusy] = useState(false)
   const [aiError, setAiError] = useState('')
   const [aiMapping, setAiMapping] = useState<Record<string, { step: string; confidence: number }>>({})
@@ -168,11 +169,24 @@ export default function OsMaps() {
                 <Card title="DiagramForge comments" subtitle="The map's shared OS comments; local annotations stay separate." glyph="◌">
                   {comments.length === 0 ? <p className="subtle">No DiagramForge comments yet.</p> : comments.slice(0, 6).map(comment => (
                     <div key={comment.id} className="osmap-step">
-                      <div className="row-meta"><strong>{comment.author}</strong><span className="tiny">{new Date(comment.createdAt).toLocaleString('en-GB')}</span>{comment.nodeId && <Chip>{comment.nodeId}</Chip>}{comment.detached && <Chip tone="orange">Detached</Chip>}</div>
+                      <div className="row-meta"><strong>{comment.author}</strong><span className="tiny">{new Date(comment.createdAt).toLocaleString('en-GB')}</span>{comment.nodeId && <Chip>{comment.nodeId}</Chip>}{comment.detached && <Chip tone="orange">Detached</Chip>}<div className="spacer" /><button className="btn small" onClick={async () => {
+                        const response = await fetch(`/api/apps/maps/maps/${encodeURIComponent(detail!.id)}/comments/${encodeURIComponent(comment.id)}`, {
+                          method: 'PATCH', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+                          body: JSON.stringify({ resolved: !comment.resolved }),
+                        })
+                        if (response.ok) {
+                          const updated = await response.json() as MapComment
+                          setComments(current => current.map(item => item.id === updated.id ? updated : item))
+                        }
+                      }}>{comment.resolved ? 'Reopen' : 'Resolve'}</button></div>
                       <div className="tiny">{comment.body}</div>
                     </div>
                   ))}
                   <div className="row-meta" style={{ marginTop: 8 }}>
+                    <select value={commentNode} onChange={e => setCommentNode(e.target.value)} aria-label="Comment shape">
+                      <option value="">Whole map</option>
+                      {(detail?.nodes ?? []).filter(node => node.type === 'step').map(node => <option key={node.id} value={node.id}>{node.label}</option>)}
+                    </select>
                     <input className="osmap-search" placeholder="Post a comment to DiagramForge…" value={commentDraft} onChange={e => setCommentDraft(e.target.value)} />
                     <button className="btn small" disabled={commentBusy || !commentDraft.trim()} onClick={async () => {
                       if (!detail) return
@@ -180,7 +194,7 @@ export default function OsMaps() {
                       try {
                         const response = await fetch(`/api/apps/maps/maps/${encodeURIComponent(detail.id)}/comments`, {
                           method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
-                          body: JSON.stringify({ body: commentDraft.trim() }),
+                          body: JSON.stringify({ body: commentDraft.trim(), ...(commentNode ? { nodeId: commentNode } : {}) }),
                         })
                         if (!response.ok) throw new Error(`DiagramForge HTTP ${response.status}`)
                         const created = await response.json() as MapComment

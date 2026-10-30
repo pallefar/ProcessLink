@@ -52,6 +52,9 @@ export default function Strategy() {
   const linked = INITIATIVES.filter(i => LINKS[i.id])
   const [roadmap, setRoadmap] = useState<VisionRoadmap | null>(null)
   const [projects, setProjects] = useState<LiveProjects | null>(null)
+  const [importedBets, setImportedBets] = useState<Array<{ id: string; title: string }>>(() => {
+    try { return JSON.parse(localStorage.getItem('processlink.importedBets') || '[]') as Array<{ id: string; title: string }> } catch { return [] }
+  })
   useEffect(() => {
     void Promise.all([osGet<VisionRoadmap>('/api/vision/roadmap'), osGet<LiveProjects>('/api/projects')]).then(([road, proj]) => {
       setRoadmap(road); setProjects(proj)
@@ -77,11 +80,21 @@ export default function Strategy() {
           <Chip tone={roadmap ? 'purple' : undefined}>{roadmap ? `${roadmap.records.length} roadmap items` : 'Vision unavailable'}</Chip>
           <Chip tone={projects ? 'green' : undefined}>{projects ? `${projects.projects.length} Atlas projects` : 'Atlas unavailable'}</Chip>
         </div>
-        {roadmap?.records.slice(0, 3).map(item => (
+        {roadmap?.records.slice(0, 4).map(item => (
           <div className="row-meta" key={item.id} style={{ justifyContent: 'space-between', padding: '3px 0' }}>
             <span>{item.body?.title ?? item.id}</span><span className="tiny">{item.body?.stage ?? ''}</span>
+            <button className="btn small" onClick={() => {
+              const title = item.body?.title ?? item.id
+              setImportedBets(current => {
+                if (current.some(value => value.id === item.id)) return current
+                const next = [...current, { id: item.id, title }]
+                localStorage.setItem('processlink.importedBets', JSON.stringify(next))
+                return next
+              })
+            }}>Import</button>
           </div>
         ))}
+        {importedBets.length > 0 && <div className="tiny" style={{ marginTop: 6 }}>Imported bets: {importedBets.map(item => item.title).join(' · ')}</div>}
         {projects && <div className="tiny" style={{ marginTop: 4 }}>{projects.projects.slice(0, 5).map(project => project.label).join(' · ')}</div>}
       </Card>
 
