@@ -557,6 +557,22 @@ struct MiningPage: View {
                         Toggle("Input counts", isOn: Binding(get: { policy.inputCounts }, set: { policy.inputCounts = $0 }))
                             .toggleStyle(.checkbox).font(.caption)
                     }
+                    if !captureConsents.filter({ $0.revokedAt == nil }).isEmpty {
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(captureConsents.filter { $0.revokedAt == nil }) { consent in
+                                HStack(spacing: Space.sm) {
+                                    Text("\(consent.site) · \(consent.role) · \(consent.version)")
+                                        .font(.caption2).foregroundStyle(.secondary)
+                                    Spacer()
+                                    Button("Revoke") {
+                                        consent.revokedAt = .now
+                                        try? model.context.save()
+                                    }
+                                    .controlSize(.mini)
+                                }
+                            }
+                        }
+                    }
                     HStack(spacing: Space.sm) {
                         Button("Grant consent…") { showingConsent = true }
                             .controlSize(.small)
