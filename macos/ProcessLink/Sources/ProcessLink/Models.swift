@@ -1350,3 +1350,26 @@ final class CaptureTaskRecord {
         self.samples = samples
     }
 }
+
+/// Product feedback about ProcessLink itself, separate from subject
+/// annotations. Kept local like the rest of the app; exportable for triage.
+@Model
+final class AppFeedbackRecord {
+    var id: String = ""
+    var rating: String = "ok"
+    var category: String = ""
+    var comment: String = ""
+    var author: String = "CI Manager (role)"
+    var page: String = ""
+    var createdAt: Date = Date.now
+
+    init(id: String, rating: String, category: String, comment: String,
+         author: String, page: String) {
+        self.id = id
+        self.rating = rating
+        self.category = category
+        self.comment = comment
+        self.author = author
+        self.page = page
+    }
+}

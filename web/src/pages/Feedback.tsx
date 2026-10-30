@@ -3,6 +3,7 @@ import { useApp } from '../App'
 import { Card, Chip, Empty } from '../components/ui'
 import { FeedbackPanel, type FeedbackSubject } from '../components/FeedbackPanel'
 import type { FeedbackKind } from '../domain/types'
+import { ProductFeedbackButton } from '../components/ProductFeedback'
 
 const KIND_LABEL: Record<FeedbackKind, string> = {
   map: 'Map', mapShape: 'Map shape', process: 'Process', opportunity: 'Opportunity',
@@ -45,6 +46,7 @@ export default function Feedback() {
           <Chip tone="orange">{openCount} open</Chip>
           <Chip tone="green">{resolvedCount} resolved</Chip>
           <button className="btn small" onClick={exportForPdfStudio}>Export for PDF Studio</button>
+          <ProductFeedbackButton page="feedback" />
         </div>
       </div>
 

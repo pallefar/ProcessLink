@@ -27,6 +27,7 @@ struct SettingsView: View {
             case .ai: AISettings()
             case .governance: GovernanceSettings()
             case .appearance: AppearanceSettings()
+            case .updates: UpdateSettings()
             }
         }
         .formStyle(.grouped)
@@ -36,7 +37,7 @@ struct SettingsView: View {
 }
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case connections, sync, ai, governance, appearance
+    case connections, sync, ai, governance, appearance, updates
 
     var id: String { rawValue }
 
@@ -47,6 +48,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .ai: "AI"
         case .governance: "Governance"
         case .appearance: "Appearance"
+        case .updates: "Updates"
         }
     }
 
@@ -57,6 +59,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .ai: "cpu"
         case .governance: "checkmark.shield"
         case .appearance: "paintpalette"
+        case .updates: "arrow.down.circle"
         }
     }
 }
@@ -221,6 +224,71 @@ private struct AISettings: View {
                 model.showToast("Evaluation passed", detail: "12 golden questions · 100% citation traceability.",
                                 symbol: "checkmark.seal")
             }
+        }
+    }
+}
+
+// MARK: - Updates
+
+private struct UpdateSettings: View {
+    @Environment(AppModel.self) private var model
+    @AppStorage("updates.autoCheck") private var autoCheck = true
+
+    var body: some View {
+        Section("Version") {
+            LabeledContent("Installed", value: UpdateService.currentVersion)
+            if let info = model.updateInfo {
+                LabeledContent("Latest", value: info.version)
+            }
+            LabeledContent("Last checked", value: model.updateLastChecked.map { Fmt.stamp($0) } ?? "Not yet")
+        }
+
+        Section("Update feed") {
+            Toggle("Check at launch", isOn: $autoCheck)
+            HStack {
+                Button {
+                    Task { await model.checkForUpdates() }
+                } label: {
+                    if model.updateStatus == "checking" {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Check for updates")
+                    }
+                }
+                .disabled(model.updateStatus == "checking")
+                Spacer()
+                if model.updateStatus == "current" {
+                    Label("Up to date", systemImage: "checkmark.circle.fill")
+                        .font(.caption).foregroundStyle(.green)
+                } else if model.updateStatus == "available" {
+                    Label("Update available", systemImage: "arrow.down.circle.fill")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+            }
+            if !model.updateError.isEmpty {
+                Text(model.updateError).font(.caption).foregroundStyle(.orange)
+            }
+            if let info = model.updateInfo {
+                if model.updateStatus == "available" {
+                    Button("Download \(info.version)") { model.openUpdate() }
+                        .buttonStyle(.borderedProminent)
+                    if !info.notes.isEmpty {
+                        DisclosureGroup("Release notes") {
+                            Text(info.notes).font(.caption).textSelection(.enabled)
+                        }
+                    }
+                } else {
+                    Button("Open releases") { model.openUpdate() }
+                        .controlSize(.small)
+                }
+            } else {
+                Button("Open releases") { model.openUpdate() }
+                    .controlSize(.small)
+            }
+        }
+
+        Section {
+            GuardrailNote(text: "The updater reads the public GitHub release feed. It never installs code silently; the signed DMG is downloaded or opened by a person.")
         }
     }
 }

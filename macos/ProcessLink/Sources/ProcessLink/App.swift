@@ -35,6 +35,14 @@ struct ProcessLinkApp: App {
             ToolbarCommands()
             CommandGroup(replacing: .newItem) {}
 
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    model.settingsTab = .updates
+                    Task { await model.checkForUpdates() }
+                }
+                Divider()
+            }
+
             CommandMenu("Navigate") {
                 Button("Overview") { model.page = .overview }
                     .keyboardShortcut("1", modifiers: .command)
@@ -183,7 +191,7 @@ enum Store {
                                       MeetingRecord.self, MeetingBlockRecord.self,
                                       DatasetRecord.self, EventItemRecord.self,
                                       CaptureSessionRecord.self, CaptureAppRecord.self,
-                                      CaptureWindowRecord.self, CaptureShotRecord.self, CapturePolicyRecord.self, ConsentRecord.self, CaptureTaskRecord.self, ConnectorRecord.self, CapacityStudyRecord.self, FeedbackRecord.self, AutomationHandoffRecord.self, StrategyRecord.self, StrategicBetRecord.self, KPIRecord.self, ValueRecord.self,
+                                      CaptureWindowRecord.self, CaptureShotRecord.self, CapturePolicyRecord.self, ConsentRecord.self, CaptureTaskRecord.self, ConnectorRecord.self, CapacityStudyRecord.self, FeedbackRecord.self, AppFeedbackRecord.self, AutomationHandoffRecord.self, StrategyRecord.self, StrategicBetRecord.self, KPIRecord.self, ValueRecord.self,
                                       GovernanceRecord.self, AuditRecord.self, SyncRecord.self,
                                       configurations: ModelConfiguration(url: url))
         } catch {

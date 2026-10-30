@@ -153,6 +153,10 @@ final class AppModel {
     var isSyncing = false
     var toast: Toast?
     var settingsTab: SettingsTab = .connections
+    var updateInfo: UpdateInfo?
+    var updateStatus: String = "idle"
+    var updateError: String = ""
+    var updateLastChecked: Date?
 
     /// Policy values. Persisted per Mac; the real thresholds are a works
     /// council decision, not a slider a developer ships.
@@ -202,6 +206,13 @@ final class AppModel {
         configureMapRefresh()
         configureConnectorRefresh()
         configureAgentTimer()
+        if UserDefaults.standard.object(forKey: "updates.autoCheck") as? Bool ?? true,
+           !SelfTest.requested {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                await checkForUpdates(silent: true)
+            }
+        }
         ActivityCapture.removeScreenshots(olderThan: retentionDays)
     }
 
@@ -1409,6 +1420,47 @@ final class AppModel {
                 _ = self.startManagedAgent()
             }
         }
+    }
+
+    @discardableResult
+    func addAppFeedback(rating: String, category: String, comment: String,
+                        author: String, page: String) -> AppFeedbackRecord? {
+        let trimmed = comment.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let record = AppFeedbackRecord(
+            id: "appfeedback-\(UUID().uuidString.prefix(8))", rating: rating,
+            category: category, comment: trimmed,
+            author: author.isEmpty ? "CI Manager (role)" : author,
+            page: page)
+        context.insert(record)
+        audit(action: "feedback.product", subject: record.id,
+              detail: "\(rating) · \(category) · \(page)")
+        try? context.save()
+        showToast("Feedback saved", detail: "Local product feedback; not sent anywhere.",
+                  symbol: "bubble.left.and.text.bubble.right")
+        return record
+    }
+
+    // MARK: Updates
+
+    @MainActor
+    func checkForUpdates(silent: Bool = false) async {
+        guard !SelfTest.requested else { return }
+        if !silent { updateStatus = "checking" }
+        updateError = ""
+        do {
+            let latest = try await UpdateService.latest()
+            updateInfo = latest
+            updateLastChecked = now
+            updateStatus = UpdateService.isNewer(latest.version, than: UpdateService.currentVersion) ? "available" : "current"
+        } catch {
+            updateError = error.localizedDescription
+            updateStatus = silent ? "idle" : "failed"
+        }
+    }
+
+    func openUpdate() {
+        NSWorkspace.shared.open(updateInfo?.downloadURL ?? updateInfo?.pageURL ?? UpdateService.releasesPage)
     }
 
     // MARK: Automation handoff

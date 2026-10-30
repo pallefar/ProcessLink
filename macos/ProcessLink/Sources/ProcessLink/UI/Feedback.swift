@@ -196,6 +196,8 @@ struct FeedbackInboxPage: View {
     @Query(sort: \FeedbackRecord.createdAt, order: .reverse) private var all: [FeedbackRecord]
     @State private var filter = "Open"
     @State private var selected: FeedbackSubject?
+    @State private var showingAppFeedback = false
+    @Query(sort: \AppFeedbackRecord.createdAt, order: .reverse) private var appFeedback: [AppFeedbackRecord]
 
     private var roots: [FeedbackRecord] {
         all.filter { record in
@@ -218,6 +220,9 @@ struct FeedbackInboxPage: View {
                     HStack(spacing: Space.sm) {
                         Chip(text: "\(openCount) open", symbol: "bubble.left.and.text.bubble.right", tint: .orange)
                         Chip(text: "\(resolvedCount) resolved", symbol: "checkmark", tint: .green)
+                        Button("Send feedback") { showingAppFeedback = true }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
                     }
                 }
 
@@ -276,12 +281,32 @@ struct FeedbackInboxPage: View {
                         }
                     }
                 }
+
+                Card("Product feedback", subtitle: "About ProcessLink itself. Separate from annotations; stays on this Mac.", symbol: "star.bubble") {
+                    if appFeedback.isEmpty {
+                        Text("No product feedback yet.").font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        ForEach(appFeedback.prefix(5)) { item in
+                            HStack(alignment: .top, spacing: Space.sm) {
+                                Chip(text: item.rating == "ok" ? "OK" : item.rating == "minor" ? "Minor" : "Major",
+                                     tint: item.rating == "ok" ? .green : item.rating == "minor" ? .orange : .red)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(item.comment).font(.caption).lineLimit(2)
+                                    Text("\(item.author) · \(Fmt.ago(item.createdAt)) · \(item.page)")
+                                        .font(.caption2).foregroundStyle(.tertiary)
+                                }
+                                Spacer()
+                            }
+                        }
+                    }
+                }
             }
             .padding(Space.margin)
         }
         .gridArea("feedback")
         .navigationTitle("Feedback")
         .sheet(item: $selected) { FeedbackSheet(subject: $0) }
+        .sheet(isPresented: $showingAppFeedback) { AppFeedbackSheet() }
     }
 }
 
@@ -310,5 +335,57 @@ struct FeedbackButton: View {
         .controlSize(.small)
         .help("Annotate \\(subject.label)")
         .sheet(isPresented: $showing) { FeedbackSheet(subject: subject) }
+    }
+}
+
+
+private struct AppFeedbackSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("feedback.author") private var author = "CI Manager (role)"
+    @State private var rating = "ok"
+    @State private var category = ""
+    @State private var comment = ""
+    @State private var sent = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.lg) {
+            HStack {
+                Text("Send feedback").font(.title3.weight(.semibold))
+                Spacer()
+                Button("Close") { dismiss() }
+            }
+            if sent {
+                ContentUnavailableView("Feedback saved", systemImage: "checkmark.circle",
+                                       description: Text("It stays on this Mac for review/export."))
+                HStack { Spacer(); Button("Done") { dismiss() }.buttonStyle(.borderedProminent) }
+            } else {
+                Picker("How is it going?", selection: $rating) {
+                    Text("OK").tag("ok")
+                    Text("Minor issue").tag("minor")
+                    Text("Major issue").tag("major")
+                }
+                .pickerStyle(.segmented)
+                TextField("Category (optional)", text: $category).textFieldStyle(.roundedBorder)
+                TextField("Name / role", text: $author).textFieldStyle(.roundedBorder)
+                TextField("What should we improve?", text: $comment, axis: .vertical)
+                    .textFieldStyle(.roundedBorder).lineLimit(3...6)
+                HStack {
+                    Text("Saved locally; never sent to a model or the network.").font(.caption2).foregroundStyle(.tertiary)
+                    Spacer()
+                    Button("Save feedback") {
+                        if model.addAppFeedback(rating: rating, category: category,
+                                                comment: comment, author: author,
+                                                page: model.page?.rawValue ?? "unknown") != nil {
+                            sent = true
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .padding(Space.lg)
+        .frame(width: 460)
     }
 }
