@@ -11,6 +11,7 @@ struct SearchPage: View {
     @Query private var meetings: [MeetingRecord]
     @State private var query = ""
     @State private var kind = "All"
+    @FocusState private var searchFocused: Bool
 
     private struct Hit: Identifiable {
         var id: String
@@ -64,6 +65,7 @@ struct SearchPage: View {
                 TextField("Search ProcessLink…", text: $query)
                     .textFieldStyle(.roundedBorder)
                     .font(.title3)
+                    .focused($searchFocused)
                 HStack(spacing: Space.sm) {
                     ForEach(["All", "Process", "Opportunity", "Initiative", "Meeting"], id: \.self) { value in
                         Button(value) { kind = value }
@@ -111,5 +113,6 @@ struct SearchPage: View {
         }
         .gridArea("search")
         .navigationTitle("Search")
+        .task { searchFocused = true }
     }
 }

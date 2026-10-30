@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NAV, useApp } from './App'
 import Overview from './pages/Overview'
 import Strategy from './pages/Strategy'
@@ -41,6 +41,16 @@ const PAGES = {
 export function Shell() {
   const { page, navigate, toast, policy, processes, opportunities, initiatives, selectProcess, selectOpportunity, selectInitiative, governance, sync, exportBrief, theme, setTheme } = useApp()
   const [query, setQuery] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault(); searchRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   const Current = PAGES[page]
   const groups = ['Work', 'Improve', 'Trust']
   const active = NAV.find(item => item.id === page)
@@ -86,7 +96,7 @@ export function Shell() {
           <h1 className="topbar-title">{active?.label ?? 'Overview'}</h1>
           <Chip tone="orange">Local</Chip>
           <div className="topbar-search-wrap">
-            <input className="topbar-search" placeholder="Search processes, opportunities, initiatives…" value={query} onChange={e => setQuery(e.target.value)} aria-label="Search ProcessLink" />
+            <input ref={searchRef} className="topbar-search" placeholder="Search processes, opportunities, initiatives…" value={query} onChange={e => setQuery(e.target.value)} aria-label="Search ProcessLink" />
             {query.trim() && (
               <div className="topbar-results">
                 {processes.filter(item => item.name.toLowerCase().includes(query.toLowerCase())).slice(0, 3).map(item => (
