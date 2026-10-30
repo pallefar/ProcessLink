@@ -197,6 +197,7 @@ struct FeedbackInboxPage: View {
     @State private var filter = "Open"
     @State private var selected: FeedbackSubject?
     @State private var showingAppFeedback = false
+    @State private var appFeedbackFilter = "All"
     @Query(sort: \AppFeedbackRecord.createdAt, order: .reverse) private var appFeedback: [AppFeedbackRecord]
 
     private var roots: [FeedbackRecord] {
@@ -208,6 +209,9 @@ struct FeedbackInboxPage: View {
             default: return true
             }
         }
+    }
+    private var filteredAppFeedback: [AppFeedbackRecord] {
+        appFeedbackFilter == "All" ? appFeedback : appFeedback.filter { $0.priority.caseInsensitiveCompare(appFeedbackFilter) == .orderedSame }
     }
     private var openCount: Int { all.filter { $0.parentID.isEmpty && !$0.resolved }.count }
     private var resolvedCount: Int { all.filter { $0.parentID.isEmpty && $0.resolved }.count }
@@ -289,10 +293,16 @@ struct FeedbackInboxPage: View {
                 }
 
                 Card("Product feedback", subtitle: "About ProcessLink itself. Separate from annotations; stays on this Mac.", symbol: "star.bubble") {
-                    if appFeedback.isEmpty {
+                    Picker("Priority", selection: $appFeedbackFilter) {
+                        ForEach(["All", "High", "Normal", "Low"], id: \.self) { Text($0).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 260)
+                    if filteredAppFeedback.isEmpty {
                         Text("No product feedback yet.").font(.caption).foregroundStyle(.secondary)
                     } else {
-                        ForEach(appFeedback.prefix(5)) { item in
+                        ForEach(filteredAppFeedback.prefix(8)) { item in
                             HStack(alignment: .top, spacing: Space.sm) {
                                 Chip(text: item.priority.capitalized,
                                      tint: item.priority == "high" ? .red : item.priority == "low" ? .secondary : .blue)

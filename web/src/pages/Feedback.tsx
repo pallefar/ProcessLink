@@ -4,6 +4,7 @@ import { Card, Chip, Empty } from '../components/ui'
 import { FeedbackPanel, type FeedbackSubject } from '../components/FeedbackPanel'
 import type { FeedbackKind } from '../domain/types'
 import { ProductFeedbackButton } from '../components/ProductFeedback'
+import { ProductFeedbackList } from '../components/ProductFeedbackList'
 
 const KIND_LABEL: Record<FeedbackKind, string> = {
   map: 'Map', mapShape: 'Map shape', process: 'Process', opportunity: 'Opportunity',
@@ -93,6 +94,7 @@ export default function Feedback() {
           {active ? <FeedbackPanel subject={active} /> : <p className="subtle">Select a conversation from the list.</p>}
         </Card>
       </div>
+      <ProductFeedbackList />
     </div>
   )
 }
