@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useApp } from '../App'
 import { Card, Chip, Metric } from '../components/ui'
 import { osGet, type LiveProjects, type VisionRoadmap } from '../domain/osBridge'
 import { INITIATIVES } from '../domain/data'
@@ -49,15 +50,19 @@ const betName = (id: string) => BETS.find(b => b.id === id)?.title ?? 'Not linke
 const kpiName = (id: string) => KPIS.find(k => k.id === id)?.name ?? 'Not linked'
 
 export default function Strategy() {
+  const { notify } = useApp()
+  const [proposal, setProposal] = useState('')
+  const [proposing, setProposing] = useState(false)
   const linked = INITIATIVES.filter(i => LINKS[i.id])
   const [roadmap, setRoadmap] = useState<VisionRoadmap | null>(null)
   const [projects, setProjects] = useState<LiveProjects | null>(null)
+  const [portfolio, setPortfolio] = useState<VisionRoadmap | null>(null)
   const [importedBets, setImportedBets] = useState<Array<{ id: string; title: string }>>(() => {
     try { return JSON.parse(localStorage.getItem('processlink.importedBets') || '[]') as Array<{ id: string; title: string }> } catch { return [] }
   })
   useEffect(() => {
-    void Promise.all([osGet<VisionRoadmap>('/api/vision/roadmap'), osGet<LiveProjects>('/api/projects')]).then(([road, proj]) => {
-      setRoadmap(road); setProjects(proj)
+    void Promise.all([osGet<VisionRoadmap>('/api/vision/roadmap'), osGet<LiveProjects>('/api/projects'), osGet<VisionRoadmap>('/api/vision/portfolio')]).then(([road, proj, port]) => {
+      setRoadmap(road); setProjects(proj); setPortfolio(port)
     })
   }, [])
   const onTarget = KPIS.filter(onTrack).length
@@ -79,6 +84,7 @@ export default function Strategy() {
         <div className="row-meta" style={{ marginBottom: 6 }}>
           <Chip tone={roadmap ? 'purple' : undefined}>{roadmap ? `${roadmap.records.length} roadmap items` : 'Vision unavailable'}</Chip>
           <Chip tone={projects ? 'green' : undefined}>{projects ? `${projects.projects.length} Atlas projects` : 'Atlas unavailable'}</Chip>
+          <Chip tone={portfolio ? 'blue' : undefined}>{portfolio ? `${portfolio.records.length} portfolio items` : 'Portfolio unavailable'}</Chip>
         </div>
         {roadmap?.records.slice(0, 4).map(item => (
           <div className="row-meta" key={item.id} style={{ justifyContent: 'space-between', padding: '3px 0' }}>
@@ -96,6 +102,23 @@ export default function Strategy() {
         ))}
         {importedBets.length > 0 && <div className="tiny" style={{ marginTop: 6 }}>Imported bets: {importedBets.map(item => item.title).join(' · ')}</div>}
         {projects && <div className="tiny" style={{ marginTop: 4 }}>{projects.projects.slice(0, 5).map(project => project.label).join(' · ')}</div>}
+        <div className="row-meta" style={{ marginTop: 8 }}>
+          <input className="osmap-search" placeholder="Propose a Vision roadmap item…" value={proposal} onChange={e => setProposal(e.target.value)} />
+          <button className="btn small" disabled={proposing || !proposal.trim()} onClick={async () => {
+            setProposing(true)
+            try {
+              const response = await fetch('/api/vision/roadmap', {
+                method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ title: proposal.trim(), stage: 'Diagnose', status: 'proposed', sourceBasis: 'Proposed from ProcessLink Strategy' }),
+              })
+              if (!response.ok) throw new Error(`Vision HTTP ${response.status}`)
+              notify('Proposed to Vision', 'Roadmap item created as proposed.')
+              setProposal('')
+            } catch (error) {
+              notify('Vision proposal failed', error instanceof Error ? error.message : 'Request failed', true)
+            } finally { setProposing(false) }
+          }}>{proposing ? 'Proposing…' : 'Propose to Vision'}</button>
+        </div>
       </Card>
 
       <Card title="Function vision" subtitle={`${VISION.functionName} · owned by ${VISION.owner}`} glyph="◎">

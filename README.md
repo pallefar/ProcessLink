@@ -253,12 +253,12 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 Tag a version and GitHub Actions builds both desktop installers:
 
 ```bash
-git tag v0.1.38 && git push origin v0.1.38
+git tag v0.1.39 && git push origin v0.1.39
 ```
 
 The release contains a universal macOS DMG (`arm64` + `x86_64`), a Windows
 NSIS setup (and an MSI from the Windows CI job), and `SHA256SUMS.txt`.
-[Download v0.1.38](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.38).
+[Download v0.1.39](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.39).
 Local packaging, signing and the current Actions billing note are in
 [`docs/RELEASING.md`](docs/RELEASING.md).
 
