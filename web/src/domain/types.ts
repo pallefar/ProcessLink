@@ -291,3 +291,19 @@ export interface SavingsLine {
   hours: number
   validatedBy?: string
 }
+
+
+export type FeedbackKind = 'map' | 'mapShape' | 'process' | 'opportunity' | 'initiative' | 'meeting' | 'miningCase'
+
+export interface Feedback {
+  id: string
+  kind: FeedbackKind
+  subjectId: string
+  subjectLabel: string
+  parentId: string
+  body: string
+  author: string
+  createdAt: string
+  resolved: boolean
+  mentions: string[]
+}

@@ -7,6 +7,7 @@ import {
   buildCases, conformance, filterEvents, mine, parseEventCSV, rootCauses, sampleCSV, simulate,
   type MiningEvent, type MiningFilter,
 } from '../domain/mining'
+import { buildOcel, closestPeer } from '../domain/ocel'
 
 type Tab = 'overview' | 'process' | 'cases' | 'conformance' | 'insights' | 'simulate'
 
@@ -24,6 +25,7 @@ export default function Mining() {
   const [remove, setRemove] = useState<Set<string>>(new Set())
   const [reworkReduction, setReworkReduction] = useState(0)
   const [waitReduction, setWaitReduction] = useState(0)
+  const [objectKey, setObjectKey] = useState('')
   const fileInput = useRef<HTMLInputElement>(null)
 
   const baseline = useMemo(() => mine(events), [events])
@@ -37,6 +39,8 @@ export default function Mining() {
   const activities = baseline.activities.map(a => a.name).sort()
   const resources = [...new Set(events.map(e => e.resource))].sort()
   const attributeKeys = [...new Set(events.flatMap(e => Object.keys(e.attributes)))]
+  const ocel = buildOcel(filtered, [objectKey || attributeKeys[0] || ''].filter(Boolean))
+  const peer = closestPeer(mined.median)
 
   const importFile = async (file: File) => {
     const text = await file.text()
@@ -245,6 +249,35 @@ export default function Mining() {
 
           {tab === 'insights' && (
             <div className="mining-tab">
+              {attributeKeys.length > 0 && (
+                <Card title="Object-centric log" subtitle="Multiple object notions linked from imported dimensions." glyph="⬡">
+                  <div className="row-meta" style={{ marginBottom: 8 }}>
+                    <select value={objectKey || attributeKeys[0]} onChange={e => setObjectKey(e.target.value)} aria-label="Object dimension">
+                      {attributeKeys.map(key => <option key={key} value={key}>{key}</option>)}
+                    </select>
+                    <Chip tone="purple">{ocel.objects.length} objects</Chip>
+                    <Chip tone="blue">{ocel.multiObjectEvents} multi-object events</Chip>
+                  </div>
+                  <div className="row-meta" style={{ gap: 12, marginBottom: 8 }}>
+                    {ocel.objectTypes.map(type => <Chip key={type.type} tone="green">{type.type} · {type.count}</Chip>)}
+                  </div>
+                  {ocel.interactions.slice(0, 5).map(interaction => (
+                    <div className="row-meta" key={`${interaction.from}-${interaction.to}`} style={{ justifyContent: 'space-between', padding: '3px 0' }}>
+                      <span>{interaction.from} → {interaction.to}</span><span className="subtle">{interaction.events} events</span>
+                    </div>
+                  ))}
+                </Card>
+              )}
+              <Card title="Peer benchmark" subtitle="Illustrative peer cohort, not a governed external feed." glyph="↗">
+                <div className="row-meta"><Chip tone="blue">{peer.label}</Chip><Chip>{peer.cohort}</Chip><Chip tone="orange">Illustrative</Chip></div>
+                <div className="grid metrics">
+                  <Metric label="Your median" value={fmt.minutes(mined.median)} detail="Current view" />
+                  <Metric label="Peer median" value={fmt.minutes(peer.medianCycleMinutes)} detail={`${peer.sampleCases} sample cases`} />
+                  <Metric label="Your rework" value={fmt.percent(mined.reworkRate)} detail="Current view" />
+                  <Metric label="Peer rework" value={fmt.percent(peer.reworkRate)} detail="Illustrative cohort" />
+                </div>
+                <p className="subtle">{peer.note}</p>
+              </Card>
               <Card title="Root cause — slow cases" subtitle="Attribute values correlated with longer cycles." glyph="◎">
                 {causes.length === 0 ? <p className="subtle">No attribute has enough cases to compare.</p> : (
                   <div className="grid two wide">

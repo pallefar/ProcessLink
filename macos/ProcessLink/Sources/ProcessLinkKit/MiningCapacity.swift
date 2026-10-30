@@ -59,6 +59,7 @@ public enum CapacitySimulation {
                            arrivalPerDay: Double,
                            days: Int,
                            workingMinutesPerDay: Double = 480,
+                           breakMinutesPerDay: Double = 0,
                            seed: UInt64 = 7) -> CapacityResult {
         guard !mined.caseRecords.isEmpty, !roles.isEmpty, arrivalPerDay > 0, days > 0 else {
             return CapacityResult(cases: 0, medianCycleMinutes: 0, p90CycleMinutes: 0,
@@ -68,7 +69,9 @@ public enum CapacitySimulation {
         var rng = LCG(seed: seed)
         let count = max(10, Int((arrivalPerDay * Double(days)).rounded()))
         let workingMinutes = max(60, min(1_440, workingMinutesPerDay))
-        let gap = workingMinutes / max(1, arrivalPerDay)
+        let breakMinutes = max(0, min(workingMinutes - 30, breakMinutesPerDay))
+        let productiveMinutes = max(30, workingMinutes - breakMinutes)
+        let gap = productiveMinutes / max(1, arrivalPerDay)
         let roleByName = Dictionary(uniqueKeysWithValues: roles.map { ($0.role, $0) })
         var available = Dictionary(uniqueKeysWithValues: roles.map { ($0.role, 0.0) })
         var busy = Dictionary(uniqueKeysWithValues: roles.map { ($0.role, 0.0) })
@@ -112,14 +115,14 @@ public enum CapacitySimulation {
             let values = waits[role.role] ?? []
             return RoleUtilization(
                 role: role.role,
-                utilization: horizon <= 0 ? 0 : min(1, (busy[role.role] ?? 0) / (horizon * Double(role.capacity))),
+                utilization: horizon <= 0 ? 0 : min(1, (busy[role.role] ?? 0) / max(1, productiveMinutes * Double(days) * Double(role.capacity))),
                 averageWaitMinutes: values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count),
                 demandMinutes: busy[role.role] ?? 0,
-                availableMinutes: horizon * Double(role.capacity),
+                availableMinutes: productiveMinutes * Double(days) * Double(role.capacity),
                 recommendedCapacity: horizon <= 0 ? role.capacity
-                    : max(1, Int(ceil((busy[role.role] ?? 0) / (horizon * 0.85)))),
+                    : max(1, Int(ceil((busy[role.role] ?? 0) / max(1, productiveMinutes * Double(days) * 0.85)))),
                 capacityGap: horizon <= 0 ? 0
-                    : max(1, Int(ceil((busy[role.role] ?? 0) / (horizon * 0.85)))) - role.capacity)
+                    : max(1, Int(ceil((busy[role.role] ?? 0) / max(1, productiveMinutes * Double(days) * 0.85)))) - role.capacity)
         }
         return CapacityResult(
             cases: count,
@@ -132,7 +135,7 @@ public enum CapacitySimulation {
                 "Cases follow the observed variant shares; the seed is fixed.",
                 "Each role is a FIFO queue with the capacity shown.",
                 "The staffing recommendation keeps each role at or below 85% utilisation over the simulated horizon; it is a starting point, not a roster.",
-                "Arrivals are spread across a \(Int(workingMinutes))-minute working day; weekends, shifts and breaks are not modelled.",
+                "Arrivals are spread across a \(Int(productiveMinutes))-minute productive day (\(Int(workingMinutes)) shift minus \(Int(breakMinutes)) break); weekends and holidays are not modelled.",
             ])
     }
 

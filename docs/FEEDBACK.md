@@ -24,3 +24,8 @@ resolve, reopen and delete.
 Comments are local annotation, not a write to Flightdeck Maps, Atlas or PDF
 Studio. There is no sync or notification delivery yet; @mentions are stored as
 typed and are not resolved against a person directory.
+
+
+The web form has the same thread semantics and a map/shape comment panel; its
+state is in-memory in this build, so a reload resets comments. The macOS app
+persists through SwiftData.

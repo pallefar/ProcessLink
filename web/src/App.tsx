@@ -8,12 +8,12 @@ import { answer as answerQuestion, SUGGESTIONS } from './domain/ask'
 import { MEETING_LABEL } from './domain/labels'
 import type {
   Answer, AuditEntry, BlockKind, GovernanceItem, Initiative, KGEdge, KGNode, Meeting,
-  MeetingBlock, MeetingKind, Opportunity, PrivacyPolicy,
+  Feedback, FeedbackKind, MeetingBlock, MeetingKind, Opportunity, PrivacyPolicy,
 } from './domain/types'
 
 export type Page =
   | 'overview' | 'strategy' | 'discoveries' | 'opportunities' | 'maps' | 'meetings' | 'mining'
-  | 'graph' | 'improvements' | 'ask' | 'governance'
+  | 'graph' | 'improvements' | 'feedback' | 'ask' | 'governance'
 
 export const NAV: Array<{ id: Page; label: string; group: string; icon: string }> = [
   { id: 'overview', label: 'Overview', group: 'Work', icon: 'overview' },
@@ -24,6 +24,7 @@ export const NAV: Array<{ id: Page; label: string; group: string; icon: string }
   { id: 'meetings', label: 'Meetings', group: 'Work', icon: 'meetings' },
   { id: 'mining', label: 'Mining', group: 'Work', icon: 'mining' },
   { id: 'improvements', label: 'Improvements', group: 'Improve', icon: 'improvements' },
+  { id: 'feedback', label: 'Feedback', group: 'Improve', icon: 'comment' },
   { id: 'ask', label: 'Ask', group: 'Improve', icon: 'ask' },
   { id: 'graph', label: 'Knowledge Graph', group: 'Trust', icon: 'graph' },
   { id: 'governance', label: 'Governance', group: 'Trust', icon: 'governance' },
@@ -37,6 +38,9 @@ interface AppValue {
   processes: typeof PROCESSES
   opportunities: Opportunity[]
   initiatives: Initiative[]
+  feedback: Feedback[]
+  addFeedback: (input: { kind: FeedbackKind; subjectId: string; subjectLabel: string; body: string; parentId?: string }) => boolean
+  setFeedbackResolved: (id: string, resolved: boolean) => void
   nodes: KGNode[]
   edges: KGEdge[]
   meetings: Meeting[]
@@ -102,6 +106,10 @@ export default function ProcessLink() {
   const [edges, setEdges] = useState<KGEdge[]>(KG_EDGES)
   const [meetings, setMeetings] = useState<Meeting[]>(MEETINGS)
   const [blocks, setBlocks] = useState<MeetingBlock[]>(BLOCKS)
+  const [feedback, setFeedback] = useState<Feedback[]>([
+    { id: 'fb-web-1', kind: 'process', subjectId: 'p-order', subjectLabel: 'Order intake & validation', parentId: '', body: 'Should the second pricing check be sampled rather than removed? @Ops Excellence Lead', author: 'CI Manager (role)', createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), resolved: false, mentions: ['@Ops'] },
+    { id: 'fb-web-2', kind: 'map', subjectId: 'p-triage', subjectLabel: 'Customer case triage — as-is', parentId: '', body: 'The resolver handoff looks longer than the standard. Confirm on the next huddle?', author: 'Order Desk Lead', createdAt: new Date(Date.now() - 86400000).toISOString(), resolved: false, mentions: [] },
+  ])
   const [governance, setGovernance] = useState<GovernanceItem[]>(GOVERNANCE)
   const [audit, setAudit] = useState<AuditEntry[]>(AUDIT)
   const [answers, setAnswers] = useState<Answer[]>(() => {
@@ -142,6 +150,23 @@ export default function ProcessLink() {
     const timer = window.setTimeout(() => setToast(null), 3800)
     return () => window.clearTimeout(timer)
   }, [toast])
+
+  const addFeedback = useCallback((input: { kind: FeedbackKind; subjectId: string; subjectLabel: string; body: string; parentId?: string }) => {
+    const trimmed = input.body.trim()
+    if (!trimmed) return false
+    const mentions = trimmed.match(/@[A-Za-z0-9._-]+/g) ?? []
+    const record: Feedback = {
+      id: `fb-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      kind: input.kind, subjectId: input.subjectId, subjectLabel: input.subjectLabel,
+      parentId: input.parentId ?? '', body: trimmed, author: 'CI Manager (role)',
+      createdAt: new Date().toISOString(), resolved: false, mentions: [...new Set(mentions)],
+    }
+    setFeedback(current => [record, ...current])
+    return true
+  }, [])
+  const setFeedbackResolved = useCallback((id: string, resolved: boolean) => {
+    setFeedback(current => current.map(item => item.id === id ? { ...item, resolved } : item))
+  }, [])
 
   const notify = useCallback((title: string, detail?: string, warning = false) => {
     setToast({ id: Date.now(), title, detail, warning })
@@ -503,7 +528,7 @@ export default function ProcessLink() {
   }, [opportunities, initiatives, policy.dataOwner, addAudit, notify])
 
   const value = useMemo<AppValue>(() => ({
-    page, navigate, processes: PROCESSES, opportunities, initiatives, nodes, edges, meetings, blocks,
+    page, navigate, processes: PROCESSES, opportunities, initiatives, feedback, addFeedback, setFeedbackResolved, nodes, edges, meetings, blocks,
     selectedMeeting, selectMeeting, createMeeting, updateMeeting, addMeetingBlock, updateBlock,
     deleteBlock, toggleBlock, linkMeeting, promoteAction,
     governance, audit, answers, policy, setPolicy, toast, notify,
@@ -511,7 +536,7 @@ export default function ProcessLink() {
     selectedInitiative, selectInitiative, selectedNode, selectNode,
     promote, commitSaving, advanceInitiative, setGovernanceStatus, validateSaving, reviewNode, ask, clearAsk, sync, exportBrief,
     theme, setTheme, suggestions: SUGGESTIONS,
-  }), [page, navigate, opportunities, initiatives, nodes, edges, meetings, blocks, governance, audit, answers, policy,
+  }), [page, navigate, opportunities, initiatives, feedback, addFeedback, setFeedbackResolved, nodes, edges, meetings, blocks, governance, audit, answers, policy,
     toast, notify, selectedProcess, selectedOpportunity, selectedInitiative, selectedNode, selectedMeeting,
     selectMeeting, createMeeting, updateMeeting, addMeetingBlock, updateBlock, deleteBlock, toggleBlock,
     linkMeeting, promoteAction,

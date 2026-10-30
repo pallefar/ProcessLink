@@ -3,6 +3,7 @@ import { useApp } from '../App'
 import { Card, Chip, Empty, KV, Metric, Note, PageHead, stageTone } from '../components/ui'
 import { fmt, initiativeLine, savingsConflicts, savingsTotal } from '../domain/rules'
 import { METHOD_TITLE, STAGE_DETAIL, STAGE_LABEL, WASTE_LABEL } from '../domain/labels'
+import type { Initiative, Step } from '../domain/types'
 
 export default function Improvements() {
   const { initiatives, selectedInitiative, selectInitiative, commitSaving, advanceInitiative, validateSaving, processes } = useApp()
@@ -114,6 +115,7 @@ export default function Improvements() {
                 <div className="rowflex" style={{ marginTop: 12 }}>
                   <button className="btn small" onClick={() => commitSaving(selected.id)} disabled={selected.savingsStage !== 'estimated'}>Commit saving</button>
                   <button className="btn small" onClick={() => setValidating(selected.id)} disabled={selected.savingsStage === 'validated'}>Validate with evidence…</button>
+                  <button className="btn small" onClick={() => downloadHandoff(selected, processes.find(p => p.id === selected.processId)?.steps ?? [])}>Download handoff (.md)</button>
                   <span className="tiny" style={{ marginLeft: 'auto' }}>{fmt.hours(selected.savingsHours)} · {fmt.money(selected.savingsHours)}</span>
                 </div>
               </Card>
@@ -150,6 +152,22 @@ export default function Improvements() {
 }
 
 const rank = (stage: string) => stage === 'validated' ? 2 : stage === 'committed' ? 1 : 0
+
+function downloadHandoff(initiative: Initiative, steps: Step[]) {
+  const payload = {
+    schema: 'processlink-automation-handoff/1',
+    generatedAt: new Date().toISOString(),
+    initiative: { id: initiative.id, title: initiative.title, owner: initiative.owner, process: initiative.processName, savingHours: initiative.savingsHours, savingStage: initiative.savingsStage },
+    steps: steps.map(step => ({ id: step.id, name: step.name, role: step.role, application: step.application, minutes: step.minutes })),
+    guardrails: ['No automatic send, release or performance decision.', 'A named human validates the KPI change and the saving.', 'This is a scaffold, not a deployment.'],
+  }
+  const text = `# Automation handoff — ${initiative.title}\n\nOwner: ${initiative.owner}\nProcess: ${initiative.processName}\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n\n## Test plan\n\n- Before/after KPI with a named validator\n- Human review of every output\n- Rollback owner and date\n`
+  const blob = new Blob([text], { type: 'text/markdown' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url; link.download = `${initiative.id}-automation-handoff.md`
+  link.click(); URL.revokeObjectURL(url)
+}
 
 function ValidationDialog({ initiativeId, onClose, onValidate }: {
   initiativeId: string

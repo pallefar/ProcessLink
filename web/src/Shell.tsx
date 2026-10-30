@@ -9,6 +9,7 @@ import Meetings from './pages/Meetings'
 import Graph from './pages/Graph'
 import Improvements from './pages/Improvements'
 import Ask from './pages/Ask'
+import Feedback from './pages/Feedback'
 import Mining from './pages/Mining'
 import Governance from './pages/Governance'
 import { Icon } from './components/Icon'
@@ -25,6 +26,7 @@ const PAGES = {
   graph: Graph,
   improvements: Improvements,
   ask: Ask,
+  feedback: Feedback,
   governance: Governance,
 }
 

@@ -3,6 +3,7 @@ import { useApp } from '../App'
 import { Card, Chip, Empty, KV, Note } from '../components/ui'
 import { MapSvg, overlayText, type Overlay } from '../components/MapSvg'
 import { fmt, scoreOpportunity } from '../domain/rules'
+import { FeedbackPanel, type FeedbackSubject } from '../components/FeedbackPanel'
 import { WASTE_LABEL } from '../domain/labels'
 import type { Step } from '../domain/types'
 
@@ -18,7 +19,7 @@ interface Draft { label: string; role: string; system: string; minutes: string }
 export default function Maps() {
   const {
     processes, selectedProcess, selectProcess, opportunities, initiatives, navigate, notify,
-    selectNode, selectOpportunity,
+    selectNode, selectOpportunity, feedback,
   } = useApp()
   const eligible = processes.filter(p => p.status === 'discovered' && p.steps.length > 0)
   const process = eligible.find(p => p.id === selectedProcess) ?? eligible[0]
@@ -27,6 +28,7 @@ export default function Maps() {
   const [selectedStepId, setSelectedStepId] = useState<string | undefined>(undefined)
   const [overrides, setOverrides] = useState<Record<string, Partial<Step>>>({})
   const [draft, setDraft] = useState<Draft>({ label: '', role: '', system: '', minutes: '' })
+  const [feedbackSubject, setFeedbackSubject] = useState<FeedbackSubject>()
 
   useEffect(() => {
     const hottest = [...(process?.steps ?? [])].sort((a, b) => b.minutes - a.minutes)[0]
@@ -114,6 +116,7 @@ export default function Maps() {
           {OVERLAYS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
         </select>
         <button className="btn" onClick={() => { setOverrides({}); notify('Maps reloaded', 'Pulled the latest signavio-map/1 document.') }}>↻ Pull</button>
+        <button className="btn" onClick={() => setFeedbackSubject({ kind: 'map', subjectId: process.id, subjectLabel: process.name })}>Feedback {feedback.filter(f => f.kind === 'map' && f.subjectId === process.id && !f.parentId && !f.resolved).length || ''}</button>
         <button className="icon-btn" aria-label="Map actions" title="Map actions" onClick={() => notify('Document', `${process.id} · ${process.steps.length} shapes · Flightdeck Maps owns this file.`)}>⋯</button>
       </div>
 
@@ -136,6 +139,7 @@ export default function Maps() {
               <div className="rowflex">
                 <button className="btn primary" onClick={save}>Save to map</button>
                 <button className="btn" onClick={restore} disabled={!base}>Restore</button>
+                <button className="btn" onClick={() => step && setFeedbackSubject({ kind: 'mapShape', subjectId: `${process.id}#${step.id}`, subjectLabel: `${process.name} · ${step.name}` })} disabled={!step}>Feedback</button>
               </div>
             </div>
           ) : <Empty title="No shape selected" detail="Click a shape to edit it." />}
@@ -186,6 +190,13 @@ export default function Maps() {
           </div>
         </Card>
       </div>
+      {feedbackSubject && (
+        <div className="modal-backdrop" onClick={() => setFeedbackSubject(undefined)}>
+          <div className="modal-card" onClick={event => event.stopPropagation()}>
+            <FeedbackPanel subject={feedbackSubject} onClose={() => setFeedbackSubject(undefined)} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -64,6 +64,7 @@ struct MiningWorkbench: View {
     @State private var arrivalPerDay: Double = 24
     @State private var capacityDays = 5
     @State private var capacityWorkingMinutes: Double = 480
+    @State private var capacityBreakMinutes: Double = 30
     @State private var capacityResult: CapacityResult?
     @State private var showMapMapping = false
     @State private var showDriftReview = false
@@ -1167,16 +1168,21 @@ struct MiningWorkbench: View {
                     Stepper(value: $capacityDays, in: 1...60) {
                         Text("\(capacityDays)").font(.caption.monospacedDigit()).frame(width: 24)
                     }
-                    Text("Working min/day").font(.caption)
+                    Text("Shift min/day").font(.caption)
                     Stepper(value: $capacityWorkingMinutes, in: 120...720, step: 30) {
                         Text("\(Int(capacityWorkingMinutes))").font(.caption.monospacedDigit()).frame(width: 32)
+                    }
+                    Text("Break").font(.caption)
+                    Stepper(value: $capacityBreakMinutes, in: 0...120, step: 15) {
+                        Text("\(Int(capacityBreakMinutes))").font(.caption.monospacedDigit()).frame(width: 24)
                     }
                     Spacer()
                     Button("Run capacity simulation") {
                         capacityResult = CapacitySimulation.run(
                             mined, roles: capacityRoles,
                             arrivalPerDay: arrivalPerDay, days: capacityDays,
-                            workingMinutesPerDay: capacityWorkingMinutes)
+                            workingMinutesPerDay: capacityWorkingMinutes,
+                            breakMinutesPerDay: capacityBreakMinutes)
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -1287,7 +1293,7 @@ struct MiningWorkbench: View {
         panel.allowedContentTypes = [.plainText]
         guard panel.runModal() == .OK, let url = panel.url else { return }
         var text = "# Capacity study — \(dataset.name)\n\n"
-        text += "Arrivals/day: \(Int(arrivalPerDay)) · Days: \(capacityDays) · Working minutes/day: \(Int(capacityWorkingMinutes))\n\n"
+        text += "Arrivals/day: \(Int(arrivalPerDay)) · Days: \(capacityDays) · Shift: \(Int(capacityWorkingMinutes)) min · Break: \(Int(capacityBreakMinutes)) min\n\n"
         text += "## Result\n\nCases: \(result.cases) · Median cycle: \(Fmt.minutes(result.medianCycleMinutes)) · P90: \(Fmt.minutes(result.p90CycleMinutes)) · Average wait: \(Fmt.minutes(result.averageWaitMinutes))\n\n"
         text += "| Role | Capacity | Utilisation | Average wait | Recommended | Gap |\n|---|---|---|---|---|---|\n"
         for role in result.utilization {

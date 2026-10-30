@@ -1699,7 +1699,25 @@ final class AppModel {
             }
         }
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            var data = Data()
+            var response: URLResponse?
+            for attempt in 0..<3 {
+                do {
+                    let result = try await URLSession.shared.data(for: request)
+                    data = result.0
+                    response = result.1
+                    if let http = result.1 as? HTTPURLResponse,
+                       (http.statusCode == 429 || http.statusCode >= 500), attempt < 2 {
+                        let delay = http.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init) ?? Double(attempt + 1)
+                        try? await Task.sleep(for: .seconds(min(8, delay)))
+                        continue
+                    }
+                    break
+                } catch {
+                    if attempt == 2 { throw error }
+                    try? await Task.sleep(for: .seconds(Double(attempt + 1)))
+                }
+            }
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 throw NSError(domain: "ProcessLink.Connector", code: 1,
                               userInfo: [NSLocalizedDescriptionKey: "HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)"])
@@ -1724,7 +1742,14 @@ final class AppModel {
             connector.lastStatus = "success"
             connector.lastError = ""
             connector.lastRunAt = .now
-            connector.cursor = ISO8601DateFormatter().string(from: now)
+            if let next = http.value(forHTTPHeaderField: "X-Next-Cursor") ?? http.value(forHTTPHeaderField: "X-Cursor") {
+                connector.cursor = next
+            } else if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let next = root["nextCursor"] as? String ?? root["cursor"] as? String {
+                connector.cursor = next
+            } else {
+                connector.cursor = ISO8601DateFormatter().string(from: now)
+            }
             audit(action: "connector.run", subject: connector.name,
                   detail: "\(result.events.count) events, \(result.caseCount) cases")
             try? context.save()
