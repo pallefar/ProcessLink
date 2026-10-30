@@ -98,11 +98,59 @@ enum UpdateService {
             try? FileManager.default.removeItem(at: destination)
             throw UpdateError.checksumMismatch
         }
+        try verifySignature(dmg: destination)
         return destination
+    }
+
+    private static func verifySignature(dmg: URL) throws {
+        let mount = FileManager.default.temporaryDirectory.appendingPathComponent("processlink-verify-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: mount, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: mount) }
+
+        let attach = Process()
+        attach.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        attach.arguments = ["attach", "-nobrowse", "-readonly", "-mountpoint", mount.path, dmg.path]
+        attach.standardOutput = Pipe()
+        attach.standardError = Pipe()
+        try attach.run()
+        attach.waitUntilExit()
+        guard attach.terminationStatus == 0 else { throw UpdateError.signatureInvalid }
+
+        defer {
+            let detach = Process()
+            detach.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+            detach.arguments = ["detach", mount.path, "-quiet"]
+            try? detach.run()
+            detach.waitUntilExit()
+        }
+
+        guard let app = (try? FileManager.default.contentsOfDirectory(at: mount, includingPropertiesForKeys: nil))?
+            .first(where: { $0.pathExtension == "app" }) else { throw UpdateError.signatureInvalid }
+
+        let verify = Process()
+        verify.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        verify.arguments = ["--verify", "--deep", "--strict", app.path]
+        verify.standardError = Pipe()
+        verify.standardOutput = Pipe()
+        try verify.run()
+        verify.waitUntilExit()
+        guard verify.terminationStatus == 0 else { throw UpdateError.signatureInvalid }
+
+        let details = Process()
+        details.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        details.arguments = ["-dv", "--verbose=2", app.path]
+        let pipe = Pipe()
+        details.standardError = pipe
+        details.standardOutput = pipe
+        try details.run()
+        details.waitUntilExit()
+        let text = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        guard !text.contains("Signature=adhoc") else { throw UpdateError.signatureInvalid }
     }
 
     enum UpdateError: LocalizedError {
         case noChecksums
+        case signatureInvalid
         case checksumMismatch
         case badURL
         case http(Int)
@@ -114,6 +162,7 @@ enum UpdateService {
             case .malformed: "The update feed did not contain a release."
             case .noChecksums: "The release has no SHA256SUMS.txt asset."
             case .checksumMismatch: "The downloaded DMG failed its SHA-256 check."
+            case .signatureInvalid: "The downloaded app is not validly signed."
             }
         }
     }

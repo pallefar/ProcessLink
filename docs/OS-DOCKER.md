@@ -74,3 +74,6 @@ the local Presentation Studio at `DECKFORGE_URL` (default
 
 
 PDF Studio handoff: Settings → Connections → PDF Studio inbox; Feedback → Send to PDF Studio.
+
+
+ProcessLink release DMGs are signed with the available Apple Development identity and the updater verifies the bundle signature.
