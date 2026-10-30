@@ -13,6 +13,7 @@ struct GovernancePage: View {
     @State private var demoTitle = ""
     @State private var piiSample = "Please fix case EMP-4821 for anna.schmidt@example.com, IBAN DE44 5001 0517 5407 3249 31."
     @State private var pii: PIIScan?
+    @State private var confirmPurge = false
 
     private func items(in group: String) -> [GovernanceRecord] {
         governance.filter { $0.group == group }.sorted { $0.sortKey < $1.sortKey }
@@ -72,6 +73,12 @@ struct GovernancePage: View {
         }
         .gridArea("governance")
         .navigationTitle("Governance")
+        .alert("Apply retention purge?", isPresented: $confirmPurge) {
+            Button("Cancel", role: .cancel) {}
+            Button("Purge expired capture", role: .destructive) { model.purgeExpiredCapture() }
+        } message: {
+            Text("Removes local capture sessions older than \(model.retentionDays) days, including their windows, task segments and screenshots. This cannot be undone.")
+        }
     }
 
     private func governanceRow(_ item: GovernanceRecord) -> some View {
@@ -186,7 +193,7 @@ struct GovernancePage: View {
                 HStack {
                     Button("Export audit CSV") { model.exportAuditCSV() }
                         .controlSize(.small)
-                    Button("Apply retention purge") { model.purgeExpiredCapture() }
+                    Button("Apply retention purge") { confirmPurge = true }
                         .controlSize(.small)
                 }
                 Divider().opacity(0.6)
