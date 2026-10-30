@@ -12,7 +12,7 @@ import { buildOcel, closestPeer } from '../domain/ocel'
 type Tab = 'overview' | 'process' | 'cases' | 'conformance' | 'insights' | 'simulate'
 
 export default function Mining() {
-  const { notify } = useApp()
+  const { notify, processes } = useApp()
   const [mode, setMode] = useState<'logs' | 'capture'>('logs')
   const [tab, setTab] = useState<Tab>('overview')
   const [datasetName, setDatasetName] = useState('Order intake · mined sample')
@@ -26,6 +26,10 @@ export default function Mining() {
   const [reworkReduction, setReworkReduction] = useState(0)
   const [waitReduction, setWaitReduction] = useState(0)
   const [objectKey, setObjectKey] = useState('')
+  const [aiProcess, setAiProcess] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiMapping, setAiMapping] = useState<Record<string, { step: string; confidence: number }>>({})
   const fileInput = useRef<HTMLInputElement>(null)
 
   const baseline = useMemo(() => mine(events), [events])
@@ -249,6 +253,38 @@ export default function Mining() {
 
           {tab === 'insights' && (
             <div className="mining-tab">
+              <Card title="AI map alignment" subtitle="Local transformers.js: match mined activities to a process vocabulary." glyph="✦">
+                <div className="row-meta" style={{ marginBottom: 8 }}>
+                  <select value={aiProcess || processes[0]?.id || ''} onChange={e => { setAiProcess(e.target.value); setAiMapping({}); setAiError('') }} aria-label="Process vocabulary">
+                    {processes.map(process => <option key={process.id} value={process.id}>{process.name}</option>)}
+                  </select>
+                  <button className="btn small" disabled={aiBusy || !processes.length} onClick={async () => {
+                    const vocabulary = processes.find(p => p.id === (aiProcess || processes[0]?.id))
+                    if (!vocabulary) return
+                    setAiBusy(true); setAiError(''); setAiMapping({})
+                    try {
+                      const response = await fetch('http://127.0.0.1:4183/api/map', {
+                        method: 'POST', headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({ activities: mined.activities.map(a => a.name), steps: vocabulary.steps.map(step => ({ id: step.id, label: step.name })) }),
+                      })
+                      if (!response.ok) throw new Error(`AI sidecar HTTP ${response.status}`)
+                      const data = await response.json() as { mapping: Record<string, string>; confidence?: Record<string, number> }
+                      const next: Record<string, { step: string; confidence: number }> = {}
+                      for (const [activity, step] of Object.entries(data.mapping)) next[activity] = { step, confidence: data.confidence?.[activity] ?? 0 }
+                      setAiMapping(next)
+                    } catch (error) { setAiError(error instanceof Error ? error.message : 'AI unavailable') }
+                    finally { setAiBusy(false) }
+                  }}>{aiBusy ? 'Thinking…' : 'Suggest with AI'}</button>
+                  <span className="subtle">Start the local sidecar on :4183</span>
+                </div>
+                {aiError && <p className="subtle" style={{ color: 'var(--orange)' }}>{aiError}</p>}
+                {Object.keys(aiMapping).length === 0 ? <p className="subtle">No AI mapping yet. Activity labels are sent; case ids and event rows are not.</p> : (
+                  <table className="table compact"><thead><tr><th>Activity</th><th>Map step</th><th className="num">Confidence</th></tr></thead><tbody>
+                    {Object.entries(aiMapping).map(([activity, value]) => <tr key={activity}><td>{activity}</td><td>{processes.find(p => p.id === (aiProcess || processes[0]?.id))?.steps.find(s => s.id === value.step)?.name ?? value.step}</td><td className="num">{Math.round(value.confidence * 100)}%</td></tr>)}
+                  </tbody></table>
+                )}
+              </Card>
+
               {attributeKeys.length > 0 && (
                 <Card title="Object-centric log" subtitle="Multiple object notions linked from imported dimensions." glyph="⬡">
                   <div className="row-meta" style={{ marginBottom: 8 }}>

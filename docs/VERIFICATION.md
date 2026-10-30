@@ -31,7 +31,7 @@ three-source connection state).
 
 | Check | Command | Result |
 |---|---|---|
-| Typecheck + build | `npm run build` | `tsc --noEmit` clean; Vite build 406 kB JS / 29.1 kB CSS (≈123 kB gzip) |
+| Typecheck + build | `npm run build` | `tsc --noEmit` clean; Vite build 413 kB JS / 29.1 kB CSS (≈125 kB gzip) |
 | Render review | headless Chrome, 1440×900 | Overview, Discoveries, Opportunities, Maps, Meetings, Mining, Graph, Improvements, Ask, Governance; light and dark |
 | Deep links | `#/overview`, `?theme=light|dark`, `?q=...` | Verified via screenshots |
 | Local preview | `npm run preview` on port 4175 | 200 OK |

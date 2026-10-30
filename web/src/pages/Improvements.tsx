@@ -4,6 +4,7 @@ import { Card, Chip, Empty, KV, Metric, Note, PageHead, stageTone } from '../com
 import { fmt, initiativeLine, savingsConflicts, savingsTotal } from '../domain/rules'
 import { METHOD_TITLE, STAGE_DETAIL, STAGE_LABEL, WASTE_LABEL } from '../domain/labels'
 import type { Initiative, Step } from '../domain/types'
+import { FeedbackButton } from '../components/FeedbackButton'
 
 export default function Improvements() {
   const { initiatives, selectedInitiative, selectInitiative, commitSaving, advanceInitiative, validateSaving, processes } = useApp()
@@ -77,6 +78,7 @@ export default function Improvements() {
             <div className="stack">
               <div>
                 <h2 style={{ margin: 0, fontSize: 17 }}>{selected.title}</h2>
+                <FeedbackButton subject={{ kind: 'initiative', subjectId: selected.id, subjectLabel: selected.title }} />
                 <div className="rowflex" style={{ marginTop: 6 }}>
                   <Chip tone={stageTone(selected.savingsStage)}>{STAGE_LABEL[selected.savingsStage]}</Chip>
                   <Chip>{METHOD_TITLE[selected.method]}</Chip>

@@ -1,4 +1,5 @@
 import { useApp, type Page } from '../App'
+import { FeedbackButton } from '../components/FeedbackButton'
 import { Card, Chip, Empty, KV, Metric, Note, PageHead } from '../components/ui'
 import { evaluate, fmt } from '../domain/rules'
 import { WASTE_LABEL } from '../domain/labels'
@@ -43,6 +44,7 @@ export default function Discoveries() {
           <div className="detail-pane">
             <div className="rowflex" style={{ alignItems: 'baseline' }}>
               <h2 style={{ margin: 0, fontSize: 18 }}>{process.name}</h2>
+              <FeedbackButton subject={{ kind: 'process', subjectId: process.id, subjectLabel: process.name }} />
               <div className="spacer" />
               <Chip tone={process.status === 'blocked' ? 'red' : process.status === 'suppressed' ? 'orange' : 'green'}>
                 {process.status === 'discovered' ? 'Discovered' : process.status === 'suppressed' ? 'Suppressed' : 'Blocked'}

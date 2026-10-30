@@ -60,6 +60,8 @@ public enum CapacitySimulation {
                            days: Int,
                            workingMinutesPerDay: Double = 480,
                            breakMinutesPerDay: Double = 0,
+                           workingWeekdays: Set<Int> = [2, 3, 4, 5, 6],
+                           holidays: [Date] = [],
                            seed: UInt64 = 7) -> CapacityResult {
         guard !mined.caseRecords.isEmpty, !roles.isEmpty, arrivalPerDay > 0, days > 0 else {
             return CapacityResult(cases: 0, medianCycleMinutes: 0, p90CycleMinutes: 0,
@@ -69,6 +71,20 @@ public enum CapacitySimulation {
         var rng = LCG(seed: seed)
         let count = max(10, Int((arrivalPerDay * Double(days)).rounded()))
         let workingMinutes = max(60, min(1_440, workingMinutesPerDay))
+        let calendar = Calendar(identifier: .gregorian)
+        let today = calendar.startOfDay(for: Date())
+        let holidayDays = Set(holidays.map { calendar.startOfDay(for: $0) })
+        var workingDayOffsets: [Int] = []
+        var cursor = 0
+        while workingDayOffsets.count < days, cursor < days * 4 {
+            if let date = calendar.date(byAdding: .day, value: cursor, to: today),
+               workingWeekdays.contains(calendar.component(.weekday, from: date)),
+               !holidayDays.contains(calendar.startOfDay(for: date)) {
+                workingDayOffsets.append(cursor)
+            }
+            cursor += 1
+        }
+        let effectiveDays = max(1, workingDayOffsets.count)
         let breakMinutes = max(0, min(workingMinutes - 30, breakMinutesPerDay))
         let productiveMinutes = max(30, workingMinutes - breakMinutes)
         let gap = productiveMinutes / max(1, arrivalPerDay)
@@ -90,7 +106,10 @@ public enum CapacitySimulation {
 
         for index in 0..<count {
             let jitter = (rng.nextUnit() - 0.5) * gap * 0.4
-            let arrival = max(0, Double(index) * gap + jitter)
+            let daySlot = min(max(0, workingDayOffsets.count - 1), index / max(1, Int(arrivalPerDay)))
+            let dayOffset = workingDayOffsets.isEmpty ? 0 : workingDayOffsets[daySlot]
+            let arrival = Double(dayOffset) * 1_440 + 480
+                + Double(index % max(1, Int(arrivalPerDay))) * gap + jitter
             arrivals.append(arrival)
             let selected = pick(variants, rng: &rng)
             var caseEnd = arrival
@@ -115,14 +134,14 @@ public enum CapacitySimulation {
             let values = waits[role.role] ?? []
             return RoleUtilization(
                 role: role.role,
-                utilization: horizon <= 0 ? 0 : min(1, (busy[role.role] ?? 0) / max(1, productiveMinutes * Double(days) * Double(role.capacity))),
+                utilization: horizon <= 0 ? 0 : min(1, (busy[role.role] ?? 0) / max(1, productiveMinutes * Double(effectiveDays) * Double(role.capacity))),
                 averageWaitMinutes: values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count),
                 demandMinutes: busy[role.role] ?? 0,
-                availableMinutes: productiveMinutes * Double(days) * Double(role.capacity),
+                availableMinutes: productiveMinutes * Double(effectiveDays) * Double(role.capacity),
                 recommendedCapacity: horizon <= 0 ? role.capacity
-                    : max(1, Int(ceil((busy[role.role] ?? 0) / max(1, productiveMinutes * Double(days) * 0.85)))),
+                    : max(1, Int(ceil((busy[role.role] ?? 0) / max(1, productiveMinutes * Double(effectiveDays) * 0.85)))),
                 capacityGap: horizon <= 0 ? 0
-                    : max(1, Int(ceil((busy[role.role] ?? 0) / max(1, productiveMinutes * Double(days) * 0.85)))) - role.capacity)
+                    : max(1, Int(ceil((busy[role.role] ?? 0) / max(1, productiveMinutes * Double(effectiveDays) * 0.85)))) - role.capacity)
         }
         return CapacityResult(
             cases: count,

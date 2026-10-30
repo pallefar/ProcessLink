@@ -1,4 +1,5 @@
 import { useApp } from '../App'
+import { FeedbackButton } from '../components/FeedbackButton'
 import { Card, Chip, Empty, KV, Meter, Note, PageHead, routeTone } from '../components/ui'
 import { evaluate, fmt, recommendMethod, scoreOpportunity } from '../domain/rules'
 import { METHOD_TITLE, ROUTE_DETAIL, WASTE_LABEL } from '../domain/labels'
@@ -66,6 +67,7 @@ function OpportunityDetail({ id }: { id: string }) {
     return (
       <div className="stack">
         <h2 style={{ margin: 0, fontSize: 18 }}>{opportunity.title}</h2>
+              <FeedbackButton subject={{ kind: 'opportunity', subjectId: opportunity.id, subjectLabel: opportunity.title }} />
         <div className="rowflex"><Chip tone="red">Guarded</Chip><Chip>{opportunity.processName}</Chip><Chip>{opportunity.site}</Chip></div>
         <Card title="Blocked by the privacy guard" subtitle="This opportunity cannot be promoted." glyph="⛨">
           <p className="muted">{reason}</p>
@@ -85,6 +87,7 @@ function OpportunityDetail({ id }: { id: string }) {
       <div>
         <div className="rowflex" style={{ alignItems: 'baseline' }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>{opportunity.title}</h2>
+              <FeedbackButton subject={{ kind: 'opportunity', subjectId: opportunity.id, subjectLabel: opportunity.title }} />
           <div className="spacer" />
           <Chip>{opportunity.status}</Chip>
         </div>

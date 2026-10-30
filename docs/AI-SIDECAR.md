@@ -12,3 +12,8 @@ calling a hosted provider.
 - Only labels are sent. Case ids, event rows and person data never leave the Mac.
 
 Start it with `cd ai && npm install && npm start` (port 4183).
+
+
+The web Mining → Insights **AI map alignment** card calls the same `/api/map`
+endpoint and shows confidence. Browsers need the sidecar running with CORS
+enabled (it is); the card fails explicitly when it is unavailable.

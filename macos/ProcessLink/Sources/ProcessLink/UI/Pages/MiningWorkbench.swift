@@ -65,6 +65,8 @@ struct MiningWorkbench: View {
     @State private var capacityDays = 5
     @State private var capacityWorkingMinutes: Double = 480
     @State private var capacityBreakMinutes: Double = 30
+    @State private var capacitySkipWeekends = true
+    @State private var capacityHolidays = ""
     @State private var capacityResult: CapacityResult?
     @State private var showMapMapping = false
     @State private var showDriftReview = false
@@ -75,6 +77,7 @@ struct MiningWorkbench: View {
     @State private var selectedStudy: CapacityStudyRecord?
     @State private var caseNotion = ""
     @State private var ocelKeys: Set<String> = []
+    @State private var ocelObjectType = ""
 
     private var allEvents: [EventLogRecord] { model.events(for: dataset) }
     private var attributeKeys: [String] { Set(allEvents.flatMap { $0.attributes.keys }).sorted() }
@@ -1040,6 +1043,27 @@ struct MiningWorkbench: View {
                         }
                         .padding(.vertical, 2)
                     }
+                    if !ocel.objectTypes.isEmpty {
+                        Divider().opacity(0.6)
+                        let focusType = ocelObjectType.isEmpty ? ocel.objectTypes[0].type : ocelObjectType
+                        let focusObjects = ocel.objects.filter { $0.type == focusType }
+                        HStack {
+                            Picker("Object type", selection: $ocelObjectType) {
+                                ForEach(ocel.objectTypes, id: \.type) { type in Text(type.type).tag(type.type) }
+                            }
+                            .labelsHidden().frame(width: 160)
+                            Text("\(focusObjects.count) objects").font(.caption2).foregroundStyle(.tertiary)
+                            Spacer()
+                        }
+                        ForEach(focusObjects.prefix(5)) { object in
+                            HStack(spacing: Space.sm) {
+                                Text(object.label).font(.caption).lineLimit(1)
+                                Spacer()
+                                Text("\(ocel.events.filter { $0.objectIDs.contains(object.id) }.count) events")
+                                    .font(.caption2).foregroundStyle(.tertiary)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1156,6 +1180,15 @@ struct MiningWorkbench: View {
         }
     }
 
+    private var parsedHolidays: [Date] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return capacityHolidays.split(separator: ",").compactMap {
+            formatter.date(from: $0.trimmingCharacters(in: .whitespaces))
+        }
+    }
+
     private var capacityCard: some View {
         Card("Capacity and queues", subtitle: "Discrete-event simulation: arrivals, FIFO queues and finite role capacity.", symbol: "person.3.sequence") {
             VStack(alignment: .leading, spacing: Space.md) {
@@ -1182,9 +1215,17 @@ struct MiningWorkbench: View {
                             mined, roles: capacityRoles,
                             arrivalPerDay: arrivalPerDay, days: capacityDays,
                             workingMinutesPerDay: capacityWorkingMinutes,
-                            breakMinutesPerDay: capacityBreakMinutes)
+                            breakMinutesPerDay: capacityBreakMinutes,
+                            workingWeekdays: capacitySkipWeekends ? [2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 7],
+                            holidays: parsedHolidays)
                     }
                     .buttonStyle(.borderedProminent)
+                }
+                HStack(spacing: Space.md) {
+                    Toggle("Mon–Fri", isOn: $capacitySkipWeekends).toggleStyle(.checkbox).font(.caption)
+                    Text("Holidays").font(.caption)
+                    TextField("yyyy-MM-dd, …", text: $capacityHolidays).textFieldStyle(.roundedBorder).frame(maxWidth: 232)
+                    Spacer()
                 }
                 if capacityRoles.isEmpty {
                     Text("No roles in the current view.").font(.caption).foregroundStyle(.secondary)
@@ -1293,7 +1334,7 @@ struct MiningWorkbench: View {
         panel.allowedContentTypes = [.plainText]
         guard panel.runModal() == .OK, let url = panel.url else { return }
         var text = "# Capacity study — \(dataset.name)\n\n"
-        text += "Arrivals/day: \(Int(arrivalPerDay)) · Days: \(capacityDays) · Shift: \(Int(capacityWorkingMinutes)) min · Break: \(Int(capacityBreakMinutes)) min\n\n"
+        text += "Arrivals/day: \(Int(arrivalPerDay)) · Days: \(capacityDays) · Shift: \(Int(capacityWorkingMinutes)) min · Break: \(Int(capacityBreakMinutes)) min · Mon–Fri: \(capacitySkipWeekends)\n\n"
         text += "## Result\n\nCases: \(result.cases) · Median cycle: \(Fmt.minutes(result.medianCycleMinutes)) · P90: \(Fmt.minutes(result.p90CycleMinutes)) · Average wait: \(Fmt.minutes(result.averageWaitMinutes))\n\n"
         text += "| Role | Capacity | Utilisation | Average wait | Recommended | Gap |\n|---|---|---|---|---|---|\n"
         for role in result.utilization {
