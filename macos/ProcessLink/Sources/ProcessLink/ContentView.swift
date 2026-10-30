@@ -83,7 +83,7 @@ struct ContentView: View {
                 FlightdeckSidebar(flightdeck: model.flightdeck)
             }
             Section("Work") {
-                ForEach([SidebarItem.overview, .strategy, .discoveries, .opportunities, .maps, .meetings, .mining]) { item in
+                ForEach([SidebarItem.overview, .search, .strategy, .discoveries, .opportunities, .maps, .meetings, .mining]) { item in
                     row(item)
                 }
             }
@@ -134,6 +134,7 @@ struct ContentView: View {
         case .mining: MiningPage()
         case .graph: GraphPage()
         case .improvements: ImprovementsPage()
+        case .search: SearchPage()
         case .feedback: FeedbackInboxPage()
         case .ask: AskPage()
         case .governance: GovernancePage()

@@ -69,6 +69,9 @@ struct ProcessLinkApp: App {
             }
 
             CommandMenu("Process") {
+                Button("Search…") { model.page = .search }
+                    .keyboardShortcut("k", modifiers: .command)
+                Divider()
                 Button("Sync from discovery") {
                     Task { await model.runSync() }
                 }

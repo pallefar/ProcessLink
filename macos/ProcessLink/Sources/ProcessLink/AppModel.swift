@@ -7,13 +7,14 @@ import SwiftUI
 /// The sidebar sections. Snapshot mode walks every case, so a new section is
 /// covered by the checks automatically.
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case overview, strategy, discoveries, opportunities, maps, meetings, mining, graph, improvements, feedback, ask, governance, connections
+    case overview, search, strategy, discoveries, opportunities, maps, meetings, mining, graph, improvements, feedback, ask, governance, connections
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .overview: "Overview"
+        case .search: "Search"
         case .strategy: "Strategy"
         case .discoveries: "Discoveries"
         case .opportunities: "Opportunities"
@@ -32,6 +33,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .overview: "square.grid.2x2"
+        case .search: "magnifyingglass"
         case .strategy: "target"
         case .discoveries: "binoculars"
         case .opportunities: "lightbulb"
@@ -51,6 +53,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     var shortcut: KeyEquivalent {
         switch self {
         case .overview: "1"
+        case .search: "k"
         case .strategy: "s"
         case .discoveries: "2"
         case .opportunities: "3"
