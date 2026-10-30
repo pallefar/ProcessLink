@@ -137,7 +137,11 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 |---|---|
 | ![Web capture policy](docs/shots/web-agent.png) | ![Web mining](docs/shots/web-mining.png) |
 
-| OS maps | OS suite live |
+| OS micro-frontend | OS maps |
+|---|---|
+| ![OS micro-frontend](docs/shots/os-microfrontend.png) | ![OS maps](docs/shots/os-maps.png) |
+
+| OS suite live | Feedback |
 |---|---|
 | ![OS maps](docs/shots/os-maps.png) | ![OS suite live](docs/shots/os-suite-live.png) |
 
