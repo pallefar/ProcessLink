@@ -1457,7 +1457,8 @@ final class AppModel {
                  "subjectLabel": record.subjectLabel, "parentId": record.parentID,
                  "body": record.body, "author": record.author,
                  "createdAt": ISO8601DateFormatter().string(from: record.createdAt),
-                 "resolved": record.resolved, "mentions": record.mentions]
+                 "resolved": record.resolved, "mentions": record.mentions,
+                 "page": record.page, "documentID": record.documentID]
             },
             "productFeedback": product.map { record in
                 ["rating": record.rating, "priority": record.priority,
@@ -1525,7 +1526,8 @@ final class AppModel {
                  "subjectLabel": record.subjectLabel, "parentId": record.parentID,
                  "body": record.body, "author": record.author,
                  "createdAt": ISO8601DateFormatter().string(from: record.createdAt),
-                 "resolved": record.resolved, "mentions": record.mentions]
+                 "resolved": record.resolved, "mentions": record.mentions,
+                 "page": record.page, "documentID": record.documentID]
             },
             "productFeedback": product.map { record in
                 ["rating": record.rating, "priority": record.priority,
@@ -1970,6 +1972,42 @@ final class AppModel {
         restoreReview = nil
         showToast("Restore review promoted", detail: "\(inserted) processes added for review",
                   symbol: "arrow.uturn.backward")
+    }
+
+    func importPDFStudioPageNotes() {
+        let folder = URL(fileURLWithPath: ("~/Documents/ProcessLink Inbox" as NSString).expandingTildeInPath, isDirectory: true)
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil))?
+            .filter { $0.pathExtension == "json" } ?? []
+        var imported = 0
+        for file in files {
+            guard let data = try? Data(contentsOf: file),
+                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  root["schema"] as? String == "processlink-page-note/1",
+                  let body = root["body"] as? String, !body.isEmpty else { continue }
+            let document = (root["document"] as? String) ?? file.lastPathComponent
+            let page = root["page"] as? Int ?? 0
+            let id = "pdf-\(document)-\(page)-" + String(file.lastPathComponent.hashValue)
+            let existing = ((try? context.fetch(FetchDescriptor<FeedbackRecord>())) ?? []).contains { $0.id == id }
+            guard !existing else { continue }
+            let record = FeedbackRecord(
+                id: id, kind: .document,
+                subjectID: "\(document)#\(page)",
+                subjectLabel: page > 0 ? "\(document) · p.\(page)" : document,
+                body: body, author: root["author"] as? String ?? "PDF Studio",
+                page: page, documentID: document)
+            context.insert(record)
+            imported += 1
+        }
+        guard imported > 0 else {
+            showToast("No new page notes", detail: "Checked ~/Documents/ProcessLink Inbox",
+                      symbol: "doc.text.magnifyingglass")
+            return
+        }
+        audit(action: "feedback.pdfstudio.import", subject: "PDF Studio inbox",
+              detail: "\(imported) page notes imported")
+        try? context.save()
+        showToast("Page notes imported", detail: "\(imported) annotations from PDF Studio",
+                  symbol: "square.and.arrow.down")
     }
 
     // MARK: Updates

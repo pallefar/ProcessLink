@@ -1185,6 +1185,7 @@ enum FeedbackKind: String, CaseIterable, Identifiable {
     case initiative
     case meeting
     case miningCase
+    case document
 
     var id: String { rawValue }
     var label: String {
@@ -1196,6 +1197,7 @@ enum FeedbackKind: String, CaseIterable, Identifiable {
         case .initiative: "Initiative"
         case .meeting: "Meeting"
         case .miningCase: "Mining case"
+        case .document: "Document"
         }
     }
     var symbol: String {
@@ -1206,6 +1208,7 @@ enum FeedbackKind: String, CaseIterable, Identifiable {
         case .initiative: "flag"
         case .meeting: "person.3.sequence"
         case .miningCase: "list.bullet.rectangle"
+        case .document: "doc.text"
         }
     }
 }
@@ -1222,12 +1225,17 @@ final class FeedbackRecord {
     var author: String = ""
     var createdAt: Date = Date.now
     var resolved: Bool = false
+    /// Page anchor for PDF Studio packages; 0 for non-document anchors.
+    var page: Int = 0
+    /// Basename only, never a full filesystem path.
+    var documentID: String = ""
     /// Comma-separated @mentions as typed, never resolved to a person.
     var mentionsRaw: String = ""
 
     init(id: String, kind: FeedbackKind, subjectID: String, subjectLabel: String,
          parentID: String = "", body: String, author: String,
-         createdAt: Date = .now, resolved: Bool = false) {
+         createdAt: Date = .now, resolved: Bool = false, page: Int = 0,
+         documentID: String = "") {
         self.id = id
         self.kindRaw = kind.rawValue
         self.subjectID = subjectID
@@ -1237,6 +1245,8 @@ final class FeedbackRecord {
         self.author = author
         self.createdAt = createdAt
         self.resolved = resolved
+        self.page = page
+        self.documentID = documentID
         self.mentionsRaw = FeedbackRecord.mentions(in: body).joined(separator: ",")
     }
 

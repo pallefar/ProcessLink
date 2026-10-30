@@ -104,6 +104,9 @@ struct FeedbackSheet: View {
         let replies = records.filter { $0.parentID == root.id }.sorted { $0.createdAt < $1.createdAt }
         VStack(alignment: .leading, spacing: Space.sm) {
             commentHeader(root)
+            if root.page > 0 {
+                Chip(text: "Page \(root.page)", symbol: "doc.text", tint: .blue)
+            }
             Text(root.body)
                 .font(.subheadline)
                 .fixedSize(horizontal: false, vertical: true)
@@ -227,6 +230,8 @@ struct FeedbackInboxPage: View {
                         Button("Export for PDF Studio") { model.exportFeedbackForPDFStudio() }
                             .controlSize(.small)
                         Button("Export CSV") { model.exportFeedbackCSV() }
+                            .controlSize(.small)
+                        Button("Import page notes") { model.importPDFStudioPageNotes() }
                             .controlSize(.small)
                         Button("Send to PDF Studio") { model.sendFeedbackToPDFStudioInbox() }
                             .controlSize(.small)
