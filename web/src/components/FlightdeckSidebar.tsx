@@ -45,7 +45,11 @@ export function FlightdeckSidebar() {
           </label>
           <label className="fd-select-row">
             <Icon name="folder" size={13} />
-            <select value={project} onChange={e => setProject(e.target.value)} aria-label="Flightdeck project">
+            <select value={project} onChange={e => {
+              setProject(e.target.value)
+              const item = projects.find(p => p.label === e.target.value)
+              try { if (item) localStorage.setItem('flightdeck.project', item.id) } catch { /* ignore */ }
+            }} aria-label="Flightdeck project">
               {projects.length === 0 && <option>Project Contract</option>}
               {projects.map(item => <option key={item.id} value={item.label}>{item.label}</option>)}
               <option>General</option>

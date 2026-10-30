@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '../App'
 import { Card, Chip, Note } from '../components/ui'
+import { OsActivity } from '../components/OsActivity'
 import { osGet, type LiveMap, type LiveProjects, type LiveVision, type VisionRoadmap } from '../domain/osBridge'
 
 const OS = (import.meta.env.VITE_FLIGHTDECK_URL as string | undefined) || 'http://127.0.0.1:4173'
@@ -39,7 +40,7 @@ export default function Suite() {
       if (!response.ok) throw new Error(`GitHub HTTP ${response.status}`)
       const data = await response.json() as { tag_name: string; html_url: string }
       const latest = data.tag_name.replace(/^v/i, '')
-      const current = '0.1.23'
+      const current = '0.1.24'
       const newer = latest.localeCompare(current, undefined, { numeric: true }) > 0
       setUpdate({ status: newer ? 'available' : 'current', latest, url: data.html_url })
     } catch (error) {
@@ -116,9 +117,11 @@ export default function Suite() {
         </Card>
       </div>
 
+      <OsActivity />
+
       <Card title="ProcessLink updates" subtitle="Reads the public GitHub release feed; never installs silently." glyph="↓">
         <div className="row-meta">
-          <Chip>Installed 0.1.23</Chip>
+          <Chip>Installed 0.1.24</Chip>
           {update.latest && <Chip tone="blue">Latest {update.latest}</Chip>}
           {update.status === 'current' && <Chip tone="green">Up to date</Chip>}
           {update.status === 'available' && <Chip tone="orange">Update available</Chip>}

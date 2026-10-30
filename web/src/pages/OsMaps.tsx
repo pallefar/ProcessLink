@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Card, Chip, Empty, KV, PageHead } from '../components/ui'
 import { FeedbackPanel } from '../components/FeedbackPanel'
+import { FeedbackButton } from '../components/FeedbackButton'
 import { osGet, type LiveMap } from '../domain/osBridge'
 
 interface MapNode { id: string; type: string; label: string; data?: { role?: string; description?: string; stepId?: string; statutory?: boolean; humanOnly?: boolean } }
@@ -11,6 +12,7 @@ export default function OsMaps() {
   const [selected, setSelected] = useState('')
   const [detail, setDetail] = useState<MapDetail | null>(null)
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     void osGet<LiveMap[]>('/api/apps/maps/maps').then(value => {
@@ -27,7 +29,16 @@ export default function OsMaps() {
     })
   }, [selected])
 
-  const steps = detail?.nodes.filter(node => node.type === 'step') ?? []
+  const steps = (detail?.nodes.filter(node => node.type === 'step') ?? []).filter(step => {
+    const value = search.toLowerCase()
+    return !value || step.label.toLowerCase().includes(value) || (step.data?.role ?? '').toLowerCase().includes(value)
+  })
+  const downloadMap = () => {
+    if (!detail) return
+    const blob = new Blob([JSON.stringify({ schema: 'processlink-os-map-handoff/1', map: detail }, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob); const link = document.createElement('a')
+    link.href = url; link.download = `${detail.id}-map-handoff.json`; link.click(); URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="osm-page">
@@ -55,6 +66,7 @@ export default function OsMaps() {
                   <h2 style={{ margin: 0, fontSize: 18 }}>{detail.label}</h2>
                   <Chip tone="blue">{detail.schema}</Chip>
                   <div className="spacer" />
+                  <button className="btn small" onClick={downloadMap}>Download map handoff</button>
                   <a className="btn small" href={`/console/apps/maps?map=${encodeURIComponent(detail.id)}`} target="_blank" rel="noreferrer">Open in DiagramForge</a>
                 </div>
                 <Card>
@@ -66,6 +78,7 @@ export default function OsMaps() {
                   ]} />
                 </Card>
                 <Card title="Steps" subtitle="Live shape labels and roles; no write-back." glyph="▤">
+                  <input className="osmap-search" placeholder="Search steps or roles…" value={search} onChange={e => setSearch(e.target.value)} />
                   {steps.map(step => (
                     <div className="osmap-step" key={step.id}>
                       <div className="rowflex">
@@ -74,6 +87,7 @@ export default function OsMaps() {
                         {step.data?.statutory && <Chip tone="red">Statutory</Chip>}
                         {step.data?.humanOnly && <Chip tone="orange">Human only</Chip>}
                         <Chip>{step.data?.role ?? 'No role'}</Chip>
+                        <FeedbackButton subject={{ kind: 'mapShape', subjectId: `os:${detail.id}#${step.id}`, subjectLabel: `${detail.label} · ${step.label}` }} />
                       </div>
                       {step.data?.description && <div className="tiny">{step.data.description}</div>}
                     </div>
