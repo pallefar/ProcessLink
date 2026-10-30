@@ -68,6 +68,7 @@ struct MiningWorkbench: View {
     @State private var capacitySkipWeekends = true
     @State private var capacityHolidays = ""
     @State private var capacityShiftStart = 8
+    @State private var capacityRecurringHolidays = ""
     @State private var capacityResult: CapacityResult?
     @State private var showMapMapping = false
     @State private var showDriftReview = false
@@ -1220,6 +1221,7 @@ struct MiningWorkbench: View {
                             breakMinutesPerDay: capacityBreakMinutes,
                             workingWeekdays: capacitySkipWeekends ? [2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 7],
                             holidays: parsedHolidays,
+                            recurringHolidays: Set(capacityRecurringHolidays.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }),
                             shiftStartMinute: capacityShiftStart * 60)
                     }
                     .buttonStyle(.borderedProminent)
@@ -1227,7 +1229,9 @@ struct MiningWorkbench: View {
                 HStack(spacing: Space.md) {
                     Toggle("Mon–Fri", isOn: $capacitySkipWeekends).toggleStyle(.checkbox).font(.caption)
                     Text("Holidays").font(.caption)
-                    TextField("yyyy-MM-dd, …", text: $capacityHolidays).textFieldStyle(.roundedBorder).frame(maxWidth: 232)
+                    TextField("yyyy-MM-dd, …", text: $capacityHolidays).textFieldStyle(.roundedBorder).frame(maxWidth: 200)
+                    Text("Recurring").font(.caption)
+                    TextField("MM-dd, …", text: $capacityRecurringHolidays).textFieldStyle(.roundedBorder).frame(maxWidth: 100)
                     Text("Start").font(.caption)
                     Stepper(value: $capacityShiftStart, in: 0...23) {
                         Text(String(format: "%02d:00", capacityShiftStart)).font(.caption.monospacedDigit())
@@ -1341,7 +1345,7 @@ struct MiningWorkbench: View {
         panel.allowedContentTypes = [.plainText]
         guard panel.runModal() == .OK, let url = panel.url else { return }
         var text = "# Capacity study — \(dataset.name)\n\n"
-        text += "Arrivals/day: \(Int(arrivalPerDay)) · Days: \(capacityDays) · Shift: \(String(format: "%02d:00", capacityShiftStart)) + \(Int(capacityWorkingMinutes)) min · Break: \(Int(capacityBreakMinutes)) min · Mon–Fri: \(capacitySkipWeekends)\n\n"
+        text += "Arrivals/day: \(Int(arrivalPerDay)) · Days: \(capacityDays) · Shift: \(String(format: "%02d:00", capacityShiftStart)) + \(Int(capacityWorkingMinutes)) min · Break: \(Int(capacityBreakMinutes)) min · Mon–Fri: \(capacitySkipWeekends) · Recurring: \(capacityRecurringHolidays)\n\n"
         text += "## Result\n\nCases: \(result.cases) · Median cycle: \(Fmt.minutes(result.medianCycleMinutes)) · P90: \(Fmt.minutes(result.p90CycleMinutes)) · Average wait: \(Fmt.minutes(result.averageWaitMinutes))\n\n"
         text += "| Role | Capacity | Utilisation | Average wait | Recommended | Gap |\n|---|---|---|---|---|---|\n"
         for role in result.utilization {

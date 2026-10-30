@@ -24,6 +24,17 @@ export default function Feedback() {
   const openCount = feedback.filter(i => !i.parentId && !i.resolved).length
   const resolvedCount = feedback.filter(i => !i.parentId && i.resolved).length
   const active = selected ?? (roots[0] ? { kind: roots[0].kind, subjectId: roots[0].subjectId, subjectLabel: roots[0].subjectLabel } : undefined)
+  const exportCSV = () => {
+    const rows = [['type', 'kind', 'subject', 'rating', 'priority', 'resolved', 'author', 'createdAt', 'body']]
+    for (const item of feedback) rows.push(['annotation', item.kind, item.subjectLabel, '', '', item.resolved ? 'yes' : 'no', item.author, item.createdAt, item.body])
+    try {
+      const product = JSON.parse(localStorage.getItem('processlink.productfeedback.v1') || '[]') as Array<{ rating: string; priority: string; comment: string; author: string; createdAt: string }>
+      for (const item of product) rows.push(['product', '', '', item.rating, item.priority, '', item.author, item.createdAt, item.comment])
+    } catch { /* ignore */ }
+    const csv = rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob)
+    const link = document.createElement('a'); link.href = url; link.download = 'processlink-feedback.csv'; link.click(); URL.revokeObjectURL(url)
+  }
   const exportForPdfStudio = () => {
     const threads = feedback.filter(item => !item.parentId).map(root => ({
       subject: { kind: root.kind, id: root.subjectId, label: root.subjectLabel },
@@ -46,6 +57,7 @@ export default function Feedback() {
           <Chip tone="orange">{openCount} open</Chip>
           <Chip tone="green">{resolvedCount} resolved</Chip>
           <button className="btn small" onClick={exportForPdfStudio}>Export for PDF Studio</button>
+          <button className="btn small" onClick={exportCSV}>Export CSV</button>
           <ProductFeedbackButton page="feedback" />
         </div>
       </div>

@@ -1477,6 +1477,74 @@ final class AppModel {
         }
     }
 
+    func exportFeedbackCSV() {
+        let annotations = (try? context.fetch(FetchDescriptor<FeedbackRecord>())) ?? []
+        let product = (try? context.fetch(FetchDescriptor<AppFeedbackRecord>())) ?? []
+        var rows = [["type", "kind", "subject", "rating", "priority", "resolved", "author", "createdAt", "body"]]
+        for record in annotations {
+            rows.append(["annotation", record.kindRaw, record.subjectLabel, "", "",
+                         record.resolved ? "yes" : "no", record.author,
+                         ISO8601DateFormatter().string(from: record.createdAt), record.body])
+        }
+        for record in product {
+            rows.append(["product", "", record.page, record.rating, record.priority, "",
+                         record.author, ISO8601DateFormatter().string(from: record.createdAt),
+                         record.comment])
+        }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "processlink-feedback.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let csv = rows.map { row in
+            row.map { value in "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\"" }.joined(separator: ",")
+        }.joined(separator: "\n")
+        do {
+            try csv.write(to: url, atomically: true, encoding: .utf8)
+            showToast("Feedback CSV saved", detail: "\(annotations.count) annotations · \(product.count) product notes",
+                      symbol: "tablecells")
+        } catch {
+            showToast("Export failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+        }
+    }
+
+    func exportAgentPolicy(deviceID: String) {
+        guard let policy = capturePolicy() else { return }
+        let consents = (try? context.fetch(FetchDescriptor<ConsentRecord>())) ?? []
+        let payload: [String: Any] = [
+            "schema": "processlink-agent-policy/1",
+            "deviceID": deviceID,
+            "workspaceID": policy.workspaceID,
+            "projectID": policy.projectID,
+            "policy": [
+                "active": policy.active, "intervalMinutes": policy.intervalMinutes,
+                "maxSessionMinutes": policy.maxSessionMinutes,
+                "windowTitles": policy.windowTitles, "screenshots": policy.screenshots,
+                "inputCounts": policy.inputCounts, "consentVersion": policy.consentVersion,
+            ],
+            "consents": consents.filter { $0.revokedAt == nil }.map { consent in
+                ["site": consent.site, "role": consent.role, "version": consent.version,
+                 "reference": consent.reference,
+                 "expiresAt": consent.expiresAt.map { ISO8601DateFormatter().string(from: $0) } ?? ""]
+            },
+            "exportedAt": ISO8601DateFormatter().string(from: now),
+        ]
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "processlink-agent-policy.json"
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let data = try JSONSerialization.data(withJSONObject: payload,
+                                                  options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            try data.write(to: url, options: .atomic)
+            showToast("Agent policy exported", detail: "Consent and policy only; no case or capture data.",
+                      symbol: "doc.badge.arrow.up")
+        } catch {
+            showToast("Export failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+        }
+    }
+
     // MARK: Updates
 
     @MainActor

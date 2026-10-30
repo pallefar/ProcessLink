@@ -62,6 +62,7 @@ public enum CapacitySimulation {
                            breakMinutesPerDay: Double = 0,
                            workingWeekdays: Set<Int> = [2, 3, 4, 5, 6],
                            holidays: [Date] = [],
+                           recurringHolidays: Set<String> = [],
                            shiftStartMinute: Int = 480,
                            seed: UInt64 = 7) -> CapacityResult {
         guard !mined.caseRecords.isEmpty, !roles.isEmpty, arrivalPerDay > 0, days > 0 else {
@@ -80,7 +81,10 @@ public enum CapacitySimulation {
         while workingDayOffsets.count < days, cursor < days * 4 {
             if let date = calendar.date(byAdding: .day, value: cursor, to: today),
                workingWeekdays.contains(calendar.component(.weekday, from: date)),
-               !holidayDays.contains(calendar.startOfDay(for: date)) {
+               !holidayDays.contains(calendar.startOfDay(for: date)),
+               !recurringHolidays.contains(String(format: "%02d-%02d",
+                                                   calendar.component(.month, from: date),
+                                                   calendar.component(.day, from: date))) {
                 workingDayOffsets.append(cursor)
             }
             cursor += 1

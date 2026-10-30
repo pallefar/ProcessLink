@@ -222,6 +222,8 @@ struct FeedbackInboxPage: View {
                         Chip(text: "\(resolvedCount) resolved", symbol: "checkmark", tint: .green)
                         Button("Export for PDF Studio") { model.exportFeedbackForPDFStudio() }
                             .controlSize(.small)
+                        Button("Export CSV") { model.exportFeedbackCSV() }
+                            .controlSize(.small)
                         Button("Send feedback") { showingAppFeedback = true }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)

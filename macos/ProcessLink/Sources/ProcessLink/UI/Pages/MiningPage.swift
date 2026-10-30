@@ -42,6 +42,7 @@ struct MiningPage: View {
     @State private var consentRole = ""
     @State private var consentReference = ""
     @State private var aiNaming = false
+    @AppStorage("agent.deviceID") private var agentDeviceID = ""
     @AppStorage("capture.windowTitles") private var captureWindowTitles = false
     @AppStorage("capture.screenshots") private var captureScreenshots = false
     @AppStorage("capture.inputCounts") private var captureInputCounts = false
@@ -576,6 +577,11 @@ struct MiningPage: View {
                     HStack(spacing: Space.sm) {
                         Button("Grant consent…") { showingConsent = true }
                             .controlSize(.small)
+                        Button("Export policy") {
+                            if agentDeviceID.isEmpty { agentDeviceID = UUID().uuidString }
+                            model.exportAgentPolicy(deviceID: agentDeviceID)
+                        }
+                        .controlSize(.small)
                         if !model.validConsent(for: policy) {
                             Text("Capture cannot start until consent is recorded.")
                                 .font(.caption2).foregroundStyle(.orange)

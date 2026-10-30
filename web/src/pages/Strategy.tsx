@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { Card, Chip, Metric } from '../components/ui'
+import { osGet, type LiveProjects, type VisionRoadmap } from '../domain/osBridge'
 import { INITIATIVES } from '../domain/data'
 
 const VISION = {
@@ -48,6 +50,13 @@ const kpiName = (id: string) => KPIS.find(k => k.id === id)?.name ?? 'Not linked
 
 export default function Strategy() {
   const linked = INITIATIVES.filter(i => LINKS[i.id])
+  const [roadmap, setRoadmap] = useState<VisionRoadmap | null>(null)
+  const [projects, setProjects] = useState<LiveProjects | null>(null)
+  useEffect(() => {
+    void Promise.all([osGet<VisionRoadmap>('/api/vision/roadmap'), osGet<LiveProjects>('/api/projects')]).then(([road, proj]) => {
+      setRoadmap(road); setProjects(proj)
+    })
+  }, [])
   const onTarget = KPIS.filter(onTrack).length
 
   return (
@@ -62,6 +71,19 @@ export default function Strategy() {
           <Chip>{VISION.horizon}</Chip>
         </div>
       </div>
+
+      <Card title="Live OS context" subtitle="Vision roadmap and Atlas project registry, read through the OS session." glyph="◉">
+        <div className="row-meta" style={{ marginBottom: 6 }}>
+          <Chip tone={roadmap ? 'purple' : undefined}>{roadmap ? `${roadmap.records.length} roadmap items` : 'Vision unavailable'}</Chip>
+          <Chip tone={projects ? 'green' : undefined}>{projects ? `${projects.projects.length} Atlas projects` : 'Atlas unavailable'}</Chip>
+        </div>
+        {roadmap?.records.slice(0, 3).map(item => (
+          <div className="row-meta" key={item.id} style={{ justifyContent: 'space-between', padding: '3px 0' }}>
+            <span>{item.body?.title ?? item.id}</span><span className="tiny">{item.body?.stage ?? ''}</span>
+          </div>
+        ))}
+        {projects && <div className="tiny" style={{ marginTop: 4 }}>{projects.projects.slice(0, 5).map(project => project.label).join(' · ')}</div>}
+      </Card>
 
       <Card title="Function vision" subtitle={`${VISION.functionName} · owned by ${VISION.owner}`} glyph="◎">
         <h3 className="strategy-vision-title">{VISION.title}</h3>
