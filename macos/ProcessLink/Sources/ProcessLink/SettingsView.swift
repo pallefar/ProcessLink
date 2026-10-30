@@ -276,9 +276,18 @@ private struct UpdateSettings: View {
                 Text(model.updateError).font(.caption).foregroundStyle(.orange)
             }
             if let info = model.updateInfo {
-                if model.updateStatus == "available" {
-                    Button("Download \(info.version)") { model.openUpdate() }
-                        .buttonStyle(.borderedProminent)
+                if model.updateStatus == "available" || model.updateStatus == "downloading" || model.updateStatus == "downloaded" {
+                    Button {
+                        Task { await model.downloadVerifiedUpdate() }
+                    } label: {
+                        if model.updateStatus == "downloading" {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text(model.updateStatus == "downloaded" ? "Open verified DMG" : "Download & verify \(info.version)")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.updateStatus == "downloading")
                     if !info.notes.isEmpty {
                         DisclosureGroup("Release notes") {
                             Text(info.notes).font(.caption).textSelection(.enabled)

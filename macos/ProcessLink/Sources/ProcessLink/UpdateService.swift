@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 struct UpdateInfo: Sendable, Identifiable {
@@ -7,6 +8,7 @@ struct UpdateInfo: Sendable, Identifiable {
     var downloadURL: URL?
     var notes: String
     var publishedAt: Date?
+    var checksumsURL: URL?
 }
 
 /// Checks the public GitHub release feed. It never installs anything: the
@@ -53,10 +55,12 @@ enum UpdateService {
         let assets = root["assets"] as? [[String: Any]] ?? []
         let dmg = assets.first { ($0["name"] as? String)?.hasSuffix(".dmg") == true }
         let download = (dmg?["browser_download_url"] as? String).flatMap(URL.init(string:))
+        let checksums = assets.first { ($0["name"] as? String) == "SHA256SUMS.txt" }
+        let checksumsURL = (checksums?["browser_download_url"] as? String).flatMap(URL.init(string:))
         let notes = root["body"] as? String ?? ""
         let published = (root["published_at"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) }
         return UpdateInfo(version: version, pageURL: pageURL, downloadURL: download,
-                          notes: notes, publishedAt: published)
+                          notes: notes, publishedAt: published, checksumsURL: checksumsURL)
     }
 
     static func isNewer(_ candidate: String, than current: String) -> Bool {
@@ -70,7 +74,36 @@ enum UpdateService {
         return false
     }
 
+    static func downloadAndVerify(_ info: UpdateInfo) async throws -> URL {
+        guard let dmg = info.downloadURL, let sums = info.checksumsURL else {
+            throw UpdateError.noChecksums
+        }
+        let (sumData, sumResponse) = try await URLSession.shared.data(from: sums)
+        guard (sumResponse as? HTTPURLResponse)?.statusCode == 200 else { throw UpdateError.http((sumResponse as? HTTPURLResponse)?.statusCode ?? 0) }
+        let text = String(decoding: sumData, as: UTF8.self)
+        let expected = text.split(separator: "\n").compactMap { line -> (String, String)? in
+            let parts = line.split(separator: " ", omittingEmptySubsequences: true)
+            guard parts.count >= 2 else { return nil }
+            return (String(parts[0]), parts.dropFirst().joined(separator: " "))
+        }.first { $0.1.trimmingCharacters(in: CharacterSet(charactersIn: "*")) == dmg.lastPathComponent }?.0.lowercased()
+        guard let expected else { throw UpdateError.noChecksums }
+        let (temp, response) = try await URLSession.shared.download(from: dmg)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw UpdateError.http((response as? HTTPURLResponse)?.statusCode ?? 0) }
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(dmg.lastPathComponent)
+        try? FileManager.default.removeItem(at: destination)
+        try FileManager.default.moveItem(at: temp, to: destination)
+        let data = try Data(contentsOf: destination, options: .mappedIfSafe)
+        let actual = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        guard actual == expected else {
+            try? FileManager.default.removeItem(at: destination)
+            throw UpdateError.checksumMismatch
+        }
+        return destination
+    }
+
     enum UpdateError: LocalizedError {
+        case noChecksums
+        case checksumMismatch
         case badURL
         case http(Int)
         case malformed
@@ -79,6 +112,8 @@ enum UpdateService {
             case .badURL: "The update feed URL is invalid."
             case .http(let code): "The update feed answered HTTP \(code)."
             case .malformed: "The update feed did not contain a release."
+            case .noChecksums: "The release has no SHA256SUMS.txt asset."
+            case .checksumMismatch: "The downloaded DMG failed its SHA-256 check."
             }
         }
     }

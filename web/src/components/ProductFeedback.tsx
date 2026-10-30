@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { saveOsState } from '../domain/osState'
 
 interface ProductFeedback {
   rating: 'ok' | 'minor' | 'major'
@@ -15,7 +16,9 @@ const KEY = 'processlink.productfeedback.v1'
 function save(record: ProductFeedback) {
   try {
     const existing = JSON.parse(localStorage.getItem(KEY) || '[]') as ProductFeedback[]
-    localStorage.setItem(KEY, JSON.stringify([record, ...existing].slice(0, 100)))
+    const next = [record, ...existing].slice(0, 100)
+    localStorage.setItem(KEY, JSON.stringify(next))
+    void saveOsState('productFeedback.v1', next)
   } catch { /* ignore */ }
 }
 

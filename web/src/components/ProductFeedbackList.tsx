@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { loadOsState } from '../domain/osState'
 import { Card, Chip } from './ui'
 
 interface ProductFeedback {
@@ -16,10 +17,13 @@ export function ProductFeedbackList() {
   const [priority, setPriority] = useState<'all' | 'low' | 'normal' | 'high'>('all')
 
   useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('processlink.productfeedback.v1') || '[]') as ProductFeedback[]
-      setItems(stored)
-    } catch { /* ignore */ }
+    void loadOsState<ProductFeedback[]>('productFeedback.v1').then(remote => {
+      if (Array.isArray(remote)) { setItems(remote); return }
+      try {
+        const stored = JSON.parse(localStorage.getItem('processlink.productfeedback.v1') || '[]') as ProductFeedback[]
+        setItems(stored)
+      } catch { /* ignore */ }
+    })
   }, [])
 
   const visible = items.filter(item => priority === 'all' || item.priority === priority)

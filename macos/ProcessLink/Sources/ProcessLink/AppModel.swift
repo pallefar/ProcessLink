@@ -1858,6 +1858,23 @@ final class AppModel {
         }
     }
 
+    @MainActor
+    func downloadVerifiedUpdate() async {
+        guard let info = updateInfo else { return }
+        updateStatus = "downloading"
+        updateError = ""
+        do {
+            let url = try await UpdateService.downloadAndVerify(info)
+            NSWorkspace.shared.open(url)
+            updateStatus = "downloaded"
+            showToast("Update verified", detail: "SHA-256 matched; DMG opened for installation.",
+                      symbol: "checkmark.seal")
+        } catch {
+            updateError = error.localizedDescription
+            updateStatus = "failed"
+        }
+    }
+
     func openUpdate() {
         NSWorkspace.shared.open(updateInfo?.downloadURL ?? updateInfo?.pageURL ?? UpdateService.releasesPage)
     }

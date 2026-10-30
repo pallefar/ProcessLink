@@ -8,8 +8,9 @@ npm --prefix web run build
 docker compose up -d --build
 ```
 
-The container is `processlink-web`, published on `127.0.0.1:4180`, with a
-`/healthz` endpoint. Set `PROCESSLINK_PORT` to publish a different port.
+The container is `processlink-web`, exposed only on the shared Docker network
+(`flightdeck-supabase_default`), with a `/healthz` endpoint. It has no host port;
+the OS proxy is the only path to it.
 
 The image serves the built `web/dist` bundle; build the web app first. The
 multi-stage npm build is intentionally not in the Dockerfile because this
@@ -24,7 +25,7 @@ contains:
 - `web/src/subapps/processlink/index.tsx` — full-bleed iframe to the
   same-origin proxy `/processlink/` (the proxy requires the OS session)
 - `server/routes/processlinkProxy.ts` — authenticated same-origin reverse proxy;
-  target defaults to `http://host.docker.internal:4180` and is set by
+  target defaults to `http://processlink-web:80` and is set by
   `PROCESSLINK_URL`
 - `deploy/macos-local/docker-compose.local.yml`:
   - `SUBAPP_ADVANTAGE_ENABLED: "false"`

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { loadOsState, saveOsState } from '../domain/osState'
 import { Card, Chip, Metric, Note } from '../components/ui'
 
 interface Policy {
@@ -32,9 +33,18 @@ export default function Agent() {
   const [role, setRole] = useState('')
   const [reference, setReference] = useState('')
   const [lastHeartbeat, setLastHeartbeat] = useState('')
+  useEffect(() => {
+    void loadOsState<{ policy?: Policy; consents?: typeof consents; lastHeartbeat?: string }>('agent.v1').then(remote => {
+      if (!remote) return
+      if (remote.policy) setPolicy(remote.policy)
+      if (Array.isArray(remote.consents)) setConsents(remote.consents)
+      if (remote.lastHeartbeat) setLastHeartbeat(remote.lastHeartbeat)
+    })
+  }, [])
   const update = (patch: Partial<Policy>) => setPolicy(current => {
     const next = { ...current, ...patch }
     localStorage.setItem(KEY, JSON.stringify(next))
+    void saveOsState('agent.v1', { policy: next, consents, lastHeartbeat })
     return next
   })
   const download = () => {
@@ -83,14 +93,14 @@ export default function Agent() {
             <input placeholder="Agreement reference" value={reference} onChange={e => setReference(e.target.value)} />
             <button className="btn small" disabled={!site || !role || !reference} onClick={() => {
               const next = [...consents, { site, role, version: policy.consentVersion, reference, grantedAt: new Date().toISOString() }]
-              setConsents(next); localStorage.setItem(CONSENT_KEY, JSON.stringify(next)); setSite(''); setRole(''); setReference('')
+              setConsents(next); localStorage.setItem(CONSENT_KEY, JSON.stringify(next)); void saveOsState('agent.v1', { policy, consents: next, lastHeartbeat }); setSite(''); setRole(''); setReference('')
             }}>Grant consent</button>
             {consents.map((item, index) => item.revokedAt ? null : (
               <div className="row-meta" key={`${item.site}-${item.role}-${index}`} style={{ justifyContent: 'space-between' }}>
                 <span className="tiny">{item.site} · {item.role} · {item.version}</span>
                 <button className="btn small" onClick={() => {
                   const next = consents.map((value, i) => i === index ? { ...value, revokedAt: new Date().toISOString() } : value)
-                  setConsents(next); localStorage.setItem(CONSENT_KEY, JSON.stringify(next))
+                  setConsents(next); localStorage.setItem(CONSENT_KEY, JSON.stringify(next)); void saveOsState('agent.v1', { policy, consents: next, lastHeartbeat })
                 }}>Revoke</button>
               </div>
             ))}
@@ -109,10 +119,11 @@ export default function Agent() {
                 if (Array.isArray(parsed.consents)) {
                   setConsents(parsed.consents)
                   localStorage.setItem(CONSENT_KEY, JSON.stringify(parsed.consents))
+                  void saveOsState('agent.v1', { policy, consents: parsed.consents, lastHeartbeat })
                 }
               } catch (error) { window.alert(error instanceof Error ? error.message : 'Import failed') }
             }} />
-            <button className="btn" onClick={() => setLastHeartbeat(new Date().toISOString())}>Heartbeat</button>
+            <button className="btn" onClick={() => { const value = new Date().toISOString(); setLastHeartbeat(value); void saveOsState('agent.v1', { policy, consents, lastHeartbeat: value }) }}>Heartbeat</button>
           </div>
           {lastHeartbeat && <p className="tiny">Last heartbeat {new Date(lastHeartbeat).toLocaleString('en-GB')}</p>}
         </Card>

@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { loadOsState, saveOsState } from './domain/osState'
 import { Shell } from './Shell'
 import {
   AUDIT, BLOCKS, GOVERNANCE, INITIATIVES, KG_EDGES, KG_NODES, MEETINGS, NOW, OPPORTUNITIES, POLICY, PROCESSES,
@@ -112,6 +113,7 @@ export default function ProcessLink() {
   const [edges, setEdges] = useState<KGEdge[]>(KG_EDGES)
   const [meetings, setMeetings] = useState<Meeting[]>(MEETINGS)
   const [blocks, setBlocks] = useState<MeetingBlock[]>(BLOCKS)
+  const feedbackHydratedRef = useRef(false)
   const [feedback, setFeedback] = useState<Feedback[]>(() => {
     try {
       const stored = window.localStorage.getItem('processlink.feedback.v1')
@@ -123,7 +125,14 @@ export default function ProcessLink() {
     ]
   })
   useEffect(() => {
+    void loadOsState<Feedback[]>('feedback.v1').then(remote => {
+      if (Array.isArray(remote)) setFeedback(remote)
+      feedbackHydratedRef.current = true
+    })
+  }, [])
+  useEffect(() => {
     try { window.localStorage.setItem('processlink.feedback.v1', JSON.stringify(feedback)) } catch { /* ignore */ }
+    if (feedbackHydratedRef.current) void saveOsState('feedback.v1', feedback)
   }, [feedback])
   const [governance, setGovernance] = useState<GovernanceItem[]>(GOVERNANCE)
   const [audit, setAudit] = useState<AuditEntry[]>(AUDIT)

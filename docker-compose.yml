@@ -6,8 +6,11 @@ services:
     image: processlink-web:local
     container_name: processlink-web
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:${PROCESSLINK_PORT:-4180}:80"
+    expose:
+      - "80"
+    networks:
+      - default
+      - flightdeck
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
       interval: 30s
@@ -31,3 +34,8 @@ services:
 
 volumes:
   processlink-agent-data:
+
+networks:
+  flightdeck:
+    external: true
+    name: flightdeck-supabase_default

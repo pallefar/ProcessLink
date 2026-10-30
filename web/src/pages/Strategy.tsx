@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useApp } from '../App'
 import { Card, Chip, Metric } from '../components/ui'
 import { osGet, type LiveProjects, type VisionRoadmap } from '../domain/osBridge'
+import { loadOsState, saveOsState } from '../domain/osState'
 import { INITIATIVES } from '../domain/data'
 
 const VISION = {
@@ -61,6 +62,9 @@ export default function Strategy() {
     try { return JSON.parse(localStorage.getItem('processlink.importedBets') || '[]') as Array<{ id: string; title: string }> } catch { return [] }
   })
   useEffect(() => {
+    void loadOsState<Array<{ id: string; title: string }>>('strategy.importedBets.v1').then(remote => {
+      if (Array.isArray(remote)) setImportedBets(remote)
+    })
     void Promise.all([osGet<VisionRoadmap>('/api/vision/roadmap'), osGet<LiveProjects>('/api/projects'), osGet<VisionRoadmap>('/api/vision/portfolio')]).then(([road, proj, port]) => {
       setRoadmap(road); setProjects(proj); setPortfolio(port)
     })
@@ -95,6 +99,7 @@ export default function Strategy() {
                 if (current.some(value => value.id === item.id)) return current
                 const next = [...current, { id: item.id, title }]
                 localStorage.setItem('processlink.importedBets', JSON.stringify(next))
+                void saveOsState('strategy.importedBets.v1', next)
                 return next
               })
             }}>Import</button>
