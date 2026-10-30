@@ -1,0 +1,15 @@
+services:
+  processlink-web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: processlink-web:local
+    container_name: processlink-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PROCESSLINK_PORT:-4180}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3

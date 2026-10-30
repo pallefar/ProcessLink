@@ -16,8 +16,12 @@ that the integrations are already mounted.
 | DeckForge | Local deck desktop app | No initiative → brief/deck handoff |
 
 **Batch 4 delivered the web half:** an OS suite page, host context, PDF Studio
-annotation export, DeckForge brief export and web feedback persistence. The
-route/session mount is still the next step.
+annotation export, DeckForge brief export and web feedback persistence.
+
+**Batch 5 delivered the container and OS mount source:** `docker-compose.yml`
+for ProcessLink web, an OS `processlink` sub-app manifest, an iframe web module,
+and local-compose switches that turn Advantage off and ProcessLink on. The
+running OS image still has to be rebuilt/recreated for the new manifest to load.
 
 ## Required route and session contract
 
