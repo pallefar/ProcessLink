@@ -8,6 +8,8 @@ import SwiftUI
 struct ConnectionsPage: View {
     @Environment(AppModel.self) private var model
     @State private var didAutoConnect = false
+    @State private var aiStatus = "Not checked"
+    @State private var aiModel = ""
 
     var body: some View {
         let fd = model.flightdeck
@@ -39,6 +41,8 @@ struct ConnectionsPage: View {
                     AtlasConnectionCard(fd: fd)
                 }
 
+                LocalSuiteHealthCard(aiStatus: aiStatus, aiModel: aiModel)
+
                 DataConnectorsCard()
 
                 footer(fd)
@@ -54,6 +58,11 @@ struct ConnectionsPage: View {
             // Unstructured on purpose: a view identity change must not cancel
             // a UAT sign-in or a live sync halfway through.
             Task {
+                let ok = await ProcessLinkAI.health()
+                await MainActor.run {
+                    aiStatus = ok ? "Connected" : "Unavailable"
+                    aiModel = ok ? "transformers.js · :4183" : ""
+                }
                 await fd.restoreSession()
                 if let email = ProcessInfo.processInfo.environment["APP_ATLAS_EMAIL"], !email.isEmpty {
                     fd.atlasEmail = email
@@ -329,5 +338,42 @@ private struct AtlasConnectionCard: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+
+private struct LocalSuiteHealthCard: View {
+    @AppStorage("pdfstudio.inbox") private var pdfStudioInbox = "~/Documents/PDF Studio Inbox"
+    @AppStorage("conn.deckforge") private var deckForge = "/Applications/DeckForge.app"
+    var aiStatus: String
+    var aiModel: String
+
+    private var inboxExists: Bool {
+        FileManager.default.fileExists(atPath: (pdfStudioInbox as NSString).expandingTildeInPath)
+    }
+    private var deckExists: Bool { FileManager.default.fileExists(atPath: deckForge) }
+
+    var body: some View {
+        Card("Local suite", subtitle: "Apps and services ProcessLink uses directly on this Mac.", symbol: "desktopcomputer") {
+            row("transformers.js sidecar", detail: aiModel.isEmpty ? aiStatus : aiModel, ok: aiStatus == "Connected")
+            RowDivider()
+            row("PDF Studio inbox", detail: pdfStudioInbox, ok: inboxExists)
+            RowDivider()
+            row("DeckForge app", detail: deckForge, ok: deckExists)
+            RowDivider()
+            row("Flightdeck Atlas", detail: "Set on the Atlas card above", ok: true)
+            GuardrailNote(text: "These are local reachability checks, not data reads. Missing folders/apps are reported here and do not block the rest of the app.")
+        }
+    }
+
+    private func row(_ title: String, detail: String, ok: Bool) -> some View {
+        HStack(spacing: Space.sm) {
+            Image(systemName: ok ? "checkmark.circle.fill" : "circle.dashed")
+                .foregroundStyle(ok ? .green : .secondary)
+            Text(title).font(.caption.weight(.medium))
+            Spacer()
+            Text(detail).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+        }
+        .padding(.vertical, 4)
     }
 }
