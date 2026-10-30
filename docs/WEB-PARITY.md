@@ -36,6 +36,7 @@ so navigation reads the same at a glance.
 | Meetings | Notion-style pages with typed blocks, decisions, actions | same |
 | Mining | Process logs / Task capture, mapped import, filters, process graph, cases, conformance, insights, simulation | **full log-mining workbench**; task capture remains desktop-only |
 | Improvements | ledger, initiatives, A3, savings lifecycle | same |
+| Feedback | threaded annotations + inbox | macOS-first; web feedback inbox is next |
 | Ask | guard chips, suggestions, policy card, bottom composer | same |
 | Knowledge Graph | metrics, layered graph canvas, review queue, node list/detail | same canvas in SVG |
 | Governance | readiness checks, classification, audit | same |

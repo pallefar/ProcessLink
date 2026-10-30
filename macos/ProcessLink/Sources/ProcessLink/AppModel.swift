@@ -7,7 +7,7 @@ import SwiftUI
 /// The sidebar sections. Snapshot mode walks every case, so a new section is
 /// covered by the checks automatically.
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case overview, strategy, discoveries, opportunities, maps, meetings, mining, graph, improvements, ask, governance, connections
+    case overview, strategy, discoveries, opportunities, maps, meetings, mining, graph, improvements, feedback, ask, governance, connections
 
     var id: String { rawValue }
 
@@ -22,6 +22,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .mining: "Mining"
         case .graph: "Knowledge Graph"
         case .improvements: "Improvements"
+        case .feedback: "Feedback"
         case .ask: "Ask"
         case .governance: "Governance"
         case .connections: "Connections"
@@ -39,6 +40,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .mining: "sparkle.magnifyingglass"
         case .graph: "circle.hexagongrid"
         case .improvements: "flag.pattern.checkered"
+        case .feedback: "bubble.left.and.text.bubble.right"
         case .ask: "bubble.left.and.text.bubble.right"
         case .governance: "checkmark.shield"
         case .connections: "link.badge.plus"
@@ -57,6 +59,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .mining: "0"
         case .graph: "5"
         case .improvements: "6"
+        case .feedback: "f"
         case .ask: "7"
         case .governance: "8"
         case .connections: "l"
@@ -1297,6 +1300,43 @@ final class AppModel {
             .sorted(by: { $0.importedAt > $1.importedAt }).first,
               let map = MapsBridge.loadAll().first(where: { $0.id == dataset.mapID }) else { return }
         _ = await flightdeck.importContractFlow(into: self, map: map)
+    }
+
+    // MARK: Feedback
+
+    @discardableResult
+    func addFeedback(kind: FeedbackKind, subjectID: String, subjectLabel: String,
+                     body: String, parentID: String = "") -> FeedbackRecord? {
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let record = FeedbackRecord(
+            id: "fb-\(UUID().uuidString.prefix(8))", kind: kind,
+            subjectID: subjectID, subjectLabel: subjectLabel,
+            parentID: parentID, body: trimmed, author: dataOwner)
+        context.insert(record)
+        audit(action: "feedback.added", subject: subjectLabel,
+              detail: "\(kind.label)\(parentID.isEmpty ? "" : " reply") · \(trimmed.prefix(120))")
+        try? context.save()
+        showToast(parentID.isEmpty ? "Feedback added" : "Reply added",
+                  detail: record.mentions.isEmpty ? subjectLabel : "Mentioned \(record.mentions.joined(separator: ", "))",
+                  symbol: "bubble.left.and.text.bubble.right")
+        return record
+    }
+
+    func setFeedbackResolved(_ record: FeedbackRecord, resolved: Bool) {
+        record.resolved = resolved
+        audit(action: resolved ? "feedback.resolved" : "feedback.reopened",
+              subject: record.subjectLabel, detail: record.body.prefix(120).description)
+        try? context.save()
+    }
+
+    func deleteFeedback(_ record: FeedbackRecord) {
+        let replies = ((try? context.fetch(FetchDescriptor<FeedbackRecord>())) ?? [])
+            .filter { $0.parentID == record.id }
+        for reply in replies { context.delete(reply) }
+        context.delete(record)
+        audit(action: "feedback.deleted", subject: record.subjectLabel, detail: "Thread and replies deleted.")
+        try? context.save()
     }
 
     // MARK: Capacity studies

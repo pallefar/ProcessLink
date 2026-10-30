@@ -15,7 +15,7 @@ Event logs · task capture  →  ProcessLink  →  KG · Maps · TEOA · DeckFor
 
 | Form | Where | Status |
 |---|---|---|
-| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 42 unit tests + 73 in-app checks, light/dark snapshots |
+| **macOS** — native SwiftUI + SwiftData | [`macos/ProcessLink`](macos/ProcessLink) | Built, 42 unit tests + 77 in-app checks, light/dark snapshots |
 | **Web** — React 19 + Vite, strict TS | [`web`](web) | Same shell, full log-mining workbench, tokens and pages; the sub-app replacement is in [`web/src/flightdeck`](web/src/flightdeck) |
 | **Windows** — Tauri 2 + WebView2 | [`windows/ProcessLink.Windows`](windows/ProcessLink.Windows) | Scaffolded with config and Rust entry; not built on a Windows host here |
 
@@ -80,7 +80,11 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
    without passwords and the session cookie lives in the Keychain. Workspaces,
    projects, 14 KPIs, ranked opportunities, Vision goals/roadmap and Atlas
    projects are read into the graph — read-only, no writes back.
-11. **Governance** — purpose limitation, group-size suppression, classification
+11. **Feedback** — threaded annotations on a map, a map shape, a process,
+    opportunity, initiative, meeting or mining case. Reply, resolve/reopen and
+    @mention a role; the inbox collects every open thread. Comments stay local
+    and never write to Flightdeck.
+12. **Governance** — purpose limitation, group-size suppression, classification
     refusal, PII masking and an audit log are enforced in code and visible in
     the UI. The launch checklist blocks production.
 
@@ -138,7 +142,7 @@ design parity contract is in [`docs/WEB-PARITY.md`](docs/WEB-PARITY.md).
 ```bash
 cd macos/ProcessLink
 ./build.sh --open          # release build, installs ~/Applications/ProcessLink.app
-tools/selftest.sh          # 73 checks, exit 0
+tools/selftest.sh          # 77 checks, exit 0
 tools/snap.sh              # light/dark PNGs of every page + Settings
 swift test --scratch-path ~/Library/Developer/ProcessLink/test-build
 ```
@@ -234,12 +238,12 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 Tag a version and GitHub Actions builds both desktop installers:
 
 ```bash
-git tag v0.1.13 && git push origin v0.1.13
+git tag v0.1.14 && git push origin v0.1.14
 ```
 
 The release contains a universal macOS DMG (`arm64` + `x86_64`), a Windows
 NSIS setup (and an MSI from the Windows CI job), and `SHA256SUMS.txt`.
-[Download v0.1.13](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.13).
+[Download v0.1.14](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.14).
 Local packaging, signing and the current Actions billing note are in
 [`docs/RELEASING.md`](docs/RELEASING.md).
 

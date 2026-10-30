@@ -88,7 +88,7 @@ struct ContentView: View {
                 }
             }
             Section("Improve") {
-                ForEach([SidebarItem.improvements, .ask]) { item in
+                ForEach([SidebarItem.improvements, .feedback, .ask]) { item in
                     row(item)
                 }
             }
@@ -134,6 +134,7 @@ struct ContentView: View {
         case .mining: MiningPage()
         case .graph: GraphPage()
         case .improvements: ImprovementsPage()
+        case .feedback: FeedbackInboxPage()
         case .ask: AskPage()
         case .governance: GovernancePage()
         case .connections: ConnectionsPage()

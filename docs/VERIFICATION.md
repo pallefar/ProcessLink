@@ -8,7 +8,7 @@ Run on macOS 27.0.1, Swift 6.4, Xcode 27.1, Node 22.23.3, 28 October 2026.
 |---|---|---|
 | Build (release) | `./build.sh` | `Build complete!`, 0 errors, 0 warnings, installed to `~/Applications/ProcessLink.app` |
 | Unit tests | `swift test --scratch-path ~/Library/Developer/ProcessLink/test-build` | **42 tests passed** (scoring, statutory guard, privacy, PII, ledger, conflicts, ask citations, formatting, graph algorithms, CSV import/mining/conformance, attributes/cases/filters, periods/handovers/root causes, simulation, token replay, connection URL rules) |
-| In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 73 checks** |
+| In-app self-test | `tools/selftest.sh` | **SELFTEST PASS 77 checks** |
 | Grid lint | `tools/grid-lint.sh` | **PASS** |
 | Layout probes | `swift tools/check-layout.swift /tmp/ProcessLink-shots/*-layout.json` | **22 PASS**, 0 fail |
 | Snapshots | `tools/snap.sh` | 8 pages + 5 Settings tabs, light and dark, 2520×1640 page PNGs; reviewed |

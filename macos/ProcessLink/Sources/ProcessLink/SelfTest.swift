@@ -52,6 +52,24 @@ enum SelfTest {
                   !seededInitiatives.isEmpty && seededInitiatives.allSatisfy(\.hasStrategyLink),
                   "\(seededInitiatives.filter { $0.hasStrategyLink }.count) of \(seededInitiatives.count) linked")
 
+            // Feedback: anchored, threaded, mention-parsed and resolvable.
+            if let note = model.addFeedback(kind: .process, subjectID: "p-order-intake",
+                                            subjectLabel: "Order intake & validation",
+                                            body: "Please review @Ops Excellence Lead") {
+                check("feedback parses an @mention", note.mentions == ["@Ops"], "\(note.mentions)")
+                let reply = model.addFeedback(kind: .process, subjectID: "p-order-intake",
+                                              subjectLabel: "Order intake & validation",
+                                              body: "Confirmed.", parentID: note.id)
+                check("feedback replies attach to their thread", reply?.parentID == note.id)
+                model.setFeedbackResolved(note, resolved: true)
+                check("feedback can be resolved", note.resolved)
+                model.deleteFeedback(note)
+                check("deleting a thread removes its replies",
+                      !((try? context.fetch(FetchDescriptor<FeedbackRecord>())) ?? []).contains { $0.id == reply?.id })
+            } else {
+                check("feedback can be added", false)
+            }
+
             // Meetings and their graph facts.
             let meetings = fetch(MeetingRecord.self)
             let meetingBlocks = fetch(MeetingBlockRecord.self)

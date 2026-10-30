@@ -148,6 +148,8 @@ struct DiscoveriesPage: View {
                 if process.status == .discovered {
                     ConfidenceChip(confidence: process.confidence)
                 }
+                FeedbackButton(subject: FeedbackSubject(kind: .process, subjectID: process.id,
+                                                        label: process.name))
             }
             HStack(spacing: Space.sm) {
                 Chip(text: process.source,

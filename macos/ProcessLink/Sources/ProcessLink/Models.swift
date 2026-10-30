@@ -1169,3 +1169,80 @@ final class CapacityStudyRecord {
         self.averageWaitMinutes = averageWaitMinutes
     }
 }
+
+// MARK: - Feedback and annotations
+
+enum FeedbackKind: String, CaseIterable, Identifiable {
+    case map
+    case mapShape
+    case process
+    case opportunity
+    case initiative
+    case meeting
+    case miningCase
+
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .map: "Map"
+        case .mapShape: "Map shape"
+        case .process: "Process"
+        case .opportunity: "Opportunity"
+        case .initiative: "Initiative"
+        case .meeting: "Meeting"
+        case .miningCase: "Mining case"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .map, .mapShape: "map"
+        case .process: "arrow.triangle.branch"
+        case .opportunity: "lightbulb"
+        case .initiative: "flag"
+        case .meeting: "person.3.sequence"
+        case .miningCase: "list.bullet.rectangle"
+        }
+    }
+}
+
+@Model
+final class FeedbackRecord {
+    var id: String = ""
+    var kindRaw: String = FeedbackKind.map.rawValue
+    var subjectID: String = ""
+    var subjectLabel: String = ""
+    /// Empty for a thread root; the root id for a reply.
+    var parentID: String = ""
+    var body: String = ""
+    var author: String = ""
+    var createdAt: Date = Date.now
+    var resolved: Bool = false
+    /// Comma-separated @mentions as typed, never resolved to a person.
+    var mentionsRaw: String = ""
+
+    init(id: String, kind: FeedbackKind, subjectID: String, subjectLabel: String,
+         parentID: String = "", body: String, author: String,
+         createdAt: Date = .now, resolved: Bool = false) {
+        self.id = id
+        self.kindRaw = kind.rawValue
+        self.subjectID = subjectID
+        self.subjectLabel = subjectLabel
+        self.parentID = parentID
+        self.body = body
+        self.author = author
+        self.createdAt = createdAt
+        self.resolved = resolved
+        self.mentionsRaw = FeedbackRecord.mentions(in: body).joined(separator: ",")
+    }
+
+    var kind: FeedbackKind { FeedbackKind(rawValue: kindRaw) ?? .map }
+    var mentions: [String] { mentionsRaw.split(separator: ",").map(String.init) }
+
+    static func mentions(in body: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: "@[A-Za-z0-9._-]+") else { return [] }
+        let range = NSRange(body.startIndex..., in: body)
+        return regex.matches(in: body, range: range).compactMap { match in
+            Range(match.range, in: body).map { String(body[$0]) }
+        }
+    }
+}

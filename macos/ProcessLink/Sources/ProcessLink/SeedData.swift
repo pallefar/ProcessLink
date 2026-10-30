@@ -477,6 +477,20 @@ enum SeedData {
                 createdAt: daysAgo(40)))
         }
 
+        // MARK: Feedback
+        if ((try? context.fetchCount(FetchDescriptor<FeedbackRecord>())) ?? 0) == 0 {
+            context.insert(FeedbackRecord(
+                id: "fb-seed-pricing", kind: .process, subjectID: "p-order-intake",
+                subjectLabel: "Order intake & validation",
+                body: "Should the second pricing check be sampled rather than removed? @Ops Excellence Lead",
+                author: "CI Manager (role)", createdAt: daysAgo(2)))
+            context.insert(FeedbackRecord(
+                id: "fb-seed-map", kind: .map, subjectID: "map-p-triage-as-is",
+                subjectLabel: "Customer case triage — as-is",
+                body: "The resolver handoff looks longer than the standard. Can someone confirm on the next huddle?",
+                author: "Order Desk Lead", createdAt: daysAgo(1)))
+        }
+
         // MARK: Meeting pages
 
         struct BlockSeed {

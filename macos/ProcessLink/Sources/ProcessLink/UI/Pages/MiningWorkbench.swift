@@ -766,6 +766,10 @@ struct MiningWorkbench: View {
                          tint: record.reworkCount > 0 ? .orange : .green).fixedSize()
                     Chip(text: "\(record.handoffs) handoffs", symbol: "arrow.left.arrow.right", tint: .purple).fixedSize()
                     if record.cost > 0 { Chip(text: Fmt.euro(record.cost), symbol: "eurosign", tint: .green).fixedSize() }
+                    Spacer()
+                    FeedbackButton(subject: FeedbackSubject(
+                        kind: .miningCase, subjectID: "\(dataset.id)#\(record.caseID)",
+                        label: "\(dataset.name) · case \(record.caseID)"))
                 }
                 if !record.attributes.isEmpty {
                     Text(record.attributes.keys.sorted().map { "\($0)=\(record.attributes[$0] ?? "")" }.joined(separator: " · "))

@@ -156,6 +156,8 @@ struct OpportunitiesPage: View {
                 Text(opportunity.title).font(.title2.weight(.semibold))
                 Spacer(minLength: Space.sm)
                 Chip(text: opportunity.status.label, tint: .secondary)
+                FeedbackButton(subject: FeedbackSubject(kind: .opportunity, subjectID: opportunity.id,
+                                                        label: opportunity.title))
             }
             HStack(spacing: Space.sm) {
                 Chip(text: opportunity.processName, symbol: "arrow.triangle.branch", tint: .blue)

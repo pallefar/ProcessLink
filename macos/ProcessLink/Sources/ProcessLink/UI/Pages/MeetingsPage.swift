@@ -228,6 +228,8 @@ private struct MeetingDetail: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 .help("Change status")
+                FeedbackButton(subject: FeedbackSubject(kind: .meeting, subjectID: meeting.id,
+                                                        label: meeting.title))
             }
             TextField("One-line summary for the graph and the search", text: $meeting.summary)
                 .textFieldStyle(.plain)

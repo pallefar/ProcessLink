@@ -204,6 +204,8 @@ struct ImprovementsPage: View {
                             SavingsChip(stage: initiative.savingsStage)
                             Chip(text: initiative.status.label, tint: .secondary)
                             Chip(text: initiative.site, symbol: "mappin.and.ellipse", tint: .secondary)
+                            FeedbackButton(subject: FeedbackSubject(kind: .initiative, subjectID: initiative.id,
+                                                                    label: initiative.title))
                         }
                         VStack(alignment: .leading, spacing: Space.sm) {
                             DetailRow(label: "Owner", value: initiative.owner)

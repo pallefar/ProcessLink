@@ -15,6 +15,7 @@ struct MapsPage: View {
     @Query private var opportunities: [OpportunityRecord]
     @Query private var initiatives: [InitiativeRecord]
     @Query private var datasets: [DatasetRecord]
+    @Query private var feedback: [FeedbackRecord]
 
     @State private var documents: [MapsBridge.Document] = []
     @State private var selectedMapID: String?
@@ -25,6 +26,7 @@ struct MapsPage: View {
     @State private var importingMaps = false
     @State private var mapImportStatus: String?
     @State private var miningMap: MapsBridge.Document?
+    @State private var feedbackSubject: FeedbackSubject?
 
     private var filtered: [MapsBridge.Document] {
         let query = search.trimmingCharacters(in: .whitespaces).lowercased()
@@ -98,6 +100,9 @@ struct MapsPage: View {
         .onAppear {
             load()
             Task { await importMapsIfNeeded() }
+        }
+        .sheet(item: $feedbackSubject) { subject in
+            FeedbackSheet(subject: subject)
         }
         .sheet(item: $miningMap) { document in
             MapMiningSheet(document: document,
@@ -290,6 +295,17 @@ struct MapsPage: View {
                 }
                 .help("Pull the latest documents from Flightdeck Maps")
 
+                Button {
+                    guard let current else { return }
+                    feedbackSubject = FeedbackSubject(kind: .map, subjectID: current.id,
+                                                      label: current.label)
+                } label: {
+                    Label(feedbackBadge, systemImage: "bubble.left.and.text.bubble.right")
+                }
+                .disabled(current == nil)
+                .help("Comment on this map")
+                .accessibilityLabel("Map feedback")
+
                 Menu {
                     Button("Open document folder") { NSWorkspace.shared.open(MapsBridge.folderURL) }
                     Button("Reveal current file") {
@@ -373,6 +389,11 @@ struct MapsPage: View {
                 onOpenKG: {
                     model.selectedKGID = node.link?.kgNodeID ?? "kg-map-\(document.id)"
                     model.page = .graph
+                },
+                onFeedback: {
+                    feedbackSubject = FeedbackSubject(
+                        kind: .mapShape, subjectID: "\(document.id)#\(node.id)",
+                        label: "\(document.label) · \(node.label)")
                 }
             )
             .id(node.id)
@@ -386,7 +407,11 @@ struct MapsPage: View {
                                    model.selectedKGID = "kg-map-\(document.id)"
                                    model.page = .graph
                                },
-                               onRegenerate: { regenerate(document) })
+                               onRegenerate: { regenerate(document) },
+                               onFeedback: {
+                                   feedbackSubject = FeedbackSubject(kind: .map, subjectID: document.id,
+                                                                     label: document.label)
+                               })
         } else {
             ContentUnavailableView("Select a map", systemImage: "map")
         }
@@ -425,6 +450,14 @@ struct MapsPage: View {
         } else {
             mapImportStatus = "Maps up to date"
         }
+    }
+
+    private var feedbackBadge: String {
+        guard let current else { return "Feedback" }
+        let count = feedback.filter {
+            $0.subjectID == current.id || $0.subjectID.hasPrefix(current.id + "#")
+        }.filter { !$0.resolved && $0.parentID.isEmpty }.count
+        return count == 0 ? "Feedback" : "Feedback \(count)"
     }
 
     private func mineMap(_ document: MapsBridge.Document) {
@@ -695,6 +728,7 @@ private struct MapShapeInspector: View {
     var onOpenProcess: () -> Void
     var onOpenOpportunity: (String) -> Void
     var onOpenKG: () -> Void
+    var onFeedback: () -> Void
 
     @State private var label: String
     @State private var role: String
@@ -707,7 +741,7 @@ private struct MapShapeInspector: View {
          onSave: @escaping (String, String, String, Double?) -> Void,
          onRestore: @escaping () -> Void, onBind: @escaping (StepRecord) -> Void,
          onOpenProcess: @escaping () -> Void, onOpenOpportunity: @escaping (String) -> Void,
-         onOpenKG: @escaping () -> Void) {
+         onOpenKG: @escaping () -> Void, onFeedback: @escaping () -> Void) {
         self.document = document
         self.node = node
         self.process = process
@@ -722,6 +756,7 @@ private struct MapShapeInspector: View {
         self.onOpenProcess = onOpenProcess
         self.onOpenOpportunity = onOpenOpportunity
         self.onOpenKG = onOpenKG
+        self.onFeedback = onFeedback
         _label = State(initialValue: node.label)
         _role = State(initialValue: node.role)
         _system = State(initialValue: node.system)
@@ -929,6 +964,8 @@ private struct MapShapeInspector: View {
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
             Spacer()
+            Button("Feedback") { onFeedback() }
+                .controlSize(.small)
             Button("Reveal file") {
                 NSWorkspace.shared.activateFileViewerSelecting([document.fileURL])
             }
@@ -946,6 +983,7 @@ private struct MapDocumentSummary: View {
     var onOpenFolder: () -> Void
     var onOpenKG: () -> Void
     var onRegenerate: () -> Void
+    var onFeedback: () -> Void
 
     private var validated: Double {
         SavingsLedger.totals(initiatives.map(\.savingLine)).validated
@@ -981,6 +1019,7 @@ private struct MapDocumentSummary: View {
                 VStack(alignment: .leading, spacing: Space.md) {
                     Button("Open folder") { onOpenFolder() }
                     Button("KG node") { onOpenKG() }
+                    Button("Feedback") { onFeedback() }
                     Button("Regenerate from discovery") { onRegenerate() }
                         .disabled(process == nil)
                     GuardrailNote(text: "Select a shape to see its ProcessLink facts and map fields.")
@@ -1003,6 +1042,7 @@ private struct MapDocumentInspector: View {
     var onOpenFolder: () -> Void
     var onOpenKG: () -> Void
     var onRegenerate: () -> Void
+    var onFeedback: () -> Void
 
     private var validated: Double {
         SavingsLedger.totals(initiatives.map(\.savingLine)).validated
