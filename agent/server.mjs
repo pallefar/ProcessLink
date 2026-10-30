@@ -78,9 +78,12 @@ const server = http.createServer(async (req, res) => {
       save(state)
       return json(res, 200, { ok: true, deviceID: agent.deviceID, lastHeartbeat: agent.lastHeartbeat })
     }
-    if (req.method === 'GET' && req.url === '/v1/agents') {
+    if (req.method === 'GET' && req.url.startsWith('/v1/agents')) {
       if (!adminAuthorized(req)) return json(res, 401, { error: 'enrollment token required' })
-      const agents = Object.values(load().agents).map(({ tokenHash: _omit, ...safe }) => safe)
+      const workspace = new URL(req.url, 'http://localhost').searchParams.get('workspace') || ''
+      const agents = Object.values(load().agents)
+        .filter(agent => !workspace || agent.workspaceID === workspace)
+        .map(({ tokenHash: _omit, ...safe }) => safe)
       return json(res, 200, { agents })
     }
     if (req.method === 'DELETE' && req.url.startsWith('/v1/agents/')) {

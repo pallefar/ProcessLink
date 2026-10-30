@@ -21,8 +21,10 @@ enum AgentServiceClient {
         _ = try await post(endpoint: endpoint, path: "/v1/heartbeat", token: deviceToken, body: ["deviceID": deviceID])
     }
 
-    static func listAgents(endpoint: String, enrollmentToken: String) async throws -> [[String: Any]] {
-        guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespaces) + "/v1/agents") else { throw AgentError.badURL }
+    static func listAgents(endpoint: String, enrollmentToken: String, workspaceID: String = "") async throws -> [[String: Any]] {
+        var components = URLComponents(string: endpoint.trimmingCharacters(in: .whitespaces) + "/v1/agents")
+        if !workspaceID.isEmpty { components?.queryItems = [URLQueryItem(name: "workspace", value: workspaceID)] }
+        guard let url = components?.url else { throw AgentError.badURL }
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
         request.setValue("Bearer \(enrollmentToken)", forHTTPHeaderField: "Authorization")

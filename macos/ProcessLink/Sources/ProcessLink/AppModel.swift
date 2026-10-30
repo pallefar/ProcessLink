@@ -1886,7 +1886,7 @@ final class AppModel {
     func refreshAgentFleet(token: String) async {
         guard let policy = capturePolicy(), !policy.endpoint.isEmpty else { return }
         do {
-            let rows = try await AgentServiceClient.listAgents(endpoint: policy.endpoint, enrollmentToken: token)
+            let rows = try await AgentServiceClient.listAgents(endpoint: policy.endpoint, enrollmentToken: token, workspaceID: policy.workspaceID)
             fleetAgents = rows.compactMap { row in
                 guard let deviceID = row["deviceID"] as? String else { return nil }
                 return AgentFleetDevice(
