@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useApp } from '../App'
 import { Card, Chip, Note } from '../components/ui'
 import { OsActivity } from '../components/OsActivity'
-import { osGet, type LiveMap, type LiveProjects, type LiveVision, type VisionRoadmap } from '../domain/osBridge'
+import { osGet, type DeckForgeDecks, type LiveMap, type LiveProjects, type LiveVision, type VisionRoadmap } from '../domain/osBridge'
 
 const OS = (import.meta.env.VITE_FLIGHTDECK_URL as string | undefined) || 'http://127.0.0.1:4173'
 const ATLAS = (import.meta.env.VITE_ATLAS_URL as string | undefined) || 'http://localhost:5173'
@@ -25,12 +25,14 @@ export default function Suite() {
   const [liveVision, setLiveVision] = useState<LiveVision | null>(null)
   const [liveProjects, setLiveProjects] = useState<LiveProjects | null>(null)
   const [roadmap, setRoadmap] = useState<VisionRoadmap | null>(null)
+  const [decks, setDecks] = useState<DeckForgeDecks | null>(null)
   useEffect(() => {
     void Promise.all([
       osGet<LiveMap[]>('/api/apps/maps/maps'), osGet<LiveVision>('/api/vision/bootstrap'),
       osGet<LiveProjects>('/api/projects'), osGet<VisionRoadmap>('/api/vision/roadmap'),
-    ]).then(([maps, vision, projects, road]) => {
-      setLiveMaps(maps); setLiveVision(vision); setLiveProjects(projects); setRoadmap(road)
+      osGet<DeckForgeDecks>('/deckforge/api/apps/presentation-studio/decks'),
+    ]).then(([maps, vision, projects, road, deckData]) => {
+      setLiveMaps(maps); setLiveVision(vision); setLiveProjects(projects); setRoadmap(road); setDecks(deckData)
     })
   }, [])
   const check = async () => {
@@ -40,7 +42,7 @@ export default function Suite() {
       if (!response.ok) throw new Error(`GitHub HTTP ${response.status}`)
       const data = await response.json() as { tag_name: string; html_url: string }
       const latest = data.tag_name.replace(/^v/i, '')
-      const current = '0.1.24'
+      const current = '0.1.25'
       const newer = latest.localeCompare(current, undefined, { numeric: true }) > 0
       setUpdate({ status: newer ? 'available' : 'current', latest, url: data.html_url })
     } catch (error) {
@@ -103,6 +105,15 @@ export default function Suite() {
           ))}
           {liveProjects && <a className="btn small" href={ATLAS} target="_blank" rel="noreferrer">Open Atlas projects</a>}
         </Card>
+        <Card title="DeckForge decks" subtitle="Live Presentation Studio decks from the local app." glyph="▤">
+          <div className="row-meta"><Chip tone={decks ? 'green' : undefined}>{decks ? `${decks.items.length} decks` : 'Unavailable'}</Chip></div>
+          {decks?.items.slice(0, 4).map(deck => (
+            <div className="row-meta" key={deck.deckId} style={{ justifyContent: 'space-between', padding: '3px 0' }}>
+              <span>{deck.title}</span><span className="tiny">rev {deck.revision}</span>
+            </div>
+          ))}
+          <a className="btn small" href="http://127.0.0.1:4179/" target="_blank" rel="noreferrer">Open DeckForge</a>
+        </Card>
         <Card title="Vision roadmap" subtitle="Goals and roadmap rows from the OS Vision projection." glyph="◇">
           <div className="row-meta">
             <Chip tone={roadmap ? 'purple' : undefined}>{roadmap ? `${roadmap.records.length} items` : 'Unavailable'}</Chip>
@@ -121,7 +132,7 @@ export default function Suite() {
 
       <Card title="ProcessLink updates" subtitle="Reads the public GitHub release feed; never installs silently." glyph="↓">
         <div className="row-meta">
-          <Chip>Installed 0.1.24</Chip>
+          <Chip>Installed 0.1.25</Chip>
           {update.latest && <Chip tone="blue">Latest {update.latest}</Chip>}
           {update.status === 'current' && <Chip tone="green">Up to date</Chip>}
           {update.status === 'available' && <Chip tone="orange">Update available</Chip>}

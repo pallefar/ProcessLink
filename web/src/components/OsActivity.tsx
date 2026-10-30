@@ -6,6 +6,7 @@ interface Activity { text: string; at: string }
 export function OsActivity() {
   const [items, setItems] = useState<Activity[]>([])
   const [status, setStatus] = useState<'connecting' | 'live' | 'closed'>('connecting')
+  const [filter, setFilter] = useState('')
 
   useEffect(() => {
     let source: EventSource | null = null
@@ -36,7 +37,8 @@ export function OsActivity() {
         </Chip>
         <span className="tiny">Read-only event stream</span>
       </div>
-      {items.length === 0 ? <p className="subtle">Waiting for the next OS event.</p> : items.map((item, index) => (
+      <input className="os-activity-filter" placeholder="Filter events…" value={filter} onChange={e => setFilter(e.target.value)} />
+      {items.filter(item => !filter || item.text.toLowerCase().includes(filter.toLowerCase())).length === 0 ? <p className="subtle">Waiting for the next OS event.</p> : items.filter(item => !filter || item.text.toLowerCase().includes(filter.toLowerCase())).map((item, index) => (
         <div className="os-activity-row" key={`${item.at}-${index}`}>
           <span>{item.text}</span><span className="tiny">{new Date(item.at).toLocaleTimeString('en-GB')}</span>
         </div>

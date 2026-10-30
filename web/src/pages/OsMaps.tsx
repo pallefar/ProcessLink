@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Card, Chip, Empty, KV, PageHead } from '../components/ui'
+import { useApp } from '../App'
 import { FeedbackPanel } from '../components/FeedbackPanel'
 import { FeedbackButton } from '../components/FeedbackButton'
 import { osGet, type LiveMap } from '../domain/osBridge'
@@ -8,6 +9,8 @@ interface MapNode { id: string; type: string; label: string; data?: { role?: str
 interface MapDetail { schema: string; id: string; label: string; nodes: MapNode[]; edges: Array<{ id: string; source: string; target: string }> }
 
 export default function OsMaps() {
+  const { processes } = useApp()
+  const [processId, setProcessId] = useState('')
   const [maps, setMaps] = useState<LiveMap[] | null>(null)
   const [selected, setSelected] = useState('')
   const [detail, setDetail] = useState<MapDetail | null>(null)
@@ -29,6 +32,24 @@ export default function OsMaps() {
     })
   }, [selected])
 
+  const process = processes.find(item => item.id === processId) ?? processes[0]
+  const normalization = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const mapLabels = (detail?.nodes.filter(node => node.type === 'step') ?? []).map(node => normalization(node.label))
+  const processLabels = (process?.steps ?? []).map(step => normalization(step.name))
+  const matched = processLabels.filter(label => mapLabels.some(mapLabel => mapLabel === label || mapLabel.includes(label) || label.includes(mapLabel)))
+  const missing = processLabels.filter(label => !matched.includes(label))
+  const extra = mapLabels.filter(label => !processLabels.some(processLabel => processLabel === label || processLabel.includes(label) || label.includes(processLabel)))
+  const downloadMiningCSV = () => {
+    if (!detail) return
+    const rows = [['case_id', 'activity', 'timestamp', 'resource', 'application']]
+    const base = Date.now()
+    detail.nodes.filter(node => node.type === 'step').forEach((node, index) => {
+      rows.push([`map-${detail.id}`, node.label, new Date(base + index * 60000).toISOString(), node.data?.role ?? '', 'DiagramForge'])
+    })
+    const blob = new Blob([rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob); const link = document.createElement('a')
+    link.href = url; link.download = `${detail.id}-mining-template.csv`; link.click(); URL.revokeObjectURL(url)
+  }
   const steps = (detail?.nodes.filter(node => node.type === 'step') ?? []).filter(step => {
     const value = search.toLowerCase()
     return !value || step.label.toLowerCase().includes(value) || (step.data?.role ?? '').toLowerCase().includes(value)
@@ -67,6 +88,7 @@ export default function OsMaps() {
                   <Chip tone="blue">{detail.schema}</Chip>
                   <div className="spacer" />
                   <button className="btn small" onClick={downloadMap}>Download map handoff</button>
+                  <button className="btn small" onClick={downloadMiningCSV}>Mining CSV template</button>
                   <a className="btn small" href={`/console/apps/maps?map=${encodeURIComponent(detail.id)}`} target="_blank" rel="noreferrer">Open in DiagramForge</a>
                 </div>
                 <Card>
@@ -77,6 +99,19 @@ export default function OsMaps() {
                     ['Source', 'Flightdeck OS · Maps'],
                   ]} />
                 </Card>
+                <Card title="Process comparison" subtitle="Compare live map steps with a ProcessLink process." glyph="⇄">
+                  <div className="row-meta" style={{ marginBottom: 8 }}>
+                    <select value={processId || process?.id || ''} onChange={e => setProcessId(e.target.value)} aria-label="Process">
+                      {processes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                    <Chip tone="green">{matched.length} matched</Chip>
+                    <Chip tone="orange">{missing.length} missing</Chip>
+                    <Chip tone="blue">{extra.length} map-only</Chip>
+                  </div>
+                  {missing.length > 0 && <div className="tiny">Missing: {missing.slice(0, 4).join(' · ')}</div>}
+                  {extra.length > 0 && <div className="tiny">Map-only: {extra.slice(0, 4).join(' · ')}</div>}
+                </Card>
+
                 <Card title="Steps" subtitle="Live shape labels and roles; no write-back." glyph="▤">
                   <input className="osmap-search" placeholder="Search steps or roles…" value={search} onChange={e => setSearch(e.target.value)} />
                   {steps.map(step => (

@@ -63,3 +63,10 @@ access control must protect the ProcessLink origin.
 Set `SUBAPP_ADVANTAGE_ENABLED=true`, remove `processlink` from
 `SUBAPPS_DEFAULT_ON`, rebuild/restart. The Advantage manifest, routes and data
 were not removed.
+
+
+## DeckForge read proxy
+
+`server/routes/deckforgeProxy.ts` exposes authenticated `/deckforge/*` reads to
+the local Presentation Studio at `DECKFORGE_URL` (default
+`http://host.docker.internal:4179`). The OS suite uses it for the live deck list.

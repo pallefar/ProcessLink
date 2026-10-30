@@ -679,3 +679,4 @@ table.ledger td.num, table.ledger th.num { text-align: right; font-variant-numer
 .osmap-search { width: 100%; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); color: var(--text); padding: 6px 8px; margin-bottom: 6px; font-size: 11.5px; }
 .os-activity-row { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--border); padding: 5px 0; font-size: 11.5px; }
 .os-activity-row:last-child { border-bottom: 0; }
+.os-activity-filter { width: 100%; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); color: var(--text); padding: 5px 7px; margin: 6px 0; font-size: 11px; }

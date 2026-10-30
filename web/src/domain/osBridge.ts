@@ -31,3 +31,7 @@ export interface LiveProjects {
 export interface VisionRoadmap {
   records: Array<{ id: string; body?: { title?: string; stage?: string; status?: string } }>
 }
+
+export interface DeckForgeDecks {
+  items: Array<{ deckId: string; title: string; revision: number; updatedAt: string }>
+}
