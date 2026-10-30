@@ -1,11 +1,11 @@
 {
   "name": "processlink-web",
   "private": true,
-  "version": "0.1.53",
+  "version": "0.1.54",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && vite build -c vite.embed.config.ts",
     "preview": "vite preview --port 4175",
     "typecheck": "tsc --noEmit"
   },

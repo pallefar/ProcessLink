@@ -105,8 +105,8 @@ const pageFromHash = (): Page => {
   return NAV.some(item => item.id === raw) ? (raw as Page) : 'overview'
 }
 
-export default function ProcessLink() {
-  const [page, setPage] = useState<Page>(pageFromHash)
+export default function ProcessLink({ embedded = false }: { embedded?: boolean } = {}) {
+  const [page, setPage] = useState<Page>(() => embedded ? 'overview' : pageFromHash())
   const [opportunities, setOpportunities] = useState<Opportunity[]>(OPPORTUNITIES)
   const [initiatives, setInitiatives] = useState<Initiative[]>(INITIATIVES)
   const [nodes, setNodes] = useState<KGNode[]>(KG_NODES)
@@ -156,16 +156,18 @@ export default function ProcessLink() {
   const [selectedMeeting, selectMeeting] = useState(MEETINGS[0]?.id ?? '')
 
   useEffect(() => {
+    if (embedded) return
     const onHash = () => setPage(pageFromHash())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
-  }, [])
+  }, [embedded])
 
   useEffect(() => {
+    if (embedded) return
     if (window.location.hash !== `#/${page}`) {
       window.history.replaceState(null, '', `#/${page}`)
     }
-  }, [page])
+  }, [page, embedded])
 
   useEffect(() => {
     if (theme === 'auto') delete document.documentElement.dataset.theme
