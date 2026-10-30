@@ -7,7 +7,7 @@ import type { PrivacyDecision } from '../domain/types'
 const GROUPS = ['Data protection', 'People', 'Accountability', 'AI & security']
 
 export default function Governance() {
-  const { governance, audit, policy, setPolicy, setGovernanceStatus } = useApp()
+  const { governance, audit, policy, setPolicy, setGovernanceStatus, feedback } = useApp()
   const [demo, setDemo] = useState<{ title: string; decision: PrivacyDecision; pii?: PIIScan } | null>(null)
   const done = governance.filter(item => item.status === 'done').length
   const blocked = governance.filter(item => item.status === 'blocked').length
@@ -20,7 +20,14 @@ export default function Governance() {
   return (
     <>
       <PageHead title="Governance" subtitle="Purpose limitation, group thresholds, classification, retention and the human gates. Nothing is production-ready until this list is signed."
-        actions={<><Chip tone="green">{done}/{governance.length} done</Chip><Chip tone="red">{blocked} blocked</Chip></>} />
+        actions={<><Chip tone="green">{done}/{governance.length} done</Chip><Chip tone="red">{blocked} blocked</Chip><button className="btn small" onClick={() => {
+          let product: unknown[] = []
+          try { product = JSON.parse(localStorage.getItem('processlink.productfeedback.v1') || '[]') as unknown[] } catch { /* ignore */ }
+          const payload = { schema: 'processlink-web-backup/1', exportedAt: new Date().toISOString(), feedback, productFeedback: product, importedBets: JSON.parse(localStorage.getItem('processlink.importedBets') || '[]'), agentPolicy: JSON.parse(localStorage.getItem('processlink.agent.policy.v1') || 'null') }
+          const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+          const url = URL.createObjectURL(blob); const link = document.createElement('a')
+          link.href = url; link.download = 'processlink-web-backup.json'; link.click(); URL.revokeObjectURL(url)
+        }}>Export data</button></>} />
 
       <div className="grid two">
         <div className="stack">

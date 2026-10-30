@@ -1691,6 +1691,56 @@ final class AppModel {
                   symbol: "trash")
     }
 
+    func exportWorkspaceBackup() {
+        let processes = (try? context.fetch(FetchDescriptor<ProcessRecord>())) ?? []
+        let opportunities = (try? context.fetch(FetchDescriptor<OpportunityRecord>())) ?? []
+        let initiatives = (try? context.fetch(FetchDescriptor<InitiativeRecord>())) ?? []
+        let meetings = (try? context.fetch(FetchDescriptor<MeetingRecord>())) ?? []
+        let feedback = (try? context.fetch(FetchDescriptor<FeedbackRecord>())) ?? []
+        let product = (try? context.fetch(FetchDescriptor<AppFeedbackRecord>())) ?? []
+        let captures = (try? context.fetch(FetchDescriptor<CaptureSessionRecord>())) ?? []
+        let payload: [String: Any] = [
+            "schema": "processlink-workspace-backup/1",
+            "exportedAt": ISO8601DateFormatter().string(from: now),
+            "counts": [
+                "processes": processes.count, "opportunities": opportunities.count,
+                "initiatives": initiatives.count, "meetings": meetings.count,
+                "annotations": feedback.count, "productFeedback": product.count,
+                "captureSessions": captures.count,
+            ],
+            "processes": processes.map { ["id": $0.id, "name": $0.name, "site": $0.site,
+                                         "businessUnit": $0.businessUnit, "summary": $0.summary] },
+            "opportunities": opportunities.map { ["id": $0.id, "title": $0.title,
+                                                  "process": $0.processName, "status": $0.statusRaw] },
+            "initiatives": initiatives.map { ["id": $0.id, "title": $0.title,
+                                             "owner": $0.owner, "stage": $0.stageRaw,
+                                             "savingHours": $0.savingsHours] },
+            "meetings": meetings.map { ["id": $0.id, "title": $0.title, "kind": $0.kindRaw] },
+            "annotations": feedback.map { ["id": $0.id, "kind": $0.kindRaw,
+                                           "subjectId": $0.subjectID, "body": $0.body,
+                                           "resolved": $0.resolved] },
+            "productFeedback": product.map { ["id": $0.id, "rating": $0.rating,
+                                              "priority": $0.priority, "comment": $0.comment] },
+            "captureSessions": captures.map { ["id": $0.id, "name": $0.name,
+                                               "startedAt": ISO8601DateFormatter().string(from: $0.startedAt),
+                                               "activeMinutes": $0.activeMinutes] },
+        ]
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "processlink-workspace-backup.json"
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let data = try JSONSerialization.data(withJSONObject: payload,
+                                                  options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            try data.write(to: url, options: .atomic)
+            showToast("Workspace backup saved", detail: "\(processes.count) processes · \(initiatives.count) initiatives",
+                      symbol: "externaldrive.badge.checkmark")
+        } catch {
+            showToast("Backup failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+        }
+    }
+
     // MARK: Updates
 
     @MainActor

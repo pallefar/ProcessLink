@@ -201,6 +201,8 @@ struct GovernancePage: View {
                 HStack {
                     Button("Export audit CSV") { model.exportAuditCSV() }
                         .controlSize(.small)
+                    Button("Export workspace backup") { model.exportWorkspaceBackup() }
+                        .controlSize(.small)
                     Button("Apply retention purge") { confirmPurge = true }
                         .controlSize(.small)
                 }
