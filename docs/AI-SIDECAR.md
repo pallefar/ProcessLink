@@ -17,3 +17,10 @@ Start it with `cd ai && npm install && npm start` (port 4183).
 The web Mining → Insights **AI map alignment** card calls the same `/api/map`
 endpoint and shows confidence. Browsers need the sidecar running with CORS
 enabled (it is); the card fails explicitly when it is unavailable.
+
+## OS map comparison
+
+The OS maps page compares live DiagramForge step labels with a ProcessLink
+process. **AI compare** sends only those labels to the local sidecar, shows a
+confidence table and threshold slider, and keeps the lexical match as fallback.
+The suite page shows sidecar health/model.

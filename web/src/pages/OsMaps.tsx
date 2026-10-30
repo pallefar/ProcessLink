@@ -16,6 +16,10 @@ export default function OsMaps() {
   const [detail, setDetail] = useState<MapDetail | null>(null)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiMapping, setAiMapping] = useState<Record<string, { step: string; confidence: number }>>({})
+  const [aiThreshold, setAiThreshold] = useState(0.35)
 
   useEffect(() => {
     void osGet<LiveMap[]>('/api/apps/maps/maps').then(value => {
@@ -49,6 +53,30 @@ export default function OsMaps() {
     const blob = new Blob([rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n')], { type: 'text/csv' })
     const url = URL.createObjectURL(blob); const link = document.createElement('a')
     link.href = url; link.download = `${detail.id}-mining-template.csv`; link.click(); URL.revokeObjectURL(url)
+  }
+  const visibleAIMapping = Object.fromEntries(Object.entries(aiMapping).filter(([, value]) => value.confidence >= aiThreshold))
+  const semanticMatches = process ? process.steps.filter(step => Object.values(visibleAIMapping).some(value => value.step === step.id)) : []
+  const semanticMissing = process ? process.steps.filter(step => !semanticMatches.some(match => match.id === step.id)) : []
+  const semanticMapOnly = (detail?.nodes.filter(node => node.type === 'step') ?? []).filter(node => !Object.keys(visibleAIMapping).some(label => label === node.label))
+  const runAIC = async () => {
+    if (!detail || !process) return
+    setAiBusy(true); setAiError(''); setAiMapping({})
+    try {
+      const response = await fetch('http://127.0.0.1:4183/api/map', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          activities: detail.nodes.filter(node => node.type === 'step').map(node => node.label),
+          steps: process.steps.map(step => ({ id: step.id, label: step.name })),
+        }),
+      })
+      if (!response.ok) throw new Error(`AI sidecar HTTP ${response.status}`)
+      const data = await response.json() as { mapping: Record<string, string>; confidence?: Record<string, number> }
+      const next: Record<string, { step: string; confidence: number }> = {}
+      for (const [label, step] of Object.entries(data.mapping)) next[label] = { step, confidence: data.confidence?.[label] ?? 0 }
+      setAiMapping(next)
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'AI unavailable')
+    } finally { setAiBusy(false) }
   }
   const steps = (detail?.nodes.filter(node => node.type === 'step') ?? []).filter(step => {
     const value = search.toLowerCase()
@@ -104,10 +132,27 @@ export default function OsMaps() {
                     <select value={processId || process?.id || ''} onChange={e => setProcessId(e.target.value)} aria-label="Process">
                       {processes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
                     </select>
-                    <Chip tone="green">{matched.length} matched</Chip>
-                    <Chip tone="orange">{missing.length} missing</Chip>
-                    <Chip tone="blue">{extra.length} map-only</Chip>
+                    <Chip tone="green">{Object.keys(aiMapping).length ? semanticMatches.length : matched.length} matched</Chip>
+                    <Chip tone="orange">{Object.keys(aiMapping).length ? semanticMissing.length : missing.length} missing</Chip>
+                    <Chip tone="blue">{Object.keys(aiMapping).length ? semanticMapOnly.length : extra.length} map-only</Chip>
+                    <button className="btn small" onClick={runAIC} disabled={aiBusy || !detail || !process}>{aiBusy ? 'Thinking…' : 'AI compare'}</button>
+                    <label className="tiny">min {Math.round(aiThreshold * 100)}%</label>
+                    <input type="range" min={0.2} max={0.9} step={0.05} value={aiThreshold} onChange={e => setAiThreshold(Number(e.target.value))} aria-label="AI confidence threshold" />
                   </div>
+                  {aiError && <div className="tiny" style={{ color: 'var(--orange)' }}>{aiError}</div>}
+                  {Object.keys(aiMapping).length > 0 && (
+                    <div className="tiny" style={{ marginBottom: 6 }}>
+                      Semantic: {Object.entries(visibleAIMapping).slice(0, 3).map(([label, value]) => `${label} → ${process?.steps.find(step => step.id === value.step)?.name ?? value.step} (${Math.round(value.confidence * 100)}%)`).join(' · ')}
+                    </div>
+                  )}
+                  {Object.keys(visibleAIMapping).length > 0 && (
+                    <table className="table compact" style={{ marginBottom: 6 }}>
+                      <thead><tr><th>Map activity</th><th>Process step</th><th className="num">Confidence</th></tr></thead>
+                      <tbody>{Object.entries(visibleAIMapping).map(([label, value]) => (
+                        <tr key={label}><td>{label}</td><td>{process?.steps.find(step => step.id === value.step)?.name ?? value.step}</td><td className="num">{Math.round(value.confidence * 100)}%</td></tr>
+                      ))}</tbody>
+                    </table>
+                  )}
                   {missing.length > 0 && <div className="tiny">Missing: {missing.slice(0, 4).join(' · ')}</div>}
                   {extra.length > 0 && <div className="tiny">Map-only: {extra.slice(0, 4).join(' · ')}</div>}
                 </Card>

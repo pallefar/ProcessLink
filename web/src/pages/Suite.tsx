@@ -26,7 +26,13 @@ export default function Suite() {
   const [liveProjects, setLiveProjects] = useState<LiveProjects | null>(null)
   const [roadmap, setRoadmap] = useState<VisionRoadmap | null>(null)
   const [decks, setDecks] = useState<DeckForgeDecks | null>(null)
+  const [aiStatus, setAiStatus] = useState<{ ok: boolean; model?: string } | null>(null)
   useEffect(() => {
+    void fetch('http://127.0.0.1:4183/health').then(async response => {
+      if (!response.ok) throw new Error('not running')
+      const data = await response.json() as { ok?: boolean; model?: string }
+      setAiStatus({ ok: data.ok === true, model: data.model })
+    }).catch(() => setAiStatus({ ok: false }))
     void Promise.all([
       osGet<LiveMap[]>('/api/apps/maps/maps'), osGet<LiveVision>('/api/vision/bootstrap'),
       osGet<LiveProjects>('/api/projects'), osGet<VisionRoadmap>('/api/vision/roadmap'),
@@ -42,7 +48,7 @@ export default function Suite() {
       if (!response.ok) throw new Error(`GitHub HTTP ${response.status}`)
       const data = await response.json() as { tag_name: string; html_url: string }
       const latest = data.tag_name.replace(/^v/i, '')
-      const current = '0.1.25'
+      const current = '0.1.26'
       const newer = latest.localeCompare(current, undefined, { numeric: true }) > 0
       setUpdate({ status: newer ? 'available' : 'current', latest, url: data.html_url })
     } catch (error) {
@@ -79,6 +85,7 @@ export default function Suite() {
           <div><Chip tone={liveMaps ? 'green' : undefined}>{liveMaps ? `${liveMaps.length} maps` : 'Maps unavailable'}</Chip><div className="tiny" style={{ marginTop: 4 }}>{liveMaps?.[0]?.label ?? 'No OS map visible'}</div></div>
           <div><Chip tone={liveVision?.strategy ? 'purple' : undefined}>{liveVision?.strategy ? 'Vision connected' : 'Vision unavailable'}</Chip><div className="tiny" style={{ marginTop: 4 }}>{liveVision?.strategy?.body?.title ?? 'No strategy visible'}</div></div>
           <div><Chip tone="blue">Session</Chip><div className="tiny" style={{ marginTop: 4 }}>{hostWorkspace || 'No OS host context'} · {hostProject || 'no project'}</div></div>
+          <div><Chip tone={aiStatus?.ok ? 'green' : undefined}>AI sidecar</Chip><div className="tiny" style={{ marginTop: 4 }}>{aiStatus?.ok ? aiStatus.model : 'Not running on :4183'}</div></div>
         </div>
         {liveMaps && liveMaps.length > 0 && (
           <div style={{ marginTop: 10 }}>
@@ -132,7 +139,7 @@ export default function Suite() {
 
       <Card title="ProcessLink updates" subtitle="Reads the public GitHub release feed; never installs silently." glyph="↓">
         <div className="row-meta">
-          <Chip>Installed 0.1.25</Chip>
+          <Chip>Installed 0.1.26</Chip>
           {update.latest && <Chip tone="blue">Latest {update.latest}</Chip>}
           {update.status === 'current' && <Chip tone="green">Up to date</Chip>}
           {update.status === 'available' && <Chip tone="orange">Update available</Chip>}
