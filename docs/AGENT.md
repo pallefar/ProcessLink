@@ -28,4 +28,4 @@ There is still no fleet server.
 `agent/server.mjs` (Docker service `processlink-agent`, port 4185) provides
 enroll, heartbeat and policy retrieval with a bearer enrollment token. It
 stores only device policy/consent references; captures never leave the Mac.
-This is a local control plane, not a multi-tenant fleet service.
+The native agent card can enroll, heartbeat and fetch policy from this service; the enrollment token is stored in the Keychain. This is a local control plane, not a multi-tenant fleet service.

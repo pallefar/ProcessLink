@@ -1759,6 +1759,86 @@ final class AppModel {
                   symbol: "doc.text.magnifyingglass")
     }
 
+    private var agentPolicyPayload: [String: Any] {
+        guard let policy = capturePolicy() else { return [:] }
+        return [
+            "active": policy.active, "intervalMinutes": policy.intervalMinutes,
+            "maxSessionMinutes": policy.maxSessionMinutes,
+            "windowTitles": policy.windowTitles, "screenshots": policy.screenshots,
+            "inputCounts": policy.inputCounts, "consentVersion": policy.consentVersion,
+        ]
+    }
+
+    private var agentConsentPayload: [[String: Any]] {
+        ((try? context.fetch(FetchDescriptor<ConsentRecord>())) ?? []).filter { $0.revokedAt == nil }.map {
+            ["site": $0.site, "role": $0.role, "version": $0.version, "reference": $0.reference]
+        }
+    }
+
+    func enrollAgentWithControlPlane(token: String) async {
+        guard let policy = capturePolicy(), !policy.endpoint.isEmpty else {
+            showToast("Set the control-plane endpoint", detail: "The agent card needs an endpoint.",
+                      symbol: "network.slash", warning: true)
+            return
+        }
+        if policy.deviceID.isEmpty { policy.deviceID = UUID().uuidString }
+        do {
+            try await AgentServiceClient.enroll(
+                endpoint: policy.endpoint, token: token, deviceID: policy.deviceID,
+                workspaceID: policy.workspaceID, projectID: policy.projectID,
+                policy: agentPolicyPayload, consents: agentConsentPayload)
+            policy.lastHeartbeat = now
+            audit(action: "agent.enrolled", subject: policy.deviceID, detail: "Control plane accepted policy")
+            try? context.save()
+            showToast("Agent enrolled", detail: policy.deviceID, symbol: "checkmark.icloud")
+        } catch {
+            showToast("Enrollment failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+        }
+    }
+
+    func sendAgentHeartbeat(token: String) async {
+        guard let policy = capturePolicy() else { return }
+        if policy.endpoint.isEmpty || policy.deviceID.isEmpty {
+            markAgentHeartbeat()
+            return
+        }
+        do {
+            try await AgentServiceClient.heartbeat(endpoint: policy.endpoint, token: token, deviceID: policy.deviceID)
+            policy.lastHeartbeat = now
+            try? context.save()
+            showToast("Heartbeat sent", detail: "Control plane recorded \(policy.deviceID.prefix(8))",
+                      symbol: "heartbeat")
+        } catch {
+            showToast("Heartbeat failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+        }
+    }
+
+    func refreshAgentPolicy(token: String) async {
+        guard let policy = capturePolicy(), !policy.endpoint.isEmpty, !policy.deviceID.isEmpty else { return }
+        do {
+            let result = try await AgentServiceClient.policy(endpoint: policy.endpoint, token: token,
+                                                             deviceID: policy.deviceID)
+            if let agent = result["agent"] as? [String: Any],
+               let remote = agent["policy"] as? [String: Any] {
+                policy.active = remote["active"] as? Bool ?? policy.active
+                policy.intervalMinutes = remote["intervalMinutes"] as? Int ?? policy.intervalMinutes
+                policy.maxSessionMinutes = remote["maxSessionMinutes"] as? Int ?? policy.maxSessionMinutes
+                policy.windowTitles = remote["windowTitles"] as? Bool ?? policy.windowTitles
+                policy.screenshots = remote["screenshots"] as? Bool ?? policy.screenshots
+                policy.inputCounts = remote["inputCounts"] as? Bool ?? policy.inputCounts
+                policy.updatedAt = now
+                try? context.save()
+                showToast("Policy refreshed", detail: "Remote fields applied; consent stays local.",
+                          symbol: "arrow.down.circle")
+            }
+        } catch {
+            showToast("Policy refresh failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+        }
+    }
+
     // MARK: Updates
 
     @MainActor

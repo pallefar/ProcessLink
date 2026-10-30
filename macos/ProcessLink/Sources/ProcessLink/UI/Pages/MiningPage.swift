@@ -43,6 +43,7 @@ struct MiningPage: View {
     @State private var consentReference = ""
     @State private var aiNaming = false
     @AppStorage("agent.deviceID") private var agentDeviceID = ""
+    @State private var agentToken = ""
     @AppStorage("capture.windowTitles") private var captureWindowTitles = false
     @AppStorage("capture.screenshots") private var captureScreenshots = false
     @AppStorage("capture.inputCounts") private var captureInputCounts = false
@@ -584,8 +585,11 @@ struct MiningPage: View {
                         .controlSize(.small)
                         Button("Import policy") { model.importAgentPolicy() }
                             .controlSize(.small)
-                        Button("Heartbeat") { model.markAgentHeartbeat() }
-                            .controlSize(.small)
+                        Button("Heartbeat") {
+                            KeychainStore.set(agentToken, account: "agent.serviceToken")
+                            Task { await model.sendAgentHeartbeat(token: agentToken) }
+                        }
+                        .controlSize(.small)
                         if !model.validConsent(for: policy) {
                             Text("Capture cannot start until consent is recorded.")
                                 .font(.caption2).foregroundStyle(.orange)
@@ -606,7 +610,20 @@ struct MiningPage: View {
                         Text("Endpoint").font(.caption2).foregroundStyle(.secondary)
                         TextField("https://agent.example", text: Binding(
                             get: { policy.endpoint }, set: { policy.endpoint = $0; try? model.context.save() }))
-                            .textFieldStyle(.roundedBorder).frame(maxWidth: 220)
+                            .textFieldStyle(.roundedBorder).frame(maxWidth: 200)
+                        SecureField("Enrollment token", text: $agentToken)
+                            .textFieldStyle(.roundedBorder).frame(maxWidth: 152)
+                        Button("Enroll") {
+                            KeychainStore.set(agentToken, account: "agent.serviceToken")
+                            Task { await model.enrollAgentWithControlPlane(token: agentToken) }
+                        }
+                        .controlSize(.small)
+                        .disabled(policy.endpoint.isEmpty || agentToken.isEmpty)
+                        Button("Fetch policy") {
+                            Task { await model.refreshAgentPolicy(token: agentToken) }
+                        }
+                        .controlSize(.small)
+                        .disabled(policy.endpoint.isEmpty || agentToken.isEmpty || policy.deviceID.isEmpty)
                         Text("Device").font(.caption2).foregroundStyle(.tertiary)
                         Text(policy.deviceID.isEmpty ? "not enrolled" : policy.deviceID.prefix(8))
                             .font(.caption2.monospaced()).foregroundStyle(.tertiary)
@@ -616,6 +633,9 @@ struct MiningPage: View {
                     }
                     GuardrailNote(text: "The policy, consent and session stay on this Mac. @mentions and feedback do not upload capture data. A fleet deployment still needs a DPIA and works-council agreement.")
                 }
+            }
+            .onAppear {
+                if let saved = KeychainStore.get(account: "agent.serviceToken") { agentToken = saved }
             }
             .sheet(isPresented: $showingConsent) {
                 VStack(alignment: .leading, spacing: Space.md) {
