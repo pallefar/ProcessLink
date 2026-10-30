@@ -288,6 +288,8 @@ struct FeedbackInboxPage: View {
                     } else {
                         ForEach(appFeedback.prefix(5)) { item in
                             HStack(alignment: .top, spacing: Space.sm) {
+                                Chip(text: item.priority.capitalized,
+                                     tint: item.priority == "high" ? .red : item.priority == "low" ? .secondary : .blue)
                                 Chip(text: item.rating == "ok" ? "OK" : item.rating == "minor" ? "Minor" : "Major",
                                      tint: item.rating == "ok" ? .green : item.rating == "minor" ? .orange : .red)
                                 VStack(alignment: .leading, spacing: 1) {
@@ -344,6 +346,7 @@ private struct AppFeedbackSheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("feedback.author") private var author = "CI Manager (role)"
     @State private var rating = "ok"
+    @State private var priority = "normal"
     @State private var category = ""
     @State private var comment = ""
     @State private var sent = false
@@ -366,6 +369,12 @@ private struct AppFeedbackSheet: View {
                     Text("Major issue").tag("major")
                 }
                 .pickerStyle(.segmented)
+                Picker("Priority", selection: $priority) {
+                    Text("Low").tag("low")
+                    Text("Normal").tag("normal")
+                    Text("High").tag("high")
+                }
+                .pickerStyle(.segmented)
                 TextField("Category (optional)", text: $category).textFieldStyle(.roundedBorder)
                 TextField("Name / role", text: $author).textFieldStyle(.roundedBorder)
                 TextField("What should we improve?", text: $comment, axis: .vertical)
@@ -374,7 +383,7 @@ private struct AppFeedbackSheet: View {
                     Text("Saved locally; never sent to a model or the network.").font(.caption2).foregroundStyle(.tertiary)
                     Spacer()
                     Button("Save feedback") {
-                        if model.addAppFeedback(rating: rating, category: category,
+                        if model.addAppFeedback(rating: rating, priority: priority, category: category,
                                                 comment: comment, author: author,
                                                 page: model.page?.rawValue ?? "unknown") != nil {
                             sent = true

@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 interface ProductFeedback {
   rating: 'ok' | 'minor' | 'major'
+  priority: 'low' | 'normal' | 'high'
   category: string
   comment: string
   author: string
@@ -21,6 +22,7 @@ function save(record: ProductFeedback) {
 export function ProductFeedbackButton({ page }: { page: string }) {
   const [open, setOpen] = useState(false)
   const [rating, setRating] = useState<ProductFeedback['rating']>('ok')
+  const [priority, setPriority] = useState<ProductFeedback['priority']>('normal')
   const [category, setCategory] = useState('')
   const [comment, setComment] = useState('')
   const [author, setAuthor] = useState('CI Manager (role)')
@@ -43,6 +45,13 @@ export function ProductFeedbackButton({ page }: { page: string }) {
             ) : (
               <div className="stack">
                 <div className="segmented">
+                  {(['low', 'normal', 'high'] as const).map(value => (
+                    <button key={value} aria-selected={priority === value} onClick={() => setPriority(value)}>
+                      {value === 'low' ? 'Low' : value === 'normal' ? 'Normal' : 'High'}
+                    </button>
+                  ))}
+                </div>
+                <div className="segmented">
                   {(['ok', 'minor', 'major'] as const).map(value => (
                     <button key={value} aria-selected={rating === value} onClick={() => setRating(value)}>
                       {value === 'ok' ? 'OK' : value === 'minor' ? 'Minor issue' : 'Major issue'}
@@ -56,7 +65,7 @@ export function ProductFeedbackButton({ page }: { page: string }) {
                 <div className="row-meta">
                   <button className="btn" onClick={close}>Cancel</button>
                   <button className="btn primary" disabled={!comment.trim()} onClick={() => {
-                    save({ rating, category, comment: comment.trim(), author: author.trim() || 'CI Manager (role)', page, createdAt: new Date().toISOString() })
+                    save({ rating, priority, category, comment: comment.trim(), author: author.trim() || 'CI Manager (role)', page, createdAt: new Date().toISOString() })
                     setSent(true)
                   }}>Save feedback</button>
                 </div>

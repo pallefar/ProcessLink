@@ -1357,16 +1357,18 @@ final class CaptureTaskRecord {
 final class AppFeedbackRecord {
     var id: String = ""
     var rating: String = "ok"
+    var priority: String = "normal"
     var category: String = ""
     var comment: String = ""
     var author: String = "CI Manager (role)"
     var page: String = ""
     var createdAt: Date = Date.now
 
-    init(id: String, rating: String, category: String, comment: String,
+    init(id: String, rating: String, priority: String = "normal", category: String, comment: String,
          author: String, page: String) {
         self.id = id
         self.rating = rating
+        self.priority = priority
         self.category = category
         self.comment = comment
         self.author = author

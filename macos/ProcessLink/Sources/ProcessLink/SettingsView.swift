@@ -233,6 +233,7 @@ private struct AISettings: View {
 private struct UpdateSettings: View {
     @Environment(AppModel.self) private var model
     @AppStorage("updates.autoCheck") private var autoCheck = true
+    @AppStorage("updates.channel") private var channel = "stable"
 
     var body: some View {
         Section("Version") {
@@ -244,6 +245,11 @@ private struct UpdateSettings: View {
         }
 
         Section("Update feed") {
+            Picker("Channel", selection: $channel) {
+                Text("Stable").tag("stable")
+                Text("Include prereleases").tag("beta")
+            }
+            .pickerStyle(.segmented)
             Toggle("Check at launch", isOn: $autoCheck)
             HStack {
                 Button {

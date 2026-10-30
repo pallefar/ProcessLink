@@ -21,8 +21,11 @@ enum UpdateService {
         URL(string: "https://github.com/pallefar/ProcessLink/releases")!
     }
 
-    static func latest() async throws -> UpdateInfo {
-        guard let url = URL(string: "https://api.github.com/repos/pallefar/ProcessLink/releases/latest") else {
+    static func latest(channel: String = "stable") async throws -> UpdateInfo {
+        let endpoint = channel == "beta"
+            ? "https://api.github.com/repos/pallefar/ProcessLink/releases?per_page=10"
+            : "https://api.github.com/repos/pallefar/ProcessLink/releases/latest"
+        guard let url = URL(string: endpoint) else {
             throw UpdateError.badURL
         }
         var request = URLRequest(url: url)
@@ -33,8 +36,16 @@ enum UpdateService {
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw UpdateError.http((response as? HTTPURLResponse)?.statusCode ?? 0)
         }
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tag = root["tag_name"] as? String,
+        let payload = try JSONSerialization.jsonObject(with: data)
+        let root: [String: Any]
+        if channel == "beta", let list = payload as? [[String: Any]], let first = list.first {
+            root = first
+        } else if let object = payload as? [String: Any] {
+            root = object
+        } else {
+            throw UpdateError.malformed
+        }
+        guard let tag = root["tag_name"] as? String,
               let page = root["html_url"] as? String, let pageURL = URL(string: page) else {
             throw UpdateError.malformed
         }

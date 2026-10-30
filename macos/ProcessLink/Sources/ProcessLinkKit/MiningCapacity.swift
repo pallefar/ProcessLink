@@ -62,6 +62,7 @@ public enum CapacitySimulation {
                            breakMinutesPerDay: Double = 0,
                            workingWeekdays: Set<Int> = [2, 3, 4, 5, 6],
                            holidays: [Date] = [],
+                           shiftStartMinute: Int = 480,
                            seed: UInt64 = 7) -> CapacityResult {
         guard !mined.caseRecords.isEmpty, !roles.isEmpty, arrivalPerDay > 0, days > 0 else {
             return CapacityResult(cases: 0, medianCycleMinutes: 0, p90CycleMinutes: 0,
@@ -108,7 +109,7 @@ public enum CapacitySimulation {
             let jitter = (rng.nextUnit() - 0.5) * gap * 0.4
             let daySlot = min(max(0, workingDayOffsets.count - 1), index / max(1, Int(arrivalPerDay)))
             let dayOffset = workingDayOffsets.isEmpty ? 0 : workingDayOffsets[daySlot]
-            let arrival = Double(dayOffset) * 1_440 + 480
+            let arrival = Double(dayOffset) * 1_440 + Double(max(0, min(1_439, shiftStartMinute)))
                 + Double(index % max(1, Int(arrivalPerDay))) * gap + jitter
             arrivals.append(arrival)
             let selected = pick(variants, rng: &rng)

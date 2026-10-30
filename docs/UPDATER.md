@@ -8,6 +8,7 @@ https://api.github.com/repos/pallefar/ProcessLink/releases/latest
 
 - Native: **Settings → Updates** and **ProcessLink → Check for Updates…**
 - Web: **OS suite → ProcessLink updates**
+- Stable uses `/releases/latest`; **Include prereleases** reads the release list.
 - It compares the release tag with `CFBundleShortVersionString` and offers the
   signed DMG / release page.
 - It never installs silently and never runs a downloaded binary.

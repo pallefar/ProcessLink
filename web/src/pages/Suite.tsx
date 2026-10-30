@@ -48,7 +48,7 @@ export default function Suite() {
       if (!response.ok) throw new Error(`GitHub HTTP ${response.status}`)
       const data = await response.json() as { tag_name: string; html_url: string }
       const latest = data.tag_name.replace(/^v/i, '')
-      const current = '0.1.26'
+      const current = '0.1.27'
       const newer = latest.localeCompare(current, undefined, { numeric: true }) > 0
       setUpdate({ status: newer ? 'available' : 'current', latest, url: data.html_url })
     } catch (error) {
@@ -139,7 +139,7 @@ export default function Suite() {
 
       <Card title="ProcessLink updates" subtitle="Reads the public GitHub release feed; never installs silently." glyph="↓">
         <div className="row-meta">
-          <Chip>Installed 0.1.26</Chip>
+          <Chip>Installed 0.1.27</Chip>
           {update.latest && <Chip tone="blue">Latest {update.latest}</Chip>}
           {update.status === 'current' && <Chip tone="green">Up to date</Chip>}
           {update.status === 'available' && <Chip tone="orange">Update available</Chip>}

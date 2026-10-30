@@ -1423,13 +1423,13 @@ final class AppModel {
     }
 
     @discardableResult
-    func addAppFeedback(rating: String, category: String, comment: String,
+    func addAppFeedback(rating: String, priority: String = "normal", category: String, comment: String,
                         author: String, page: String) -> AppFeedbackRecord? {
         let trimmed = comment.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let record = AppFeedbackRecord(
             id: "appfeedback-\(UUID().uuidString.prefix(8))", rating: rating,
-            category: category, comment: trimmed,
+            priority: priority, category: category, comment: trimmed,
             author: author.isEmpty ? "CI Manager (role)" : author,
             page: page)
         context.insert(record)
@@ -1449,7 +1449,8 @@ final class AppModel {
         if !silent { updateStatus = "checking" }
         updateError = ""
         do {
-            let latest = try await UpdateService.latest()
+            let channel = UserDefaults.standard.string(forKey: "updates.channel") ?? "stable"
+            let latest = try await UpdateService.latest(channel: channel)
             updateInfo = latest
             updateLastChecked = now
             updateStatus = UpdateService.isNewer(latest.version, than: UpdateService.currentVersion) ? "available" : "current"
