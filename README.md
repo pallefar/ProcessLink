@@ -137,6 +137,10 @@ the same behaviour in both test suites. See [`packages/README.md`](packages/READ
 |---|---|
 | ![Web capture policy](docs/shots/web-agent.png) | ![Web mining](docs/shots/web-mining.png) |
 
+| Web OS suite | Feedback |
+|---|---|
+| ![Web OS suite](docs/shots/web-suite.png) | ![Web feedback](docs/shots/web-feedback.png) |
+
 | Web mining | Web graph |
 |---|---|
 | ![Web mining](docs/shots/web-mining.png) | ![Web graph](docs/shots/web-graph.png) |
@@ -245,12 +249,12 @@ app and in [`docs/PHASE-0-DISCOVERY.md`](docs/PHASE-0-DISCOVERY.md).
 Tag a version and GitHub Actions builds both desktop installers:
 
 ```bash
-git tag v0.1.18 && git push origin v0.1.18
+git tag v0.1.19 && git push origin v0.1.19
 ```
 
 The release contains a universal macOS DMG (`arm64` + `x86_64`), a Windows
 NSIS setup (and an MSI from the Windows CI job), and `SHA256SUMS.txt`.
-[Download v0.1.18](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.18).
+[Download v0.1.19](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.19).
 Local packaging, signing and the current Actions billing note are in
 [`docs/RELEASING.md`](docs/RELEASING.md).
 

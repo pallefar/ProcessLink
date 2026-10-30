@@ -23,6 +23,16 @@ export default function Feedback() {
   const openCount = feedback.filter(i => !i.parentId && !i.resolved).length
   const resolvedCount = feedback.filter(i => !i.parentId && i.resolved).length
   const active = selected ?? (roots[0] ? { kind: roots[0].kind, subjectId: roots[0].subjectId, subjectLabel: roots[0].subjectLabel } : undefined)
+  const exportForPdfStudio = () => {
+    const threads = feedback.filter(item => !item.parentId).map(root => ({
+      subject: { kind: root.kind, id: root.subjectId, label: root.subjectLabel },
+      comment: { author: root.author, createdAt: root.createdAt, body: root.body, resolved: root.resolved, mentions: root.mentions },
+      replies: feedback.filter(item => item.parentId === root.id).map(reply => ({ author: reply.author, createdAt: reply.createdAt, body: reply.body })),
+    }))
+    const blob = new Blob([JSON.stringify({ schema: 'processlink-annotations/1', generatedAt: new Date().toISOString(), threads }, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob); const link = document.createElement('a')
+    link.href = url; link.download = 'processlink-annotations.json'; link.click(); URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="feedback-page">
@@ -34,6 +44,7 @@ export default function Feedback() {
         <div className="row-meta">
           <Chip tone="orange">{openCount} open</Chip>
           <Chip tone="green">{resolvedCount} resolved</Chip>
+          <button className="btn small" onClick={exportForPdfStudio}>Export for PDF Studio</button>
         </div>
       </div>
 

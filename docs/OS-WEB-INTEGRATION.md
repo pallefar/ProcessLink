@@ -7,13 +7,17 @@ that the integrations are already mounted.
 
 | Surface | Current state | Gap |
 |---|---|---|
-| ProcessLink web | Standalone Vite/React build; hash routes; in-memory feedback/agent policy | Not mounted in Flightdeck OS; no host session/workspace/project context; no shared store |
+| ProcessLink web | Standalone Vite/React build; hash routes; feedback persisted in localStorage; host context from `?workspace=&project=`; OS suite page | Not yet mounted at an OS sub-app route; no shared OS store |
 | Flightdeck OS | `ATLAS_URL`, inbound API, Maps/Advantage/Vision/contract-flow APIs | No ProcessLink sub-app manifest, route, or launch entry |
 | Atlas | Repo running at `:5173`; OS context live; ProcessLink reads 2 projects | Atlas is not embedded in ProcessLink web; no shared deep link/state |
 | Maps/DiagramForge | Maps API and contract-flow execution log imported natively | Web map is synthetic; no live map list, shape feedback or mine action |
 | Vision | Projection read through OS session | No web Vision handoff; strategy/KPI sync is macOS-only |
 | PDF Studio | Local document/signing app; separate server | No annotation or approved-document handoff into ProcessLink |
 | DeckForge | Local deck desktop app | No initiative → brief/deck handoff |
+
+**Batch 4 delivered the web half:** an OS suite page, host context, PDF Studio
+annotation export, DeckForge brief export and web feedback persistence. The
+route/session mount is still the next step.
 
 ## Required route and session contract
 

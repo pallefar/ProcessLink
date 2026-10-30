@@ -38,6 +38,7 @@ so navigation reads the same at a glance.
 | Improvements | ledger, initiatives, A3, savings lifecycle | same |
 | Feedback | threaded annotations + inbox | same inbox and map/shape comment panel, state-only in this build |
 | Agent / AI | policy, consent, transformers.js | policy/consent page and AI map alignment in web; desktop sampler remains macOS |
+| OS suite | links/handoffs | **OS suite** page, host context from `?workspace=&project=`, PDF Studio annotation export and DeckForge brief |
 | OCEL / peer benchmarks | object graph + peer cohort | same object lens, peer card and object drilldown |
 | Automation handoff | package + status | JSON/Markdown download |
 | Ask | guard chips, suggestions, policy card, bottom composer | same |

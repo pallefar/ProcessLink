@@ -13,7 +13,7 @@ import type {
 
 export type Page =
   | 'overview' | 'strategy' | 'discoveries' | 'opportunities' | 'maps' | 'meetings' | 'mining'
-  | 'graph' | 'improvements' | 'feedback' | 'agent' | 'ask' | 'governance'
+  | 'graph' | 'improvements' | 'feedback' | 'agent' | 'suite' | 'ask' | 'governance'
 
 export const NAV: Array<{ id: Page; label: string; group: string; icon: string }> = [
   { id: 'overview', label: 'Overview', group: 'Work', icon: 'overview' },
@@ -26,6 +26,7 @@ export const NAV: Array<{ id: Page; label: string; group: string; icon: string }
   { id: 'improvements', label: 'Improvements', group: 'Improve', icon: 'improvements' },
   { id: 'feedback', label: 'Feedback', group: 'Improve', icon: 'comment' },
   { id: 'agent', label: 'Capture agent', group: 'Trust', icon: 'desktop' },
+  { id: 'suite', label: 'OS suite', group: 'Trust', icon: 'link' },
   { id: 'ask', label: 'Ask', group: 'Improve', icon: 'ask' },
   { id: 'graph', label: 'Knowledge Graph', group: 'Trust', icon: 'graph' },
   { id: 'governance', label: 'Governance', group: 'Trust', icon: 'governance' },
@@ -61,6 +62,8 @@ interface AppValue {
   answers: Answer[]
   policy: PrivacyPolicy
   setPolicy: (policy: PrivacyPolicy) => void
+  hostWorkspace: string
+  hostProject: string
   toast: Toast | null
   notify: (title: string, detail?: string, warning?: boolean) => void
   selectedProcess: string
@@ -107,16 +110,27 @@ export default function ProcessLink() {
   const [edges, setEdges] = useState<KGEdge[]>(KG_EDGES)
   const [meetings, setMeetings] = useState<Meeting[]>(MEETINGS)
   const [blocks, setBlocks] = useState<MeetingBlock[]>(BLOCKS)
-  const [feedback, setFeedback] = useState<Feedback[]>([
-    { id: 'fb-web-1', kind: 'process', subjectId: 'p-order', subjectLabel: 'Order intake & validation', parentId: '', body: 'Should the second pricing check be sampled rather than removed? @Ops Excellence Lead', author: 'CI Manager (role)', createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), resolved: false, mentions: ['@Ops'] },
-    { id: 'fb-web-2', kind: 'map', subjectId: 'p-triage', subjectLabel: 'Customer case triage — as-is', parentId: '', body: 'The resolver handoff looks longer than the standard. Confirm on the next huddle?', author: 'Order Desk Lead', createdAt: new Date(Date.now() - 86400000).toISOString(), resolved: false, mentions: [] },
-  ])
+  const [feedback, setFeedback] = useState<Feedback[]>(() => {
+    try {
+      const stored = window.localStorage.getItem('processlink.feedback.v1')
+      if (stored) return JSON.parse(stored) as Feedback[]
+    } catch { /* first run or private mode */ }
+    return [
+      { id: 'fb-web-1', kind: 'process', subjectId: 'p-order', subjectLabel: 'Order intake & validation', parentId: '', body: 'Should the second pricing check be sampled rather than removed? @Ops Excellence Lead', author: 'CI Manager (role)', createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), resolved: false, mentions: ['@Ops'] },
+      { id: 'fb-web-2', kind: 'map', subjectId: 'p-triage', subjectLabel: 'Customer case triage — as-is', parentId: '', body: 'The resolver handoff looks longer than the standard. Confirm on the next huddle?', author: 'Order Desk Lead', createdAt: new Date(Date.now() - 86400000).toISOString(), resolved: false, mentions: [] },
+    ]
+  })
+  useEffect(() => {
+    try { window.localStorage.setItem('processlink.feedback.v1', JSON.stringify(feedback)) } catch { /* ignore */ }
+  }, [feedback])
   const [governance, setGovernance] = useState<GovernanceItem[]>(GOVERNANCE)
   const [audit, setAudit] = useState<AuditEntry[]>(AUDIT)
   const [answers, setAnswers] = useState<Answer[]>(() => {
     const question = new URLSearchParams(window.location.search).get('q')
     return question ? [answerQuestion(question, PROCESSES, OPPORTUNITIES, MEETINGS, BLOCKS)] : []
   })
+  const hostWorkspace = new URLSearchParams(window.location.search).get('workspace') || ''
+  const hostProject = new URLSearchParams(window.location.search).get('project') || ''
   const [policy, setPolicy] = useState<PrivacyPolicy>(POLICY)
   const [toast, setToast] = useState<Toast | null>(null)
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>(() => {
@@ -532,12 +546,12 @@ export default function ProcessLink() {
     page, navigate, processes: PROCESSES, opportunities, initiatives, feedback, addFeedback, setFeedbackResolved, nodes, edges, meetings, blocks,
     selectedMeeting, selectMeeting, createMeeting, updateMeeting, addMeetingBlock, updateBlock,
     deleteBlock, toggleBlock, linkMeeting, promoteAction,
-    governance, audit, answers, policy, setPolicy, toast, notify,
+    governance, audit, answers, policy, setPolicy, hostWorkspace, hostProject, toast, notify,
     selectedProcess, selectProcess, selectedOpportunity, selectOpportunity,
     selectedInitiative, selectInitiative, selectedNode, selectNode,
     promote, commitSaving, advanceInitiative, setGovernanceStatus, validateSaving, reviewNode, ask, clearAsk, sync, exportBrief,
     theme, setTheme, suggestions: SUGGESTIONS,
-  }), [page, navigate, opportunities, initiatives, feedback, addFeedback, setFeedbackResolved, nodes, edges, meetings, blocks, governance, audit, answers, policy,
+  }), [page, navigate, opportunities, initiatives, feedback, addFeedback, setFeedbackResolved, nodes, edges, meetings, blocks, governance, audit, answers, policy, hostWorkspace, hostProject,
     toast, notify, selectedProcess, selectedOpportunity, selectedInitiative, selectedNode, selectedMeeting,
     selectMeeting, createMeeting, updateMeeting, addMeetingBlock, updateBlock, deleteBlock, toggleBlock,
     linkMeeting, promoteAction,

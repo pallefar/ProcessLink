@@ -118,6 +118,7 @@ export default function Improvements() {
                   <button className="btn small" onClick={() => commitSaving(selected.id)} disabled={selected.savingsStage !== 'estimated'}>Commit saving</button>
                   <button className="btn small" onClick={() => setValidating(selected.id)} disabled={selected.savingsStage === 'validated'}>Validate with evidence…</button>
                   <button className="btn small" onClick={() => downloadHandoff(selected, processes.find(p => p.id === selected.processId)?.steps ?? [])}>Download handoff (.md)</button>
+                  <button className="btn small" onClick={() => downloadDeckBrief(selected, processes.find(p => p.id === selected.processId)?.steps ?? [])}>DeckForge brief</button>
                   <span className="tiny" style={{ marginLeft: 'auto' }}>{fmt.hours(selected.savingsHours)} · {fmt.money(selected.savingsHours)}</span>
                 </div>
               </Card>
@@ -169,6 +170,12 @@ function downloadHandoff(initiative: Initiative, steps: Step[]) {
   const link = document.createElement('a')
   link.href = url; link.download = `${initiative.id}-automation-handoff.md`
   link.click(); URL.revokeObjectURL(url)
+}
+
+function downloadDeckBrief(initiative: Initiative, steps: Step[]) {
+  const text = `# ${initiative.title}\n\n**Owner:** ${initiative.owner}  \n**Process:** ${initiative.processName}  \n**Due:** ${new Date(initiative.due).toLocaleDateString('en-GB')}  \n**Saving:** ${initiative.savingsHours} h · ${initiative.savingsStage}  \n**Method:** ${initiative.method}\n\n## Background\n\n${initiative.background || '—'}\n\n## Target\n\n${initiative.target || '—'}\n\n## Countermeasure\n\n${initiative.countermeasure || '—'}\n\n## Process steps\n\n${steps.map((step, index) => `${index + 1}. ${step.name} — ${step.role} · ${step.application}`).join('\n')}\n\n## Guardrail\n\nA named human validates the KPI and saving. This brief is a handoff, not a claim.\n`
+  const blob = new Blob([text], { type: 'text/markdown' }); const url = URL.createObjectURL(blob)
+  const link = document.createElement('a'); link.href = url; link.download = `${initiative.id}-deckforge-brief.md`; link.click(); URL.revokeObjectURL(url)
 }
 
 function ValidationDialog({ initiativeId, onClose, onValidate }: {

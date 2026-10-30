@@ -11,6 +11,7 @@ import Improvements from './pages/Improvements'
 import Ask from './pages/Ask'
 import Feedback from './pages/Feedback'
 import Agent from './pages/Agent'
+import Suite from './pages/Suite'
 import Mining from './pages/Mining'
 import Governance from './pages/Governance'
 import { Icon } from './components/Icon'
@@ -29,6 +30,7 @@ const PAGES = {
   ask: Ask,
   feedback: Feedback,
   agent: Agent,
+  suite: Suite,
   governance: Governance,
 }
 
