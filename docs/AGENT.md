@@ -22,3 +22,10 @@ The policy export includes a generated device id, endpoint, workspace/project
 and active consents. **Import policy** applies policy fields only; consent is
 not imported and must be granted locally. **Heartbeat** records liveness locally.
 There is still no fleet server.
+
+## Local control plane
+
+`agent/server.mjs` (Docker service `processlink-agent`, port 4185) provides
+enroll, heartbeat and policy retrieval with a bearer enrollment token. It
+stores only device policy/consent references; captures never leave the Mac.
+This is a local control plane, not a multi-tenant fleet service.

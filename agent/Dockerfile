@@ -1,0 +1,6 @@
+FROM node:22-alpine
+WORKDIR /app
+COPY package.json server.mjs ./
+RUN mkdir -p /app/data
+EXPOSE 4185
+CMD ["node", "server.mjs"]

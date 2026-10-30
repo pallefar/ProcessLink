@@ -13,3 +13,21 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
+
+  processlink-agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    image: processlink-agent:local
+    container_name: processlink-agent
+    restart: unless-stopped
+    environment:
+      AGENT_PORT: "4185"
+      AGENT_ENROLL_TOKEN: "${AGENT_ENROLL_TOKEN:-local-dev-token}"
+    ports:
+      - "127.0.0.1:${AGENT_PORT:-4185}:4185"
+    volumes:
+      - processlink-agent-data:/app/data
+
+volumes:
+  processlink-agent-data:
