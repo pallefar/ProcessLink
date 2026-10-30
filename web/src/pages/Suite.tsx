@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '../App'
 import { Card, Chip, Note } from '../components/ui'
-import { osGet, type LiveMap, type LiveVision } from '../domain/osBridge'
+import { osGet, type LiveMap, type LiveProjects, type LiveVision, type VisionRoadmap } from '../domain/osBridge'
 
 const OS = (import.meta.env.VITE_FLIGHTDECK_URL as string | undefined) || 'http://127.0.0.1:4173'
 const ATLAS = (import.meta.env.VITE_ATLAS_URL as string | undefined) || 'http://localhost:5173'
@@ -22,9 +22,14 @@ export default function Suite() {
   const [update, setUpdate] = useState<{ status: string; latest?: string; url?: string; error?: string }>({ status: 'idle' })
   const [liveMaps, setLiveMaps] = useState<LiveMap[] | null>(null)
   const [liveVision, setLiveVision] = useState<LiveVision | null>(null)
+  const [liveProjects, setLiveProjects] = useState<LiveProjects | null>(null)
+  const [roadmap, setRoadmap] = useState<VisionRoadmap | null>(null)
   useEffect(() => {
-    void Promise.all([osGet<LiveMap[]>('/api/apps/maps/maps'), osGet<LiveVision>('/api/vision/bootstrap')]).then(([maps, vision]) => {
-      setLiveMaps(maps); setLiveVision(vision)
+    void Promise.all([
+      osGet<LiveMap[]>('/api/apps/maps/maps'), osGet<LiveVision>('/api/vision/bootstrap'),
+      osGet<LiveProjects>('/api/projects'), osGet<VisionRoadmap>('/api/vision/roadmap'),
+    ]).then(([maps, vision, projects, road]) => {
+      setLiveMaps(maps); setLiveVision(vision); setLiveProjects(projects); setRoadmap(road)
     })
   }, [])
   const check = async () => {
@@ -34,7 +39,7 @@ export default function Suite() {
       if (!response.ok) throw new Error(`GitHub HTTP ${response.status}`)
       const data = await response.json() as { tag_name: string; html_url: string }
       const latest = data.tag_name.replace(/^v/i, '')
-      const current = '0.1.22'
+      const current = '0.1.23'
       const newer = latest.localeCompare(current, undefined, { numeric: true }) > 0
       setUpdate({ status: newer ? 'available' : 'current', latest, url: data.html_url })
     } catch (error) {
@@ -84,9 +89,36 @@ export default function Suite() {
         )}
       </Card>
 
+      <div className="grid two wide">
+        <Card title="Atlas projects" subtitle="OS workspace/project registry, read through the same session." glyph="⌘">
+          <div className="row-meta">
+            <Chip tone={liveProjects ? 'green' : undefined}>{liveProjects ? `${liveProjects.projects.length} projects` : 'Unavailable'}</Chip>
+            {liveProjects && <Chip>{liveProjects.workspaceId}</Chip>}
+          </div>
+          {liveProjects?.projects.slice(0, 5).map(project => (
+            <div className="row-meta" key={project.id} style={{ justifyContent: 'space-between', padding: '3px 0' }}>
+              <span>{project.label}</span><span className="tiny">{project.isDefault ? 'default' : project.id}</span>
+            </div>
+          ))}
+          {liveProjects && <a className="btn small" href={ATLAS} target="_blank" rel="noreferrer">Open Atlas projects</a>}
+        </Card>
+        <Card title="Vision roadmap" subtitle="Goals and roadmap rows from the OS Vision projection." glyph="◇">
+          <div className="row-meta">
+            <Chip tone={roadmap ? 'purple' : undefined}>{roadmap ? `${roadmap.records.length} items` : 'Unavailable'}</Chip>
+            {liveVision?.strategy?.body?.title && <Chip>{liveVision.strategy.body.title}</Chip>}
+          </div>
+          {roadmap?.records.slice(0, 5).map(item => (
+            <div className="row-meta" key={item.id} style={{ justifyContent: 'space-between', padding: '3px 0' }}>
+              <span>{item.body?.title ?? item.id}</span><span className="tiny">{item.body?.stage ?? item.body?.status ?? ''}</span>
+            </div>
+          ))}
+          <a className="btn small" href="/console/vision?standalone=1" target="_blank" rel="noreferrer">Open Vision</a>
+        </Card>
+      </div>
+
       <Card title="ProcessLink updates" subtitle="Reads the public GitHub release feed; never installs silently." glyph="↓">
         <div className="row-meta">
-          <Chip>Installed 0.1.22</Chip>
+          <Chip>Installed 0.1.23</Chip>
           {update.latest && <Chip tone="blue">Latest {update.latest}</Chip>}
           {update.status === 'current' && <Chip tone="green">Up to date</Chip>}
           {update.status === 'available' && <Chip tone="orange">Update available</Chip>}

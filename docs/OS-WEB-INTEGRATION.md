@@ -49,3 +49,16 @@ that path, not a loopback port.
 5. DeckForge brief/deck handoff from an initiative.
 
 Each step needs a route-level test and a screenshot before the next.
+
+## Batch 7 live surfaces
+
+- **OS maps** page: DiagramForge list/detail, step labels, roles, statutory/human-only flags and local map feedback.
+- **OS project context** in the sidebar from `/api/projects`.
+- **Atlas projects** and **Vision roadmap** cards on the OS suite page.
+
+## Batch 7 verification
+
+Live OS session screenshots are in `docs/shots/os-maps.png` and
+`docs/shots/os-suite-live.png`. The OS maps page shows two live DiagramForge
+documents with roles and statutory/human-only flags; the suite page shows live
+map, Vision and host context.

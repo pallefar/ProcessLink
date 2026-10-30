@@ -670,3 +670,8 @@ table.ledger td.num, table.ledger th.num { text-align: right; font-variant-numer
 .suite-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 .suite-grid .card { display: flex; flex-direction: column; gap: 8px; }
 .suite-contracts { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--secondary); }
+
+/* Live OS maps */
+.osm-page { display: flex; flex-direction: column; gap: 16px; padding: 18px 22px 32px; }
+.osmap-step { border-bottom: 1px solid var(--border); padding: 8px 0; display: flex; flex-direction: column; gap: 3px; }
+.osmap-step:last-child { border-bottom: 0; }

@@ -12,7 +12,7 @@ import type {
 } from './domain/types'
 
 export type Page =
-  | 'overview' | 'strategy' | 'discoveries' | 'opportunities' | 'maps' | 'meetings' | 'mining'
+  | 'overview' | 'strategy' | 'discoveries' | 'opportunities' | 'maps' | 'osMaps' | 'meetings' | 'mining'
   | 'graph' | 'improvements' | 'feedback' | 'agent' | 'suite' | 'ask' | 'governance'
 
 export const NAV: Array<{ id: Page; label: string; group: string; icon: string }> = [
@@ -21,6 +21,7 @@ export const NAV: Array<{ id: Page; label: string; group: string; icon: string }
   { id: 'discoveries', label: 'Discoveries', group: 'Work', icon: 'discoveries' },
   { id: 'opportunities', label: 'Opportunities', group: 'Work', icon: 'opportunities' },
   { id: 'maps', label: 'Maps', group: 'Work', icon: 'maps' },
+  { id: 'osMaps', label: 'OS maps', group: 'Work', icon: 'map' },
   { id: 'meetings', label: 'Meetings', group: 'Work', icon: 'meetings' },
   { id: 'mining', label: 'Mining', group: 'Work', icon: 'mining' },
   { id: 'improvements', label: 'Improvements', group: 'Improve', icon: 'improvements' },
@@ -129,8 +130,9 @@ export default function ProcessLink() {
     const question = new URLSearchParams(window.location.search).get('q')
     return question ? [answerQuestion(question, PROCESSES, OPPORTUNITIES, MEETINGS, BLOCKS)] : []
   })
-  const hostWorkspace = new URLSearchParams(window.location.search).get('workspace') || ''
-  const hostProject = new URLSearchParams(window.location.search).get('project') || ''
+  const hostParams = new URLSearchParams(window.location.search)
+  const hostWorkspace = hostParams.get('workspace') || (() => { try { return localStorage.getItem('flightdeck.tenantWorkspace') || '' } catch { return '' } })()
+  const hostProject = hostParams.get('project') || (() => { try { return localStorage.getItem('flightdeck.project') || '' } catch { return '' } })()
   const [policy, setPolicy] = useState<PrivacyPolicy>(POLICY)
   const [toast, setToast] = useState<Toast | null>(null)
   const [theme, setTheme] = useState<'auto' | 'light' | 'dark'>(() => {

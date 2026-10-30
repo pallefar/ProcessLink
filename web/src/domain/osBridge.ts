@@ -21,3 +21,13 @@ export interface LiveMap {
 export interface LiveVision {
   strategy?: { body?: { title?: string; fiscalYear?: string | null } }
 }
+
+export interface LiveProjects {
+  workspaceId: string
+  defaultProjectId: string
+  projects: Array<{ id: string; label: string; enabled: boolean; isDefault: boolean }>
+}
+
+export interface VisionRoadmap {
+  records: Array<{ id: string; body?: { title?: string; stage?: string; status?: string } }>
+}

@@ -5,6 +5,7 @@ import Strategy from './pages/Strategy'
 import Discoveries from './pages/Discoveries'
 import Opportunities from './pages/Opportunities'
 import Maps from './pages/Maps'
+import OsMaps from './pages/OsMaps'
 import Meetings from './pages/Meetings'
 import Graph from './pages/Graph'
 import Improvements from './pages/Improvements'
@@ -23,6 +24,7 @@ const PAGES = {
   discoveries: Discoveries,
   opportunities: Opportunities,
   maps: Maps,
+  osMaps: OsMaps,
   meetings: Meetings,
   mining: Mining,
   graph: Graph,

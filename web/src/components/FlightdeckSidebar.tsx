@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useApp } from '../App'
+import { osGet } from '../domain/osBridge'
 import { Icon } from './Icon'
 
 const OS_URL = (import.meta.env.VITE_FLIGHTDECK_URL as string | undefined) || 'http://127.0.0.1:4173'
@@ -13,6 +14,16 @@ export function FlightdeckSidebar() {
   const [open, setOpen] = useState(true)
   const [workspace, setWorkspace] = useState(hostWorkspace || 'TE Operations')
   const [project, setProject] = useState(hostProject || 'Project Contract')
+  const [projects, setProjects] = useState<Array<{ id: string; label: string }>>([])
+  const [workspaceId, setWorkspaceId] = useState(hostWorkspace || '')
+  useEffect(() => {
+    void osGet<{ workspaceId: string; projects: Array<{ id: string; label: string }> }>('/api/projects').then(value => {
+      if (!value) return
+      setWorkspaceId(value.workspaceId)
+      setProjects(value.projects.map(item => ({ id: item.id, label: item.label })))
+      if (hostProject && value.projects.some(item => item.id === hostProject)) setProject(value.projects.find(item => item.id === hostProject)!.label)
+    })
+  }, [hostProject])
 
   return (
     <div className="fd-sidebar">
@@ -35,8 +46,8 @@ export function FlightdeckSidebar() {
           <label className="fd-select-row">
             <Icon name="folder" size={13} />
             <select value={project} onChange={e => setProject(e.target.value)} aria-label="Flightdeck project">
-              {project !== 'Project Contract' && <option>{project}</option>}
-              <option>Project Contract</option>
+              {projects.length === 0 && <option>Project Contract</option>}
+              {projects.map(item => <option key={item.id} value={item.label}>{item.label}</option>)}
               <option>General</option>
               <option>Cockpits</option>
             </select>
@@ -47,7 +58,7 @@ export function FlightdeckSidebar() {
             <a href={ATLAS_URL} target="_blank" rel="noreferrer" title="Atlas"><Icon name="layers" size={12} />Atlas</a>
             <a href={VISION_URL} target="_blank" rel="noreferrer" title="Vision"><Icon name="vision" size={12} />Vision</a>
           </div>
-          <div className="fd-caption">{hostWorkspace ? 'OS host' : 'UAT'} · {workspace} · {project}</div>
+          <div className="fd-caption">{hostWorkspace ? 'OS host' : 'UAT'} · {workspaceId || workspace} · {project}</div>
         </div>
       )}
     </div>
