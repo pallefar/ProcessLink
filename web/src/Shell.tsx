@@ -13,6 +13,7 @@ import Ask from './pages/Ask'
 import Feedback from './pages/Feedback'
 import Agent from './pages/Agent'
 import Suite from './pages/Suite'
+import Diagnostics from './pages/Diagnostics'
 import Mining from './pages/Mining'
 import Governance from './pages/Governance'
 import { Icon } from './components/Icon'
@@ -33,6 +34,7 @@ const PAGES = {
   feedback: Feedback,
   agent: Agent,
   suite: Suite,
+  diagnostics: Diagnostics,
   governance: Governance,
 }
 

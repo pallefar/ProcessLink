@@ -13,7 +13,7 @@ import type {
 
 export type Page =
   | 'overview' | 'strategy' | 'discoveries' | 'opportunities' | 'maps' | 'osMaps' | 'meetings' | 'mining'
-  | 'graph' | 'improvements' | 'feedback' | 'agent' | 'suite' | 'ask' | 'governance'
+  | 'graph' | 'improvements' | 'feedback' | 'agent' | 'suite' | 'diagnostics' | 'ask' | 'governance'
 
 export const NAV: Array<{ id: Page; label: string; group: string; icon: string }> = [
   { id: 'overview', label: 'Overview', group: 'Work', icon: 'overview' },
@@ -28,6 +28,7 @@ export const NAV: Array<{ id: Page; label: string; group: string; icon: string }
   { id: 'feedback', label: 'Feedback', group: 'Improve', icon: 'comment' },
   { id: 'agent', label: 'Capture agent', group: 'Trust', icon: 'desktop' },
   { id: 'suite', label: 'OS suite', group: 'Trust', icon: 'link' },
+  { id: 'diagnostics', label: 'Diagnostics', group: 'Trust', icon: 'activity' },
   { id: 'ask', label: 'Ask', group: 'Improve', icon: 'ask' },
   { id: 'graph', label: 'Knowledge Graph', group: 'Trust', icon: 'graph' },
   { id: 'governance', label: 'Governance', group: 'Trust', icon: 'governance' },

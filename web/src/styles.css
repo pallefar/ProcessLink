@@ -688,3 +688,7 @@ table.ledger td.num, table.ledger th.num { text-align: right; font-variant-numer
 .topbar-results button:hover { background: var(--accent-weak); }
 .topbar-results button span { display: inline-block; width: 76px; color: var(--tertiary); font-size: 9px; text-transform: uppercase; letter-spacing: .04em; }
 .topbar-empty { padding: 8px 9px; font-size: 11px; color: var(--tertiary); }
+
+.diagnostics-page { display: flex; flex-direction: column; gap: 14px; padding: 18px 22px 32px; }
+.diag-row { display: flex; justify-content: space-between; align-items: center; gap: 14px; border-bottom: 1px solid var(--border); padding: 8px 0; }
+.diag-row:last-child { border-bottom: 0; }
