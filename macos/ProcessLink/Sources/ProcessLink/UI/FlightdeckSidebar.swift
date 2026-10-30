@@ -57,12 +57,10 @@ struct FlightdeckSidebar: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .frame(minWidth: 180, maxWidth: .infinity, alignment: .center)
-                .padding(.leading, Space.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .frame(minWidth: 180, maxWidth: .infinity, alignment: .center)
-        .padding(.horizontal, Space.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task {
             // A self-test must never block on a Keychain prompt from an
             // unsigned/ad-hoc build. It tests the data functions, not the
@@ -94,7 +92,7 @@ struct FlightdeckSidebar: View {
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .help("Flightdeck workspace")
     }
 
@@ -117,7 +115,7 @@ struct FlightdeckSidebar: View {
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .help("Flightdeck project")
     }
 
@@ -134,23 +132,20 @@ struct FlightdeckSidebar: View {
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, Space.sm)
         .padding(.vertical, 4)
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
 
     // MARK: Links
 
     private var links: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Space.xs), count: 3),
-                  spacing: Space.xs) {
+        VStack(spacing: 0) {
             link("OS", title: "Flightdeck OS", symbol: "macwindow", url: flightdeck.baseURLString)
             link("Atlas", title: "Atlas", symbol: "square.stack.3d.up", url: flightdeck.atlasURLString)
             link("Vision", title: "Vision", symbol: "scope", url: visionURL)
         }
-        .padding(.top, 2)
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func link(_ label: String, title: String, symbol: String, url: String) -> some View {
@@ -162,22 +157,21 @@ struct FlightdeckSidebar: View {
             }
             NSWorkspace.shared.open(value)
         } label: {
-            VStack(spacing: 2) {
+            HStack(spacing: Space.sm) {
                 Image(systemName: symbol)
-                    .font(.caption)
+                    .font(.body)
                     .foregroundStyle(.secondary)
+                    .frame(width: 16)
                 Text(label)
-                    .font(.caption2)
+                    .font(.body)
                     .lineLimit(1)
+                Spacer()
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)
-            .background(Color.primary.opacity(0.04),
-                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
         .help("Open \(title)")
         .accessibilityLabel("Open \(title)")
     }
