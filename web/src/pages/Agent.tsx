@@ -13,6 +13,7 @@ interface Policy {
 }
 
 const KEY = 'processlink.agent.policy.v1'
+const CONSENT_KEY = 'processlink.agent.consents.v1'
 
 function load(): Policy {
   try {
@@ -24,13 +25,20 @@ function load(): Policy {
 
 export default function Agent() {
   const [policy, setPolicy] = useState<Policy>(load)
+  const [consents, setConsents] = useState<Array<{ site: string; role: string; version: string; reference: string; grantedAt: string; revokedAt?: string }>>(() => {
+    try { return JSON.parse(localStorage.getItem(CONSENT_KEY) || '[]') as Array<{ site: string; role: string; version: string; reference: string; grantedAt: string; revokedAt?: string }> } catch { return [] }
+  })
+  const [site, setSite] = useState('')
+  const [role, setRole] = useState('')
+  const [reference, setReference] = useState('')
+  const [lastHeartbeat, setLastHeartbeat] = useState('')
   const update = (patch: Partial<Policy>) => setPolicy(current => {
     const next = { ...current, ...patch }
     localStorage.setItem(KEY, JSON.stringify(next))
     return next
   })
   const download = () => {
-    const blob = new Blob([JSON.stringify({ schema: 'processlink-agent-policy/1', policy }, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify({ schema: 'processlink-agent-policy/1', policy, consents, lastHeartbeat }, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url; link.download = 'processlink-agent-policy.json'; link.click(); URL.revokeObjectURL(url)
@@ -69,8 +77,44 @@ export default function Agent() {
         <Card title="Consent" subtitle="Per site/role/version, never per named person." glyph="✓">
           <div className="sim-row"><span>Version</span><input value={policy.consentVersion} onChange={e => update({ consentVersion: e.target.value })} /><span /></div>
           <div className="sim-row"><span>Reference</span><input placeholder="Agreement id" value={policy.consentReference} onChange={e => update({ consentReference: e.target.value })} /><span /></div>
-          <Note>Browser builds cannot record desktop consent or start a sampler. Export the policy and apply it in the macOS app.</Note>
-          <button className="btn primary" onClick={download}>Export policy JSON</button>
+          <div className="stack" style={{ gap: 6 }}>
+            <input placeholder="Site" value={site} onChange={e => setSite(e.target.value)} />
+            <input placeholder="Role" value={role} onChange={e => setRole(e.target.value)} />
+            <input placeholder="Agreement reference" value={reference} onChange={e => setReference(e.target.value)} />
+            <button className="btn small" disabled={!site || !role || !reference} onClick={() => {
+              const next = [...consents, { site, role, version: policy.consentVersion, reference, grantedAt: new Date().toISOString() }]
+              setConsents(next); localStorage.setItem(CONSENT_KEY, JSON.stringify(next)); setSite(''); setRole(''); setReference('')
+            }}>Grant consent</button>
+            {consents.map((item, index) => item.revokedAt ? null : (
+              <div className="row-meta" key={`${item.site}-${item.role}-${index}`} style={{ justifyContent: 'space-between' }}>
+                <span className="tiny">{item.site} · {item.role} · {item.version}</span>
+                <button className="btn small" onClick={() => {
+                  const next = consents.map((value, i) => i === index ? { ...value, revokedAt: new Date().toISOString() } : value)
+                  setConsents(next); localStorage.setItem(CONSENT_KEY, JSON.stringify(next))
+                }}>Revoke</button>
+              </div>
+            ))}
+          </div>
+          <Note>Browser builds cannot start a sampler; the consent ledger and policy are local to this browser.</Note>
+          <div className="row-meta">
+            <button className="btn primary" onClick={download}>Export policy JSON</button>
+            <button className="btn" onClick={() => document.getElementById('agent-policy-file')?.click()}>Import policy</button>
+            <input id="agent-policy-file" type="file" accept="application/json" hidden onChange={async event => {
+              const file = event.target.files?.[0]
+              if (!file) return
+              try {
+                const parsed = JSON.parse(await file.text()) as { schema?: string; policy?: Partial<Policy>; consents?: typeof consents }
+                if (parsed.schema !== 'processlink-agent-policy/1') throw new Error('Wrong policy schema')
+                if (parsed.policy) update(parsed.policy)
+                if (Array.isArray(parsed.consents)) {
+                  setConsents(parsed.consents)
+                  localStorage.setItem(CONSENT_KEY, JSON.stringify(parsed.consents))
+                }
+              } catch (error) { window.alert(error instanceof Error ? error.message : 'Import failed') }
+            }} />
+            <button className="btn" onClick={() => setLastHeartbeat(new Date().toISOString())}>Heartbeat</button>
+          </div>
+          {lastHeartbeat && <p className="tiny">Last heartbeat {new Date(lastHeartbeat).toLocaleString('en-GB')}</p>}
         </Card>
       </div>
     </div>

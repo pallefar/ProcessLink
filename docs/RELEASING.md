@@ -11,7 +11,7 @@ A GitHub Release carries both desktop installers:
 
 The workflow is [`.github/workflows/release.yml`](../.github/workflows/release.yml).
 
-The current release, [v0.1.45](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.45),
+The current release, [v0.1.46](https://github.com/pallefar/ProcessLink/releases/tag/v0.1.46),
 was published with the macOS DMG and a locally cross-built Windows NSIS
 installer because GitHub Actions is currently locked on the account with a
 billing error. The workflow is ready to add the MSI and a CI-built NSIS
@@ -23,8 +23,8 @@ installer once Actions is available.
 git remote add origin git@github.com:<owner>/<repo>.git   # once
 git push -u origin main
 
-git tag v0.1.45
-git push origin v0.1.45
+git tag v0.1.46
+git push origin v0.1.46
 ```
 
 The tag starts the workflow. It builds macOS and Windows in parallel, mounts
@@ -70,12 +70,12 @@ certificate to the Windows runner before calling the build signed.
 
 ```bash
 # macOS universal DMG (ad-hoc unless SIGN_IDENTITY is set)
-macos/ProcessLink/tools/package.sh --version 0.1.45
+macos/ProcessLink/tools/package.sh --version 0.1.46
 
 # macOS notarized
 SIGN_IDENTITY="Developer ID Application: …" \
 APPLE_ID=… APPLE_TEAM_ID=… APPLE_APP_SPECIFIC_PASSWORD=… \
-macos/ProcessLink/tools/package.sh --version 0.1.45 --notarize
+macos/ProcessLink/tools/package.sh --version 0.1.46 --notarize
 
 # Windows, on a Windows host
 npm ci --prefix web
