@@ -1601,6 +1601,47 @@ final class AppModel {
         showToast("Capture sessions exported", detail: "\(sessions.count) sessions", symbol: "tablecells")
     }
 
+    func exportAuditCSV() {
+        let records = (try? context.fetch(FetchDescriptor<AuditRecord>())) ?? []
+        var rows = [["at", "actor", "action", "subject", "classification", "detail"]]
+        let formatter = ISO8601DateFormatter()
+        for record in records {
+            rows.append([formatter.string(from: record.at), record.actor, record.action,
+                         record.subject, record.classification.rawValue, record.detail])
+        }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "processlink-audit.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let csv = rows.map { row in row.map { "\"\($0.replacingOccurrences(of: "\"", with: "\"\""))\"" }.joined(separator: ",") }.joined(separator: "\n")
+        try? csv.write(to: url, atomically: true, encoding: .utf8)
+        showToast("Audit exported", detail: "\(records.count) records", symbol: "tablecells")
+    }
+
+    func purgeExpiredCapture() {
+        let cutoff = now.addingTimeInterval(-Double(retentionDays) * 86_400)
+        let sessions = (try? context.fetch(FetchDescriptor<CaptureSessionRecord>())) ?? []
+        let expired = sessions.filter { $0.startedAt < cutoff }
+        for session in expired {
+            let shots = (try? context.fetch(FetchDescriptor<CaptureShotRecord>())) ?? []
+            for shot in shots where shot.sessionID == session.id {
+                try? FileManager.default.removeItem(atPath: shot.path)
+                context.delete(shot)
+            }
+            let windows = (try? context.fetch(FetchDescriptor<CaptureWindowRecord>())) ?? []
+            for window in windows where window.sessionID == session.id { context.delete(window) }
+            let tasks = (try? context.fetch(FetchDescriptor<CaptureTaskRecord>())) ?? []
+            for task in tasks where task.sessionID == session.id { context.delete(task) }
+            context.delete(session)
+        }
+        ActivityCapture.removeScreenshots(olderThan: retentionDays)
+        audit(action: "capture.purge", subject: "retention",
+              detail: "\(expired.count) sessions older than \(retentionDays) days")
+        try? context.save()
+        showToast("Retention applied", detail: "\(expired.count) expired sessions removed",
+                  symbol: "trash")
+    }
+
     // MARK: Updates
 
     @MainActor

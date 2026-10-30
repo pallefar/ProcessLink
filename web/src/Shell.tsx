@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { NAV, useApp } from './App'
 import Overview from './pages/Overview'
 import Strategy from './pages/Strategy'
@@ -37,7 +37,8 @@ const PAGES = {
 }
 
 export function Shell() {
-  const { page, navigate, toast, policy, opportunities, governance, sync, exportBrief, theme, setTheme } = useApp()
+  const { page, navigate, toast, policy, processes, opportunities, initiatives, selectProcess, selectOpportunity, selectInitiative, governance, sync, exportBrief, theme, setTheme } = useApp()
+  const [query, setQuery] = useState('')
   const Current = PAGES[page]
   const groups = ['Work', 'Improve', 'Trust']
   const active = NAV.find(item => item.id === page)
@@ -82,6 +83,23 @@ export function Shell() {
         <div className="topbar">
           <h1 className="topbar-title">{active?.label ?? 'Overview'}</h1>
           <Chip tone="orange">Local</Chip>
+          <div className="topbar-search-wrap">
+            <input className="topbar-search" placeholder="Search processes, opportunities, initiatives…" value={query} onChange={e => setQuery(e.target.value)} aria-label="Search ProcessLink" />
+            {query.trim() && (
+              <div className="topbar-results">
+                {processes.filter(item => item.name.toLowerCase().includes(query.toLowerCase())).slice(0, 3).map(item => (
+                  <button key={`p-${item.id}`} onClick={() => { selectProcess(item.id); navigate('discoveries'); setQuery('') }}><span>Process</span>{item.name}</button>
+                ))}
+                {opportunities.filter(item => item.title.toLowerCase().includes(query.toLowerCase())).slice(0, 3).map(item => (
+                  <button key={`o-${item.id}`} onClick={() => { selectOpportunity(item.id); navigate('opportunities'); setQuery('') }}><span>Opportunity</span>{item.title}</button>
+                ))}
+                {initiatives.filter(item => item.title.toLowerCase().includes(query.toLowerCase())).slice(0, 3).map(item => (
+                  <button key={`i-${item.id}`} onClick={() => { selectInitiative(item.id); navigate('improvements'); setQuery('') }}><span>Initiative</span>{item.title}</button>
+                ))}
+                {processes.every(item => !item.name.toLowerCase().includes(query.toLowerCase())) && opportunities.every(item => !item.title.toLowerCase().includes(query.toLowerCase())) && initiatives.every(item => !item.title.toLowerCase().includes(query.toLowerCase())) && <div className="topbar-empty">No match</div>}
+              </div>
+            )}
+          </div>
           <div className="spacer" />
           <button className="icon-btn" onClick={sync} aria-label="Sync sources" title="Sync sources"><Icon name="sync" size={16} /></button>
           <button className="icon-btn" onClick={() => navigate('ask')} aria-label="Ask ProcessLink" title="Ask ProcessLink"><Icon name="ask" size={16} /></button>

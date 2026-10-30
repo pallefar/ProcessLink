@@ -183,6 +183,12 @@ struct GovernancePage: View {
                 limit("Groups below \(model.minimumGroupSize) are suppressed at query time, not hidden in the UI.")
                 limit("Restricted content is refused at the boundary, with a visible reason.")
                 limit("Retention: aggregated facts \(model.retentionDays) days; raw capture stays in the local capture store.")
+                HStack {
+                    Button("Export audit CSV") { model.exportAuditCSV() }
+                        .controlSize(.small)
+                    Button("Apply retention purge") { model.purgeExpiredCapture() }
+                        .controlSize(.small)
+                }
                 Divider().opacity(0.6)
                 DetailRow(label: "Data owner", value: model.dataOwner)
                 DetailRow(label: "Purpose", value: "Process and system improvement")
