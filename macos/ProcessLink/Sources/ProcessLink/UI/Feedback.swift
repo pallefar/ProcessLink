@@ -220,6 +220,8 @@ struct FeedbackInboxPage: View {
                     HStack(spacing: Space.sm) {
                         Chip(text: "\(openCount) open", symbol: "bubble.left.and.text.bubble.right", tint: .orange)
                         Chip(text: "\(resolvedCount) resolved", symbol: "checkmark", tint: .green)
+                        Button("Export for PDF Studio") { model.exportFeedbackForPDFStudio() }
+                            .controlSize(.small)
                         Button("Send feedback") { showingAppFeedback = true }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)

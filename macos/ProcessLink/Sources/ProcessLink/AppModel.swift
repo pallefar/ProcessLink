@@ -1441,6 +1441,42 @@ final class AppModel {
         return record
     }
 
+    func exportFeedbackForPDFStudio() {
+        let annotations = (try? context.fetch(FetchDescriptor<FeedbackRecord>())) ?? []
+        let product = (try? context.fetch(FetchDescriptor<AppFeedbackRecord>())) ?? []
+        let payload: [String: Any] = [
+            "schema": "processlink-annotations/1",
+            "generatedAt": ISO8601DateFormatter().string(from: now),
+            "annotations": annotations.map { record in
+                ["kind": record.kindRaw, "subjectId": record.subjectID,
+                 "subjectLabel": record.subjectLabel, "parentId": record.parentID,
+                 "body": record.body, "author": record.author,
+                 "createdAt": ISO8601DateFormatter().string(from: record.createdAt),
+                 "resolved": record.resolved, "mentions": record.mentions]
+            },
+            "productFeedback": product.map { record in
+                ["rating": record.rating, "priority": record.priority,
+                 "category": record.category, "comment": record.comment,
+                 "author": record.author, "page": record.page,
+                 "createdAt": ISO8601DateFormatter().string(from: record.createdAt)]
+            },
+        ]
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "processlink-annotations.json"
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let data = try JSONSerialization.data(withJSONObject: payload,
+                                                  options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            try data.write(to: url, options: .atomic)
+            showToast("Annotation package saved", detail: "For PDF Studio review; not sent automatically.",
+                      symbol: "doc.badge.arrow.up")
+        } catch {
+            showToast("Export failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+        }
+    }
+
     // MARK: Updates
 
     @MainActor

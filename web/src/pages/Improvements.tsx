@@ -9,6 +9,8 @@ import { FeedbackButton } from '../components/FeedbackButton'
 export default function Improvements() {
   const { initiatives, selectedInitiative, selectInitiative, commitSaving, advanceInitiative, validateSaving, processes } = useApp()
   const [validating, setValidating] = useState<string | null>(null)
+  const [deckBusy, setDeckBusy] = useState(false)
+  const [deckStatus, setDeckStatus] = useState('')
   const lines = initiatives.map(initiativeLine)
   const totals = {
     estimated: savingsTotal(lines, 'estimated'),
@@ -119,8 +121,37 @@ export default function Improvements() {
                   <button className="btn small" onClick={() => setValidating(selected.id)} disabled={selected.savingsStage === 'validated'}>Validate with evidence…</button>
                   <button className="btn small" onClick={() => downloadHandoff(selected, processes.find(p => p.id === selected.processId)?.steps ?? [])}>Download handoff (.md)</button>
                   <button className="btn small" onClick={() => downloadDeckBrief(selected, processes.find(p => p.id === selected.processId)?.steps ?? [])}>DeckForge brief</button>
+                  <button className="btn small" disabled={deckBusy} onClick={async () => {
+                    setDeckBusy(true); setDeckStatus('')
+                    try {
+                      const list = await fetch('/deckforge/api/apps/presentation-studio/decks?limit=1', { credentials: 'same-origin' })
+                      if (!list.ok) throw new Error(`DeckForge list HTTP ${list.status}`)
+                      const data = await list.json() as { items: Array<{ deckId: string }> }
+                      const templateId = data.items[0]?.deckId
+                      if (!templateId) throw new Error('No DeckForge template deck available')
+                      const detail = await fetch(`/deckforge/api/apps/presentation-studio/decks/${encodeURIComponent(templateId)}`, { credentials: 'same-origin' })
+                      if (!detail.ok) throw new Error(`DeckForge template HTTP ${detail.status}`)
+                      const payload = await detail.json() as { doc: Record<string, unknown> }
+                      const doc = structuredClone(payload.doc)
+                      doc.id = crypto.randomUUID()
+                      doc.title = selected.title
+                      const sections = doc.sections as Array<{ slides?: Array<{ elements?: Array<{ placement?: { slot?: string }; paragraphs?: Array<{ runs?: Array<{ text?: string }> }> }> }> }> | undefined
+                      const titleElement = sections?.[0]?.slides?.[0]?.elements?.find(element => element.placement?.slot === 'title')
+                      if (titleElement?.paragraphs?.[0]?.runs?.[0]) titleElement.paragraphs[0].runs[0].text = selected.title
+                      const created = await fetch('/deckforge/api/apps/presentation-studio/decks', {
+                        method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({ doc }),
+                      })
+                      if (!created.ok) throw new Error(`DeckForge create HTTP ${created.status}`)
+                      const result = await created.json() as { deckId?: string }
+                      setDeckStatus(`Deck ${result.deckId ?? ''} created in DeckForge`)
+                    } catch (error) {
+                      setDeckStatus(error instanceof Error ? error.message : 'Deck creation failed')
+                    } finally { setDeckBusy(false) }
+                  }}>{deckBusy ? 'Creating…' : 'Create DeckForge deck'}</button>
                   <span className="tiny" style={{ marginLeft: 'auto' }}>{fmt.hours(selected.savingsHours)} · {fmt.money(selected.savingsHours)}</span>
                 </div>
+                {deckStatus && <p className="tiny" style={{ marginTop: 8 }}>{deckStatus}</p>}
               </Card>
 
               <Card title="A3 · one page" subtitle="Background, target, countermeasure, result." glyph="▤">
