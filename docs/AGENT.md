@@ -15,3 +15,10 @@ The agent is a **local policy**, not a fleet service.
 
 The current implementation is single-Mac. A fleet agent needs enrolment,
 central policy distribution, revocation, and a DPIA/works-council agreement.
+
+## Enrollment exchange
+
+The policy export includes a generated device id, endpoint, workspace/project
+and active consents. **Import policy** applies policy fields only; consent is
+not imported and must be granted locally. **Heartbeat** records liveness locally.
+There is still no fleet server.

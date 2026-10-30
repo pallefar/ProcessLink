@@ -578,10 +578,14 @@ struct MiningPage: View {
                         Button("Grant consent…") { showingConsent = true }
                             .controlSize(.small)
                         Button("Export policy") {
-                            if agentDeviceID.isEmpty { agentDeviceID = UUID().uuidString }
-                            model.exportAgentPolicy(deviceID: agentDeviceID)
+                            if policy.deviceID.isEmpty { policy.deviceID = UUID().uuidString }
+                            model.exportAgentPolicy(deviceID: policy.deviceID)
                         }
                         .controlSize(.small)
+                        Button("Import policy") { model.importAgentPolicy() }
+                            .controlSize(.small)
+                        Button("Heartbeat") { model.markAgentHeartbeat() }
+                            .controlSize(.small)
                         if !model.validConsent(for: policy) {
                             Text("Capture cannot start until consent is recorded.")
                                 .font(.caption2).foregroundStyle(.orange)
@@ -597,6 +601,18 @@ struct MiningPage: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(policy.active == false || !model.validConsent(for: policy) || capture.isRunning)
+                    }
+                    HStack(spacing: Space.sm) {
+                        Text("Endpoint").font(.caption2).foregroundStyle(.secondary)
+                        TextField("https://agent.example", text: Binding(
+                            get: { policy.endpoint }, set: { policy.endpoint = $0; try? model.context.save() }))
+                            .textFieldStyle(.roundedBorder).frame(maxWidth: 220)
+                        Text("Device").font(.caption2).foregroundStyle(.tertiary)
+                        Text(policy.deviceID.isEmpty ? "not enrolled" : policy.deviceID.prefix(8))
+                            .font(.caption2.monospaced()).foregroundStyle(.tertiary)
+                        if let heartbeat = policy.lastHeartbeat {
+                            Text("· \(Fmt.ago(heartbeat))").font(.caption2).foregroundStyle(.tertiary)
+                        }
                     }
                     GuardrailNote(text: "The policy, consent and session stay on this Mac. @mentions and feedback do not upload capture data. A fleet deployment still needs a DPIA and works-council agreement.")
                 }
@@ -689,6 +705,12 @@ struct MiningPage: View {
 
     private var sessionHistory: some View {
         Card("Capture sessions", subtitle: "Aggregates from this Mac; use one as a task-mining process.", symbol: "clock.arrow.circlepath") {
+            HStack {
+                Spacer()
+                Button("Export CSV") { model.exportCaptureSessionsCSV() }
+                    .controlSize(.small)
+                    .disabled(sessions.isEmpty)
+            }
             if sessions.isEmpty {
                 Text("No capture yet. Start one above.")
                     .font(.caption)

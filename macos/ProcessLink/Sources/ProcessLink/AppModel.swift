@@ -1545,6 +1545,62 @@ final class AppModel {
         }
     }
 
+    func importAgentPolicy() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url,
+              let data = try? Data(contentsOf: url),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let policy = root["policy"] as? [String: Any],
+              let record = capturePolicy() else { return }
+        record.active = policy["active"] as? Bool ?? record.active
+        record.intervalMinutes = policy["intervalMinutes"] as? Int ?? record.intervalMinutes
+        record.maxSessionMinutes = policy["maxSessionMinutes"] as? Int ?? record.maxSessionMinutes
+        record.windowTitles = policy["windowTitles"] as? Bool ?? record.windowTitles
+        record.screenshots = policy["screenshots"] as? Bool ?? record.screenshots
+        record.inputCounts = policy["inputCounts"] as? Bool ?? record.inputCounts
+        record.consentVersion = policy["consentVersion"] as? String ?? record.consentVersion
+        record.deviceID = root["deviceID"] as? String ?? record.deviceID
+        record.policyVersion = String((root["version"] as? Int) ?? Int(record.policyVersion) ?? 1)
+        record.updatedAt = now
+        audit(action: "capture.policy.imported", subject: record.deviceID,
+              detail: "Policy \(record.policyVersion); consent not imported")
+        try? context.save()
+        showToast("Agent policy imported", detail: "Consent is not imported; grant it locally.",
+                  symbol: "square.and.arrow.down")
+    }
+
+    func markAgentHeartbeat() {
+        guard let policy = capturePolicy() else { return }
+        policy.lastHeartbeat = now
+        if policy.deviceID.isEmpty { policy.deviceID = UUID().uuidString }
+        try? context.save()
+        showToast("Agent heartbeat recorded", detail: "Local only; no fleet server contacted.",
+                  symbol: "heartbeat")
+    }
+
+    func exportCaptureSessionsCSV() {
+        let sessions = (try? context.fetch(FetchDescriptor<CaptureSessionRecord>())) ?? []
+        var rows = [["id", "name", "role", "site", "startedAt", "endedAt", "activeMinutes", "idleMinutes", "switches", "keystrokes", "clicks", "status"]]
+        let formatter = ISO8601DateFormatter()
+        for session in sessions {
+            rows.append([session.id, session.name, session.role, session.site,
+                         formatter.string(from: session.startedAt),
+                         session.endedAt.map { formatter.string(from: $0) } ?? "",
+                         String(format: "%.1f", session.activeMinutes), String(format: "%.1f", session.idleMinutes),
+                         String(session.switchCount), String(session.keystrokeCount),
+                         String(session.clickCount), session.statusRaw])
+        }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "processlink-capture-sessions.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let csv = rows.map { row in row.map { "\"\($0.replacingOccurrences(of: "\"", with: "\"\""))\"" }.joined(separator: ",") }.joined(separator: "\n")
+        try? csv.write(to: url, atomically: true, encoding: .utf8)
+        showToast("Capture sessions exported", detail: "\(sessions.count) sessions", symbol: "tablecells")
+    }
+
     // MARK: Updates
 
     @MainActor

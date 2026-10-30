@@ -1293,6 +1293,10 @@ final class CapturePolicyRecord {
     var active: Bool = false
     var workspaceID: String = ""
     var projectID: String = ""
+    var endpoint: String = ""
+    var deviceID: String = ""
+    var policyVersion: String = "1"
+    var lastHeartbeat: Date?
     var intervalMinutes: Int = 60
     var maxSessionMinutes: Int = 15
     var windowTitles: Bool = false
