@@ -21,8 +21,11 @@ The OS worktree (`/Users/te451223/FlightDeck OS/wt-integration/flightdeck`)
 contains:
 
 - `server/subapps/processlink/manifest.ts` — a no-table, no-capability sub-app
-- `web/src/subapps/processlink/index.tsx` — full-bleed iframe to
-  `VITE_PROCESSLINK_URL` (default `http://127.0.0.1:4180`)
+- `web/src/subapps/processlink/index.tsx` — full-bleed iframe to the
+  same-origin proxy `/processlink/` (the proxy requires the OS session)
+- `server/routes/processlinkProxy.ts` — authenticated same-origin reverse proxy;
+  target defaults to `http://host.docker.internal:4180` and is set by
+  `PROCESSLINK_URL`
 - `deploy/macos-local/docker-compose.local.yml`:
   - `SUBAPP_ADVANTAGE_ENABLED: "false"`
   - `SUBAPP_PROCESSLINK_ENABLED: "true"`
@@ -40,6 +43,10 @@ docker compose -f deploy/macos-local/docker-compose.local.yml up -d flightdeck
 ```
 
 Then open `http://127.0.0.1:4173/console/apps/processlink`.
+
+The iframe URL is `/processlink/`, so it shares the OS origin and session.
+Unauthenticated requests to `/processlink/` return 401. The ProcessLink web
+container does not need a public port once the proxy is used.
 
 Verified 2026-10-30: the live UAT container was recreated from
 `flightdeck-presence:processlink-test`; `/api/apps` returned `processlink` and

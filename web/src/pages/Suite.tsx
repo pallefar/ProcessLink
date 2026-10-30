@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useApp } from '../App'
 import { Card, Chip, Note } from '../components/ui'
+import { osGet, type LiveMap, type LiveVision } from '../domain/osBridge'
 
 const OS = (import.meta.env.VITE_FLIGHTDECK_URL as string | undefined) || 'http://127.0.0.1:4173'
 const ATLAS = (import.meta.env.VITE_ATLAS_URL as string | undefined) || 'http://localhost:5173'
@@ -19,6 +20,13 @@ const links = [
 export default function Suite() {
   const { hostWorkspace, hostProject } = useApp()
   const [update, setUpdate] = useState<{ status: string; latest?: string; url?: string; error?: string }>({ status: 'idle' })
+  const [liveMaps, setLiveMaps] = useState<LiveMap[] | null>(null)
+  const [liveVision, setLiveVision] = useState<LiveVision | null>(null)
+  useEffect(() => {
+    void Promise.all([osGet<LiveMap[]>('/api/apps/maps/maps'), osGet<LiveVision>('/api/vision/bootstrap')]).then(([maps, vision]) => {
+      setLiveMaps(maps); setLiveVision(vision)
+    })
+  }, [])
   const check = async () => {
     setUpdate({ status: 'checking' })
     try {
@@ -26,7 +34,7 @@ export default function Suite() {
       if (!response.ok) throw new Error(`GitHub HTTP ${response.status}`)
       const data = await response.json() as { tag_name: string; html_url: string }
       const latest = data.tag_name.replace(/^v/i, '')
-      const current = '0.1.21'
+      const current = '0.1.22'
       const newer = latest.localeCompare(current, undefined, { numeric: true }) > 0
       setUpdate({ status: newer ? 'available' : 'current', latest, url: data.html_url })
     } catch (error) {
@@ -58,9 +66,27 @@ export default function Suite() {
         ))}
       </div>
 
+      <Card title="Live OS context" subtitle="Read from the same-origin OS session when ProcessLink is mounted at /processlink/." glyph="◉">
+        <div className="grid three" style={{ gap: 12 }}>
+          <div><Chip tone={liveMaps ? 'green' : undefined}>{liveMaps ? `${liveMaps.length} maps` : 'Maps unavailable'}</Chip><div className="tiny" style={{ marginTop: 4 }}>{liveMaps?.[0]?.label ?? 'No OS map visible'}</div></div>
+          <div><Chip tone={liveVision?.strategy ? 'purple' : undefined}>{liveVision?.strategy ? 'Vision connected' : 'Vision unavailable'}</Chip><div className="tiny" style={{ marginTop: 4 }}>{liveVision?.strategy?.body?.title ?? 'No strategy visible'}</div></div>
+          <div><Chip tone="blue">Session</Chip><div className="tiny" style={{ marginTop: 4 }}>{hostWorkspace || 'No OS host context'} · {hostProject || 'no project'}</div></div>
+        </div>
+        {liveMaps && liveMaps.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            {liveMaps.slice(0, 3).map(map => (
+              <div className="row-meta" key={map.id} style={{ justifyContent: 'space-between', padding: '3px 0' }}>
+                <span>{map.label}</span>
+                <a className="btn small" href={`/console/apps/maps?map=${encodeURIComponent(map.id)}`} target="_blank" rel="noreferrer">Open map</a>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <Card title="ProcessLink updates" subtitle="Reads the public GitHub release feed; never installs silently." glyph="↓">
         <div className="row-meta">
-          <Chip>Installed 0.1.21</Chip>
+          <Chip>Installed 0.1.22</Chip>
           {update.latest && <Chip tone="blue">Latest {update.latest}</Chip>}
           {update.status === 'current' && <Chip tone="green">Up to date</Chip>}
           {update.status === 'available' && <Chip tone="orange">Update available</Chip>}

@@ -23,7 +23,9 @@ for ProcessLink web, an OS `processlink` sub-app manifest, an iframe web module,
 and local-compose switches that turn Advantage off and ProcessLink on.
 The live UAT OS container was rebuilt on the new image; `/api/apps` now returns
 `processlink` and no `advantage`, and ProcessLink web answers on `:4180`.
-The previous OS container is retained as `flightdeck-presence-4173-pre-processlink`.
+The previous OS containers are retained for rollback. The OS now proxies
+ProcessLink same-origin at `/processlink/` with its session; the iframe uses
+that path, not a loopback port.
 
 ## Required route and session contract
 
