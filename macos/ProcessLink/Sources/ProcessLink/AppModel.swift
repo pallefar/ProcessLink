@@ -1481,12 +1481,34 @@ final class AppModel {
             guard let data = feedbackPackageData() else { return }
             let target = folder.appendingPathComponent("processlink-annotations-\(Int(now.timeIntervalSince1970)).json")
             try data.write(to: target, options: .atomic)
+            UserDefaults.standard.set(target.lastPathComponent, forKey: "pdfstudio.lastPackage")
             NSWorkspace.shared.activateFileViewerSelecting([target])
             showToast("Sent to PDF Studio inbox", detail: target.lastPathComponent,
                       symbol: "doc.badge.arrow.up")
         } catch {
             showToast("PDF Studio inbox failed", detail: error.localizedDescription,
                       symbol: "exclamationmark.triangle", warning: true)
+        }
+    }
+
+    func checkPDFStudioAcknowledgement() {
+        let path = UserDefaults.standard.string(forKey: "pdfstudio.inbox") ?? ""
+        let package = UserDefaults.standard.string(forKey: "pdfstudio.lastPackage") ?? ""
+        guard !path.isEmpty else { return }
+        guard !package.isEmpty else {
+            showToast("No package sent yet", detail: "Send annotations to the PDF Studio inbox first.",
+                      symbol: "doc.badge.arrow.up", warning: true)
+            return
+        }
+        let folder = URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true)
+        let ack = folder.appendingPathComponent(package.replacingOccurrences(of: ".json", with: ".ack"))
+        if FileManager.default.fileExists(atPath: ack.path) {
+            let body = (try? String(contentsOf: ack, encoding: .utf8)) ?? "Acknowledged"
+            showToast("PDF Studio acknowledged", detail: body.prefix(120).description,
+                      symbol: "checkmark.seal")
+        } else {
+            showToast("No acknowledgement yet", detail: "Expected \(ack.lastPathComponent) in the inbox.",
+                      symbol: "clock.badge.questionmark", warning: true)
         }
     }
 
@@ -1783,10 +1805,11 @@ final class AppModel {
         }
         if policy.deviceID.isEmpty { policy.deviceID = UUID().uuidString }
         do {
-            try await AgentServiceClient.enroll(
+            let deviceToken = try await AgentServiceClient.enroll(
                 endpoint: policy.endpoint, token: token, deviceID: policy.deviceID,
                 workspaceID: policy.workspaceID, projectID: policy.projectID,
                 policy: agentPolicyPayload, consents: agentConsentPayload)
+            KeychainStore.set(deviceToken, account: "agent.deviceToken")
             policy.lastHeartbeat = now
             audit(action: "agent.enrolled", subject: policy.deviceID, detail: "Control plane accepted policy")
             try? context.save()
@@ -1803,8 +1826,13 @@ final class AppModel {
             markAgentHeartbeat()
             return
         }
+        guard let deviceToken = KeychainStore.get(account: "agent.deviceToken") else {
+            showToast("Enroll the device first", detail: "No device token in the Keychain.",
+                      symbol: "key.slash", warning: true)
+            return
+        }
         do {
-            try await AgentServiceClient.heartbeat(endpoint: policy.endpoint, token: token, deviceID: policy.deviceID)
+            try await AgentServiceClient.heartbeat(endpoint: policy.endpoint, deviceToken: deviceToken, deviceID: policy.deviceID)
             policy.lastHeartbeat = now
             try? context.save()
             showToast("Heartbeat sent", detail: "Control plane recorded \(policy.deviceID.prefix(8))",
@@ -1817,8 +1845,13 @@ final class AppModel {
 
     func refreshAgentPolicy(token: String) async {
         guard let policy = capturePolicy(), !policy.endpoint.isEmpty, !policy.deviceID.isEmpty else { return }
+        guard let deviceToken = KeychainStore.get(account: "agent.deviceToken") else {
+            showToast("Enroll the device first", detail: "No device token in the Keychain.",
+                      symbol: "key.slash", warning: true)
+            return
+        }
         do {
-            let result = try await AgentServiceClient.policy(endpoint: policy.endpoint, token: token,
+            let result = try await AgentServiceClient.policy(endpoint: policy.endpoint, deviceToken: deviceToken,
                                                              deviceID: policy.deviceID)
             if let agent = result["agent"] as? [String: Any],
                let remote = agent["policy"] as? [String: Any] {

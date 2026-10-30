@@ -5,18 +5,23 @@ import Foundation
 enum AgentServiceClient {
     static func enroll(endpoint: String, token: String, deviceID: String,
                        workspaceID: String, projectID: String,
-                       policy: [String: Any], consents: [[String: Any]]) async throws {
-        try await post(endpoint: endpoint, path: "/v1/enroll", token: token, body: [
+                       policy: [String: Any], consents: [[String: Any]]) async throws -> String {
+        let data = try await post(endpoint: endpoint, path: "/v1/enroll", token: token, body: [
             "deviceID": deviceID, "workspaceID": workspaceID, "projectID": projectID,
             "policy": policy, "consents": consents,
         ])
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let deviceToken = root["deviceToken"] as? String else {
+            throw AgentError.http(0, "enrollment returned no device token")
+        }
+        return deviceToken
     }
 
-    static func heartbeat(endpoint: String, token: String, deviceID: String) async throws {
-        try await post(endpoint: endpoint, path: "/v1/heartbeat", token: token, body: ["deviceID": deviceID])
+    static func heartbeat(endpoint: String, deviceToken: String, deviceID: String) async throws {
+        _ = try await post(endpoint: endpoint, path: "/v1/heartbeat", token: deviceToken, body: ["deviceID": deviceID])
     }
 
-    static func policy(endpoint: String, token: String, deviceID: String) async throws -> [String: Any] {
+    static func policy(endpoint: String, deviceToken: String, deviceID: String) async throws -> [String: Any] {
         guard var components = URLComponents(string: endpoint.trimmingCharacters(in: .whitespaces) + "/v1/policy") else {
             throw AgentError.badURL
         }
@@ -24,7 +29,7 @@ enum AgentServiceClient {
         guard let url = components.url else { throw AgentError.badURL }
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(deviceToken)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw AgentError.http((response as? HTTPURLResponse)?.statusCode ?? 0)
@@ -32,7 +37,7 @@ enum AgentServiceClient {
         return (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
     }
 
-    private static func post(endpoint: String, path: String, token: String, body: [String: Any]) async throws {
+    private static func post(endpoint: String, path: String, token: String, body: [String: Any]) async throws -> Data {
         guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespaces) + path) else {
             throw AgentError.badURL
         }
@@ -47,6 +52,7 @@ enum AgentServiceClient {
             let detail = String(data: data, encoding: .utf8) ?? ""
             throw AgentError.http((response as? HTTPURLResponse)?.statusCode ?? 0, detail)
         }
+        return data
     }
 
     enum AgentError: LocalizedError {
