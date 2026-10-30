@@ -18,10 +18,12 @@ that the integrations are already mounted.
 **Batch 4 delivered the web half:** an OS suite page, host context, PDF Studio
 annotation export, DeckForge brief export and web feedback persistence.
 
-**Batch 5 delivered the container and OS mount source:** `docker-compose.yml`
+**Batch 5 delivered and verified the container and OS mount:** `docker-compose.yml`
 for ProcessLink web, an OS `processlink` sub-app manifest, an iframe web module,
-and local-compose switches that turn Advantage off and ProcessLink on. The
-running OS image still has to be rebuilt/recreated for the new manifest to load.
+and local-compose switches that turn Advantage off and ProcessLink on.
+The live UAT OS container was rebuilt on the new image; `/api/apps` now returns
+`processlink` and no `advantage`, and ProcessLink web answers on `:4180`.
+The previous OS container is retained as `flightdeck-presence-4173-pre-processlink`.
 
 ## Required route and session contract
 

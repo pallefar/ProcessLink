@@ -41,6 +41,11 @@ docker compose -f deploy/macos-local/docker-compose.local.yml up -d flightdeck
 
 Then open `http://127.0.0.1:4173/console/apps/processlink`.
 
+Verified 2026-10-30: the live UAT container was recreated from
+`flightdeck-presence:processlink-test`; `/api/apps` returned `processlink` and
+no `advantage`. The previous container is stopped and retained as
+`flightdeck-presence-4173-pre-processlink` for rollback.
+
 For a non-local deployment, build the OS web with
 `VITE_PROCESSLINK_URL=https://processlink.example.com` and publish ProcessLink
 behind the same trusted proxy. The iframe is not authenticated by itself; OS
