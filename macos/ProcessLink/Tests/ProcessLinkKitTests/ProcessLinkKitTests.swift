@@ -562,3 +562,15 @@ func peerBenchmarks() throws {
     #expect(peer.sampleCases > 0)
     #expect(peer.note.contains("Illustrative"))
 }
+
+@Test("A page note parses only with the page-note schema")
+func pageNoteParser() {
+    let valid = Data("""
+    {"schema":"processlink-page-note/1","document":"contract.pdf","page":3,"body":"Check clause 4","author":"PDF Studio"}
+    """.utf8)
+    let note = PageNoteParser.parse(valid)
+    #expect(note?.page == 3)
+    #expect(note?.document == "contract.pdf")
+    #expect(note?.body == "Check clause 4")
+    #expect(PageNoteParser.parse(Data("{}".utf8)) == nil)
+}

@@ -1981,11 +1981,9 @@ final class AppModel {
         var imported = 0
         for file in files {
             guard let data = try? Data(contentsOf: file),
-                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  root["schema"] as? String == "processlink-page-note/1",
-                  let body = root["body"] as? String, !body.isEmpty else { continue }
-            let document = (root["document"] as? String) ?? file.lastPathComponent
-            let page = root["page"] as? Int ?? 0
+                  let parsed = PageNoteParser.parse(data) else { continue }
+            let document = parsed.document
+            let page = parsed.page
             let id = "pdf-\(document)-\(page)-" + String(file.lastPathComponent.hashValue)
             let existing = ((try? context.fetch(FetchDescriptor<FeedbackRecord>())) ?? []).contains { $0.id == id }
             guard !existing else { continue }
@@ -1993,7 +1991,7 @@ final class AppModel {
                 id: id, kind: .document,
                 subjectID: "\(document)#\(page)",
                 subjectLabel: page > 0 ? "\(document) · p.\(page)" : document,
-                body: body, author: root["author"] as? String ?? "PDF Studio",
+                body: parsed.body, author: parsed.author,
                 page: page, documentID: document)
             context.insert(record)
             imported += 1
