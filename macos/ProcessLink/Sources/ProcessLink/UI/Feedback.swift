@@ -224,6 +224,8 @@ struct FeedbackInboxPage: View {
                             .controlSize(.small)
                         Button("Export CSV") { model.exportFeedbackCSV() }
                             .controlSize(.small)
+                        Button("Send to PDF Studio") { model.sendFeedbackToPDFStudioInbox() }
+                            .controlSize(.small)
                         Button("Send feedback") { showingAppFeedback = true }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)

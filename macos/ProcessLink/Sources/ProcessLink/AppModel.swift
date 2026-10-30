@@ -1444,6 +1444,52 @@ final class AppModel {
         return record
     }
 
+    private func feedbackPackageData() -> Data? {
+        let annotations = (try? context.fetch(FetchDescriptor<FeedbackRecord>())) ?? []
+        let product = (try? context.fetch(FetchDescriptor<AppFeedbackRecord>())) ?? []
+        let payload: [String: Any] = [
+            "schema": "processlink-annotations/1",
+            "generatedAt": ISO8601DateFormatter().string(from: now),
+            "annotations": annotations.map { record in
+                ["kind": record.kindRaw, "subjectId": record.subjectID,
+                 "subjectLabel": record.subjectLabel, "parentId": record.parentID,
+                 "body": record.body, "author": record.author,
+                 "createdAt": ISO8601DateFormatter().string(from: record.createdAt),
+                 "resolved": record.resolved, "mentions": record.mentions]
+            },
+            "productFeedback": product.map { record in
+                ["rating": record.rating, "priority": record.priority,
+                 "category": record.category, "comment": record.comment,
+                 "author": record.author, "page": record.page,
+                 "createdAt": ISO8601DateFormatter().string(from: record.createdAt)]
+            },
+        ]
+        return try? JSONSerialization.data(withJSONObject: payload,
+                                           options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    }
+
+    func sendFeedbackToPDFStudioInbox() {
+        let path = UserDefaults.standard.string(forKey: "pdfstudio.inbox") ?? ""
+        guard !path.isEmpty else {
+            showToast("Set a PDF Studio inbox", detail: "Settings → Connections → PDF Studio.",
+                      symbol: "folder.badge.questionmark", warning: true)
+            return
+        }
+        let folder = URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            guard let data = feedbackPackageData() else { return }
+            let target = folder.appendingPathComponent("processlink-annotations-\(Int(now.timeIntervalSince1970)).json")
+            try data.write(to: target, options: .atomic)
+            NSWorkspace.shared.activateFileViewerSelecting([target])
+            showToast("Sent to PDF Studio inbox", detail: target.lastPathComponent,
+                      symbol: "doc.badge.arrow.up")
+        } catch {
+            showToast("PDF Studio inbox failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+        }
+    }
+
     func exportFeedbackForPDFStudio() {
         let annotations = (try? context.fetch(FetchDescriptor<FeedbackRecord>())) ?? []
         let product = (try? context.fetch(FetchDescriptor<AppFeedbackRecord>())) ?? []

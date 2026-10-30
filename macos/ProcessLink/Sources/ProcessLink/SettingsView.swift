@@ -71,6 +71,7 @@ private struct ConnectionsSettings: View {
     @AppStorage("conn.kgURL") private var kgURL = "https://kg.flightdeck.example"
     @AppStorage("conn.mapsWorkspace") private var mapsWorkspace = "processlink-maps"
     @AppStorage("conn.deckforge") private var deckforge = "/Applications/DeckForge.app"
+    @AppStorage("pdfstudio.inbox") private var pdfStudioInbox = "~/Documents/PDF Studio Inbox"
 
     var body: some View {
         Section("In-house discovery") {

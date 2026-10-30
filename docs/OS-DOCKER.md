@@ -70,3 +70,6 @@ were not removed.
 `server/routes/deckforgeProxy.ts` exposes authenticated `/deckforge/*` reads to
 the local Presentation Studio at `DECKFORGE_URL` (default
 `http://host.docker.internal:4179`). The OS suite uses it for the live deck list and **Create DeckForge deck** in Improvements uses it for an authenticated POST.
+
+
+PDF Studio handoff: Settings → Connections → PDF Studio inbox; Feedback → Send to PDF Studio.
