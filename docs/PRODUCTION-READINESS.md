@@ -8,14 +8,14 @@ Date: 2026-10-30. This matrix distinguishes demo/UAT readiness from production.
 | Direct web exposure | Closed | ProcessLink web has no host port; only the shared Docker network |
 | OS-backed state | Ready | `/api/processlink/state`; feedback load verified through the API |
 | Agent device tokens | Ready | Per-device tokens; wrong token 401; list/revoke tested |
-| Fleet administration | Partial | Local single-tenant control plane; no hosted multi-tenant service |
+| Fleet administration | Partial | Local control plane, workspace-scoped; no hosted multi-tenant service |
 | Update integrity | Partial | SHA-256 and bundle signature checked; **not notarized** |
-| Developer ID signing | Blocked | No Developer ID Application identity in this environment |
+| Developer ID signing | Blocked | Apple Development only; notarization needs Developer ID credentials |
 | PDF Studio inbox | Ready | PDF Studio File → ProcessLink inbox; writes `.ack` |
 | PDF page annotations | Not done | ProcessLink anchors are process/map subjects, not PDF pages |
 | DeckForge round-trip | Ready | create + update verified at revision 2 |
-| OS sub-app route | Partial | Authenticated iframe at `/processlink/`, not an OS-owned React route |
-| Native restore | Not done | Backup inspection only; no restore |
+| OS sub-app route | Ready | Shadow-DOM micro-frontend at `/processlink/embed.js`; no iframe |
+| Native restore | Partial | Staged review; processes promoted on confirmation, opportunities/initiatives remain staged |
 | Data store | Partial | SwiftData native + OS JSON web state; not a shared multi-user DB |
 
 ## Notarization
