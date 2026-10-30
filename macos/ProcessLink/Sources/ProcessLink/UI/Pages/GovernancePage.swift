@@ -203,6 +203,8 @@ struct GovernancePage: View {
                         .controlSize(.small)
                     Button("Export workspace backup") { model.exportWorkspaceBackup() }
                         .controlSize(.small)
+                    Button("Inspect backup…") { model.inspectWorkspaceBackup() }
+                        .controlSize(.small)
                     Button("Apply retention purge") { confirmPurge = true }
                         .controlSize(.small)
                 }

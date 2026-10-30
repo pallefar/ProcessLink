@@ -1741,6 +1741,24 @@ final class AppModel {
         }
     }
 
+    func inspectWorkspaceBackup() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url,
+              let data = try? Data(contentsOf: url),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              root["schema"] as? String == "processlink-workspace-backup/1" else {
+            showToast("Not a ProcessLink backup", detail: "Expected schema processlink-workspace-backup/1.",
+                      symbol: "exclamationmark.triangle", warning: true)
+            return
+        }
+        let counts = root["counts"] as? [String: Int] ?? [:]
+        let summary = counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: " · ")
+        showToast("Backup inspected", detail: summary.isEmpty ? "No counts in file." : summary,
+                  symbol: "doc.text.magnifyingglass")
+    }
+
     // MARK: Updates
 
     @MainActor

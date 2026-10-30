@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useApp } from '../App'
 import { Card, Chip, Note, PageHead } from '../components/ui'
 import { evaluate, scanPII, type PIIScan } from '../domain/rules'
@@ -9,6 +9,7 @@ const GROUPS = ['Data protection', 'People', 'Accountability', 'AI & security']
 export default function Governance() {
   const { governance, audit, policy, setPolicy, setGovernanceStatus, feedback } = useApp()
   const [demo, setDemo] = useState<{ title: string; decision: PrivacyDecision; pii?: PIIScan } | null>(null)
+  const importRef = useRef<HTMLInputElement>(null)
   const done = governance.filter(item => item.status === 'done').length
   const blocked = governance.filter(item => item.status === 'blocked').length
 
@@ -27,7 +28,22 @@ export default function Governance() {
           const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
           const url = URL.createObjectURL(blob); const link = document.createElement('a')
           link.href = url; link.download = 'processlink-web-backup.json'; link.click(); URL.revokeObjectURL(url)
-        }}>Export data</button></>} />
+        }}>Export data</button><button className="btn small" onClick={() => importRef.current?.click()}>Import data</button><input ref={importRef} type="file" accept="application/json" hidden onChange={async event => {
+          const file = event.target.files?.[0]
+          if (!file) return
+          try {
+            const parsed = JSON.parse(await file.text()) as { schema?: string; feedback?: unknown[]; productFeedback?: unknown[]; importedBets?: unknown[]; agentPolicy?: unknown }
+            if (parsed.schema !== 'processlink-web-backup/1') throw new Error('Wrong backup schema')
+            if (!window.confirm('Replace local feedback, product feedback, imported bets and agent policy with this backup?')) return
+            if (Array.isArray(parsed.feedback)) localStorage.setItem('processlink.feedback.v1', JSON.stringify(parsed.feedback))
+            if (Array.isArray(parsed.productFeedback)) localStorage.setItem('processlink.productfeedback.v1', JSON.stringify(parsed.productFeedback))
+            if (Array.isArray(parsed.importedBets)) localStorage.setItem('processlink.importedBets', JSON.stringify(parsed.importedBets))
+            if (parsed.agentPolicy) localStorage.setItem('processlink.agent.policy.v1', JSON.stringify(parsed.agentPolicy))
+            window.location.reload()
+          } catch (error) {
+            window.alert(error instanceof Error ? error.message : 'Import failed')
+          }
+        }} /></>} />
 
       <div className="grid two">
         <div className="stack">
