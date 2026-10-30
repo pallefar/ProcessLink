@@ -22,7 +22,7 @@ function json(res, status, body) {
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': '*',
     'access-control-allow-headers': 'content-type, authorization',
-    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'cache-control': 'no-store',
   })
   res.end(JSON.stringify(body))
@@ -77,6 +77,20 @@ const server = http.createServer(async (req, res) => {
       agent.lastHeartbeat = new Date().toISOString()
       save(state)
       return json(res, 200, { ok: true, deviceID: agent.deviceID, lastHeartbeat: agent.lastHeartbeat })
+    }
+    if (req.method === 'GET' && req.url === '/v1/agents') {
+      if (!adminAuthorized(req)) return json(res, 401, { error: 'enrollment token required' })
+      const agents = Object.values(load().agents).map(({ tokenHash: _omit, ...safe }) => safe)
+      return json(res, 200, { agents })
+    }
+    if (req.method === 'DELETE' && req.url.startsWith('/v1/agents/')) {
+      if (!adminAuthorized(req)) return json(res, 401, { error: 'enrollment token required' })
+      const deviceID = decodeURIComponent(req.url.slice('/v1/agents/'.length))
+      const state = load()
+      if (!state.agents[deviceID]) return json(res, 404, { error: 'unknown device' })
+      delete state.agents[deviceID]
+      save(state)
+      return json(res, 200, { ok: true, deviceID })
     }
     if (req.method === 'GET' && req.url.startsWith('/v1/policy')) {
       const deviceID = new URL(req.url, 'http://localhost').searchParams.get('deviceID') || ''

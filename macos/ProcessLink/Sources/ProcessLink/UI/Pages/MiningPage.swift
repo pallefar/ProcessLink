@@ -44,6 +44,7 @@ struct MiningPage: View {
     @State private var aiNaming = false
     @AppStorage("agent.deviceID") private var agentDeviceID = ""
     @State private var agentToken = ""
+    @State private var showingFleet = false
     @AppStorage("capture.windowTitles") private var captureWindowTitles = false
     @AppStorage("capture.screenshots") private var captureScreenshots = false
     @AppStorage("capture.inputCounts") private var captureInputCounts = false
@@ -624,6 +625,9 @@ struct MiningPage: View {
                         }
                         .controlSize(.small)
                         .disabled(policy.endpoint.isEmpty || agentToken.isEmpty || policy.deviceID.isEmpty)
+                        Button("Fleet") { showingFleet = true }
+                            .controlSize(.small)
+                            .disabled(policy.endpoint.isEmpty || agentToken.isEmpty)
                         Text("Device").font(.caption2).foregroundStyle(.tertiary)
                         Text(policy.deviceID.isEmpty ? "not enrolled" : policy.deviceID.prefix(8))
                             .font(.caption2.monospaced()).foregroundStyle(.tertiary)
@@ -636,6 +640,9 @@ struct MiningPage: View {
             }
             .onAppear {
                 if let saved = KeychainStore.get(account: "agent.serviceToken") { agentToken = saved }
+            }
+            .sheet(isPresented: $showingFleet) {
+                AgentFleetSheet(token: agentToken)
             }
             .sheet(isPresented: $showingConsent) {
                 VStack(alignment: .leading, spacing: Space.md) {
@@ -1068,5 +1075,56 @@ private struct MiningImportSheet: View {
             ForEach(headers, id: \.self) { header in Text(header).tag(header) }
         }
         .labelsHidden()
+    }
+}
+
+
+private struct AgentFleetSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    let token: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.md) {
+            HStack {
+                Text("Agent fleet").font(.title3.weight(.semibold))
+                Spacer()
+                Button("Close") { dismiss() }
+            }
+            Text("Devices enrolled in the local control plane. Revoking removes the device token.")
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Button("Refresh") { Task { await model.refreshAgentFleet(token: token) } }
+                    .controlSize(.small)
+                Spacer()
+                Text("\(model.fleetAgents.count) devices").font(.caption).foregroundStyle(.tertiary)
+            }
+            if model.fleetAgents.isEmpty {
+                ContentUnavailableView("No enrolled devices", systemImage: "desktopcomputer",
+                                       description: Text("Enroll this Mac from the agent card."))
+                    .frame(maxWidth: .infinity, minHeight: 160)
+            } else {
+                ForEach(model.fleetAgents) { device in
+                    HStack(spacing: Space.sm) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(device.deviceID).font(.caption.monospaced())
+                            Text("\(device.workspaceID)/\(device.projectID) · heartbeat \(device.lastHeartbeat)")
+                                .font(.caption2).foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Chip(text: device.active ? "Active" : "Paused",
+                             tint: device.active ? .green : .secondary)
+                        Button("Revoke", role: .destructive) {
+                            Task { await model.revokeFleetDevice(device, token: token) }
+                        }
+                        .controlSize(.small)
+                    }
+                    RowDivider()
+                }
+            }
+        }
+        .padding(Space.lg)
+        .frame(width: 560, height: 420)
+        .task { await model.refreshAgentFleet(token: token) }
     }
 }

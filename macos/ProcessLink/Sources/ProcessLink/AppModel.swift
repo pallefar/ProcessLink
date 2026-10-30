@@ -160,6 +160,7 @@ final class AppModel {
     var updateStatus: String = "idle"
     var updateError: String = ""
     var updateLastChecked: Date?
+    var fleetAgents: [AgentFleetDevice] = []
 
     /// Policy values. Persisted per Mac; the real thresholds are a works
     /// council decision, not a slider a developer ships.
@@ -1868,6 +1869,48 @@ final class AppModel {
             }
         } catch {
             showToast("Policy refresh failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+        }
+    }
+
+    struct AgentFleetDevice: Identifiable, Hashable {
+        var id: String { deviceID }
+        var deviceID: String
+        var workspaceID: String
+        var projectID: String
+        var lastHeartbeat: String
+        var active: Bool
+    }
+
+    func refreshAgentFleet(token: String) async {
+        guard let policy = capturePolicy(), !policy.endpoint.isEmpty else { return }
+        do {
+            let rows = try await AgentServiceClient.listAgents(endpoint: policy.endpoint, enrollmentToken: token)
+            fleetAgents = rows.compactMap { row in
+                guard let deviceID = row["deviceID"] as? String else { return nil }
+                return AgentFleetDevice(
+                    deviceID: deviceID,
+                    workspaceID: row["workspaceID"] as? String ?? "",
+                    projectID: row["projectID"] as? String ?? "",
+                    lastHeartbeat: row["lastHeartbeat"] as? String ?? "",
+                    active: (row["policy"] as? [String: Any])?["active"] as? Bool ?? false)
+            }
+            showToast("Fleet refreshed", detail: "\(fleetAgents.count) enrolled devices", symbol: "desktopcomputer")
+        } catch {
+            showToast("Fleet refresh failed", detail: error.localizedDescription,
+                      symbol: "exclamationmark.triangle", warning: true)
+        }
+    }
+
+    func revokeFleetDevice(_ device: AgentFleetDevice, token: String) async {
+        guard let policy = capturePolicy(), !policy.endpoint.isEmpty else { return }
+        do {
+            try await AgentServiceClient.revoke(endpoint: policy.endpoint, enrollmentToken: token, deviceID: device.deviceID)
+            fleetAgents.removeAll { $0.deviceID == device.deviceID }
+            audit(action: "agent.revoked", subject: device.deviceID, detail: "Control plane enrollment removed")
+            showToast("Device revoked", detail: device.deviceID, symbol: "minus.circle")
+        } catch {
+            showToast("Revoke failed", detail: error.localizedDescription,
                       symbol: "exclamationmark.triangle", warning: true)
         }
     }

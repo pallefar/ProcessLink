@@ -21,6 +21,27 @@ enum AgentServiceClient {
         _ = try await post(endpoint: endpoint, path: "/v1/heartbeat", token: deviceToken, body: ["deviceID": deviceID])
     }
 
+    static func listAgents(endpoint: String, enrollmentToken: String) async throws -> [[String: Any]] {
+        guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespaces) + "/v1/agents") else { throw AgentError.badURL }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        request.setValue("Bearer \(enrollmentToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw AgentError.http((response as? HTTPURLResponse)?.statusCode ?? 0) }
+        let root = (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        return root["agents"] as? [[String: Any]] ?? []
+    }
+
+    static func revoke(endpoint: String, enrollmentToken: String, deviceID: String) async throws {
+        guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespaces) + "/v1/agents/" + deviceID) else { throw AgentError.badURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.timeoutInterval = 10
+        request.setValue("Bearer \(enrollmentToken)", forHTTPHeaderField: "Authorization")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw AgentError.http((response as? HTTPURLResponse)?.statusCode ?? 0) }
+    }
+
     static func policy(endpoint: String, deviceToken: String, deviceID: String) async throws -> [String: Any] {
         guard var components = URLComponents(string: endpoint.trimmingCharacters(in: .whitespaces) + "/v1/policy") else {
             throw AgentError.badURL
